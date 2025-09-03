@@ -1,0 +1,18 @@
+name: Docker Publish (PR Images)
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to build (leave empty for manual branch build)'
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  build:
+    uses: ./.github/workflows/service_docker-build-and-publish.yml
+    with:
+      docker-tags: "ghcr.io/${{ github.repository }}:${{ github.sha }}"
+      dockerfile: "./Dockerfile.php"
+      environment: production
+    secrets: inherit
