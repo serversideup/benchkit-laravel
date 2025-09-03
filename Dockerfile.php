@@ -1,11 +1,14 @@
 ############################################
 # Base Image
 ############################################
-ARG BASE_IMAGE_TAG=8.4-fpm-nginx-alpine
+ARG PHP_VARIATION=fpm-nginx
+ARG PHP_VERSION=8.4
+ARG BASE_OS=alpine
+ARG BASE_IMAGE="serversideup/php-dev:283-${PHP_VERSION}-${PHP_VARIATION}-${BASE_OS}"
 
 # Learn more about the Server Side Up PHP Docker Images at:
 # https://serversideup.net/open-source/docker-php/
-FROM serversideup/php:${BASE_IMAGE_TAG} AS base
+FROM ${BASE_IMAGE} AS base
 
 ## Uncomment if you need to install additional PHP extensions
 # USER root
@@ -82,6 +85,7 @@ ENV APP_NAME=BenchKit \
 # Development Image
 ############################################
 FROM base AS development
+ARG PHP_VARIATION=fpm-nginx
 
 # We can pass USER_ID and GROUP_ID as build arguments
 # to ensure the www-data user has the same UID and GID
@@ -98,7 +102,7 @@ RUN update-ca-certificates
 
 # Set the user ID and group ID for www-data
 RUN docker-php-serversideup-set-id www-data $USER_ID:$GROUP_ID  && \
-    docker-php-serversideup-set-file-permissions --owner $USER_ID:$GROUP_ID --service nginx
+    docker-php-serversideup-set-file-permissions --owner $USER_ID:$GROUP_ID --service ${PHP_VARIATION#fpm-}
 
 # Drop privileges back to www-data    
 USER www-data
@@ -112,19 +116,23 @@ FROM base AS ci
 # so we set the ROOT user and configure
 # the PHP-FPM pool to run as www-data
 USER root
-RUN echo "" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \ 
-    echo "user = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
-    echo "group = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf
+RUN if command -v php-fpm > /dev/null 2>&1; then \
+      echo "" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
+      echo "user = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
+      echo "group = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf; \
+    fi
 
 ############################################
 # Production Image
 ############################################
 FROM base AS final
+ARG REPOSITORY_BUILD_VERSION="dev"
 COPY --chown=www-data:www-data . /var/www/html
 
 # Create the SQLite directory and set the owner to www-data (remove this if you're not using SQLite)
-RUN mkdir -p /var/www/html/.infrastructure/volume_data/sqlite/ && \
-    chown -R www-data:www-data /var/www/html/.infrastructure/volume_data/sqlite/
+RUN mkdir -p /var/www/html/.infrastructure/volume_data/sqlite/; \
+    chown -R www-data:www-data /var/www/html/.infrastructure/volume_data/sqlite/; \
+    echo "${REPOSITORY_BUILD_VERSION}" > /var/www/html/.build-version
 
 VOLUME /var/www/html/.env
 
