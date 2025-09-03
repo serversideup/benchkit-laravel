@@ -1,0 +1,42 @@
+FROM node:22 AS base
+
+############################################
+# Development Image
+############################################
+FROM base AS development
+
+# We can pass USER_ID and GROUP_ID as build arguments
+# to ensure the node user has the same UID and GID
+# as the user running Docker.
+ARG USER_ID
+ARG GROUP_ID
+
+# Switch to root so we can set the user ID and group ID
+USER root
+
+# Script to handle existing group ID
+RUN if getent group "$GROUP_ID" > /dev/null; then \
+        moved_group_id="99$GROUP_ID"; \
+        existing_group_name=$(getent group "$GROUP_ID" | cut -d: -f1); \
+        echo "Moving GID of $existing_group_name to $moved_group_id..."; \
+        groupmod -g "$moved_group_id" "$existing_group_name"; \
+    fi
+
+# Script to handle existing user ID
+RUN if getent passwd "$USER_ID" > /dev/null; then \
+        moved_user_id="99$USER_ID"; \
+        existing_username=$(getent passwd "$USER_ID" | cut -d: -f1); \
+        echo "Moving UID of $existing_username to $moved_user_id..."; \
+        usermod -u "$moved_user_id" "$existing_username"; \
+    fi
+
+# Set the user ID and group ID for the node user
+RUN groupmod -g $GROUP_ID node && usermod -u $USER_ID -g $GROUP_ID node
+
+# Drop privileges back to node user
+USER node
+
+############################################
+# CI Image
+############################################
+FROM base AS ci

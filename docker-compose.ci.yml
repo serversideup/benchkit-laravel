@@ -1,0 +1,19 @@
+services:
+
+  php:
+    build:
+      target: ci
+      dockerfile: Dockerfile.php
+    volumes:
+      - .:/var/www/html/
+
+  node:
+    build:
+      target: ci
+      dockerfile: Dockerfile.node
+    volumes:
+      - .:/usr/src/app/
+    working_dir: /usr/src/app/
+
+  mailpit:
+    image: axllent/mailpit

@@ -1,0 +1,80 @@
+services:
+  traefik:
+    ports:
+    - "80:80"
+    - "443:443"
+    # - "8080:8080" # Uncomment to enable Traefik's dashboard
+    networks:
+      development:
+        aliases:
+          - benchkit.dev.test
+          - vite.dev.test
+          - mailpit.dev.test
+          - reverb.dev.test
+    volumes:
+      # Mount the Docker socket as read-only so Traefik can listen to events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./.infrastructure/conf/traefik/dev/traefik.yml:/traefik.yml:ro
+      - ./.infrastructure/conf/traefik/dev/traefik-certs.yml:/traefik-certs.yml
+      - ./.infrastructure/conf/traefik/dev/certificates/:/certificates
+
+  php:
+    build:
+      target: development
+      args:
+        USER_ID: ${SPIN_USER_ID}
+        GROUP_ID: ${SPIN_GROUP_ID}
+      dockerfile: Dockerfile.php
+    stop_signal: SIGTERM
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=https://benchkit.dev.test
+    volumes:
+      - .:/var/www/html/
+    networks:
+      - development
+    depends_on:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.laravel-web.rule=Host(`benchkit.dev.test`)"
+      - "traefik.http.routers.laravel-web.tls=true"
+      - "traefik.http.routers.laravel-web.entrypoints=websecure"
+      - "traefik.http.services.laravel-web.loadbalancer.server.port=8443"
+      - "traefik.http.services.laravel-web.loadbalancer.server.scheme=https"
+  
+  node:
+    build:
+      target: development
+      args:
+        USER_ID: ${SPIN_USER_ID}
+        GROUP_ID: ${SPIN_GROUP_ID}
+      dockerfile: Dockerfile.node
+    volumes:
+      - .:/usr/src/app/
+    working_dir: /usr/src/app/
+    networks: 
+      - development
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vite.rule=HostRegexp(`vite.dev.test`)"
+      - "traefik.http.routers.vite.entrypoints=websecure"
+      - "traefik.http.routers.vite.tls=true"
+      - "traefik.http.services.vite.loadbalancer.server.port=5173"
+      - "traefik.http.services.vite.loadbalancer.server.scheme=https"
+
+  mailpit:
+      image: axllent/mailpit
+      networks:
+        - development
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.mailpit.rule=Host(`mailpit.dev.test`)"
+        - "traefik.http.routers.mailpit.entrypoints=websecure"
+        - "traefik.http.routers.mailpit.tls=true"
+        - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+        - "traefik.http.services.mailpit.loadbalancer.server.scheme=http"
+
+networks:
+  development:

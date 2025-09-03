@@ -1,0 +1,120 @@
+on:
+  workflow_call:
+    inputs:
+      platforms:
+        type: string
+        default: 'linux/amd64'
+      docker-tags:
+        required: true
+        type: string
+      dockerfile:
+        type: string
+        default: './Dockerfile'
+      target:
+        type: string
+        default: ''
+      environment:
+        type: string
+        required: true
+env:
+  DOCKER_COMPOSE_CMD: docker compose -f docker-compose.yml -f docker-compose.ci.yml
+jobs:
+  docker-publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Restore composer cache (if available)
+        id: composer-vendor-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: vendor/
+          key: ${{ runner.os }}-composer-vendor-${{ hashFiles('composer.lock') }}
+      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
+        name: List the composer packages
+        continue-on-error: true
+        run: |
+          $DOCKER_COMPOSE_CMD \
+          run \
+          php \
+          composer show --locked
+      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
+        name: Install Composer dependencies
+        run: |
+          $DOCKER_COMPOSE_CMD \
+          run \
+          php \
+          composer install --optimize-autoloader --no-interaction --no-progress --no-ansi
+      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
+        name: Upload composer cache
+        uses: actions/cache/save@v4
+        with:
+          path: vendor/
+          key: ${{ runner.os }}-composer-vendor-${{ hashFiles('composer.lock') }}
+      - name: Set uppercase environment name
+        id: env-name
+        run: echo "upper_env=${ENVIRONMENT^^}" >> $GITHUB_OUTPUT
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+      - name: Validate and set environment file
+        run: |
+          SECRET_NAME="${{ steps.env-name.outputs.upper_env }}_ENV_FILE_BASE64"
+          if [ -z "$ENV_FILE_BASE64" ]; then
+            echo "::error::Required secret '$SECRET_NAME' is not set. Please add this secret to your repository. If you previously used 'ENV_FILE_BASE64', be sure to rename it to '$SECRET_NAME'."
+            exit 1
+          fi
+
+          echo $ENV_FILE_BASE64 | base64 -d > .env
+          chmod 600 .env
+        env:
+          ENV_FILE_BASE64: ${{ secrets[format('{0}_ENV_FILE_BASE64', steps.env-name.outputs.upper_env)] }}
+      - name: Determine package manager
+        id: determine-package-manager
+        run: |
+          if [ -f yarn.lock ]; then
+            echo "PACKAGE_MANAGER=yarn" >> $GITHUB_ENV
+            echo "LOCK_FILE=yarn.lock" >> $GITHUB_ENV
+          elif [ -f package-lock.json ]; then
+            echo "PACKAGE_MANAGER=npm" >> $GITHUB_ENV
+            echo "LOCK_FILE=package-lock.json" >> $GITHUB_ENV
+          else
+            echo "No lock file found. Exiting."
+            exit 1
+          fi
+      - name: Set cache key
+        id: set-cache-key
+        run: echo "CACHE_KEY=${{ runner.os }}-node-modules-${{ hashFiles(env.LOCK_FILE) }}" >> $GITHUB_OUTPUT
+      - name: Restore node_modules cache (if available)
+        id: node-modules-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules/
+          key: ${{ steps.set-cache-key.outputs.CACHE_KEY }}
+      - if: ${{ steps.node-modules-restore.outputs.cache-hit != 'true' }}
+        name: Install dependencies
+        run: |
+          $DOCKER_COMPOSE_CMD \
+          run \
+          node \
+          ${{ env.PACKAGE_MANAGER }} install
+      - name: Build node project
+        run: |
+          $DOCKER_COMPOSE_CMD \
+          run \
+          node \
+          ${{ env.PACKAGE_MANAGER }} run build
+      - if: ${{ steps.node-modules-restore.outputs.cache-hit != 'true' }}
+        name: Upload node_modules cache
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/
+          key: ${{ steps.set-cache-key.outputs.CACHE_KEY }}
+      - name: docker-build-action
+        uses: serversideup/github-action-docker-build@v5
+        with:
+          tags: "${{ inputs.docker-tags }}"
+          dockerfile: "${{ inputs.dockerfile }}"
+          registry: "ghcr.io"
+          registry-username: "${{ github.actor }}"
+          registry-token: "${{ secrets.GITHUB_TOKEN }}"
+          platforms: "${{ inputs.platforms }}"

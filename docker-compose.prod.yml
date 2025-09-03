@@ -1,0 +1,89 @@
+services:
+
+  traefik:
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+    networks:
+        - web-public
+    deploy:
+      update_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+      placement:
+        constraints:
+          - node.role==manager
+    volumes:
+      # Mount the Docker socket as read-only so Traefik can listen to events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certificates:/certificates
+    configs:
+      - source: traefik
+        target: /etc/traefik/traefik.yml
+
+  php:
+    image: ${SPIN_IMAGE_DOCKERFILE_PHP}
+    environment:
+      AUTORUN_ENABLED: "true" # 👈 Remove this line if you don't want Laravel Automations
+      APP_ENV: "${SPIN_DEPLOYMENT_ENVIRONMENT}"
+      PHP_OPCACHE_ENABLE: "1"
+      HEALTHCHECK_PATH: "/up"
+    networks:
+      - web-public
+    volumes:
+      - "storage_private:/var/www/html/storage/app/private/"
+      - "storage_public:/var/www/html/storage/app/public/"
+      - "storage_sessions:/var/www/html/storage/framework/sessions"
+      - "storage_logs:/var/www/html/storage/logs"
+      - "database_sqlite:/var/www/html/.infrastructure/volume_data/sqlite"
+    deploy:
+      replicas: 1
+      update_config:
+        failure_action: rollback
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      rollback_config:
+        parallelism: 0
+        order: stop-first
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.laravel-web.rule=Host(`${SPIN_APP_DOMAIN}`)"
+        - "traefik.http.routers.laravel-web.entrypoints=websecure"
+        - "traefik.http.routers.laravel-web.tls=true"
+        - "traefik.http.routers.laravel-web.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.laravel-web.loadbalancer.server.port=8443"
+        - "traefik.http.services.laravel-web.loadbalancer.server.scheme=https"
+        # Health check
+        - "traefik.http.services.laravel-web.loadbalancer.healthcheck.path=/up"
+        - "traefik.http.services.laravel-web.loadbalancer.healthcheck.interval=30s"
+        - "traefik.http.services.laravel-web.loadbalancer.healthcheck.timeout=5s"
+        - "traefik.http.services.laravel-web.loadbalancer.healthcheck.scheme=https"
+
+configs:
+  traefik:
+    name: "traefik-${SPIN_MD5_HASH_TRAEFIK_YML}.yml"
+    file: ./.infrastructure/conf/traefik/prod/traefik.yml
+
+volumes:
+  certificates:
+  storage_private:
+  storage_public:
+  storage_sessions:
+  storage_logs:
+  database_sqlite:
+
+networks:
+  web-public:
