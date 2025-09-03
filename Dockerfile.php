@@ -12,7 +12,7 @@ FROM serversideup/php:${BASE_IMAGE_TAG} AS base
 # RUN install-php-extensions bcmath gd
 
 ## Laravel Environment Variable Defaults
-ENV APP_NAME=Benchkit \
+ENV APP_NAME=BenchKit \
     APP_ENV=production \
     APP_DEBUG=false \
     APP_URL=https://example.com \
