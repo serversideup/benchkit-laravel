@@ -1,5 +1,5 @@
 <p align="center">
-		<img src="https://raw.githubusercontent.com/serversideup/benchkit-laravel/main/.github/img/header.png" width="1280" alt="Benchkit Header"></a>
+		<img src="https://raw.githubusercontent.com/serversideup/benchkit-laravel/main/.github/img/header.png" width="1280" alt="BenchKit Header"></a>
 </p>
 <p align="center">
 	<a href="https://github.com/serversideup/benchkit-laravel/actions/workflows/action_publish-images-production.yml"><img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/serversideup/benchkit-laravel/.github%2Fworkflows%2Faction_publish-images-production.yml"></a>
@@ -11,7 +11,7 @@
 </p>
 
 ## Introduction
-Benchkit for Laravel is an open source and containerized Laravel application to help you understand how your host and Laravel configurations are actually performing. We put together this application that runs realistic benchmark tests through Laravel so you can understand the actual performance of your setup. Running Benchkit for Laravel also 
+BenchKit for Laravel is an open source and containerized Laravel application to help you understand how your host and Laravel configurations are actually performing. We put together this application that runs realistic benchmark tests through Laravel so you can understand the actual performance of your setup. Running BenchKit for Laravel also helps you build faster and more reliable applications.
 
 ## Powered by Spin Pro
 Spin is an [open source tool built by Server Side Up](https://serversideup.net/open-source/spin/) to help you run Docker from development → production. Spin is language agnostic, so you can use it with any language but we also provide official templates. This project was powered by Spin Pro, which offers additional features for Laravel power users.
@@ -45,7 +45,7 @@ Here's common questions to help you understand how this application works.
 </details>
 <details>
   <summary>How can I share my results with the community?</summary>
-  When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of #Benchkit and #Laravel.
+  When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of [#BenchKit and #Laravel](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live).
 </details>
 
 ## Resources
