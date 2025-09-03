@@ -24,3 +24,6 @@ Homestead.yaml
 Thumbs.db
 .vault-password
 .spin.yml
+scripts/assemble-docker-tags.sh
+scripts/generate-matrix.sh
+.build-version
