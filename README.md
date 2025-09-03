@@ -85,14 +85,6 @@ This project takes an incredible amount of computing power to build and maintain
 #### Individual Supporters
 <!-- supporters --><a href="https://github.com/GeekDougle"><img src="https://github.com/GeekDougle.png" width="40px" alt="GeekDougle" /></a>&nbsp;&nbsp;<a href="https://github.com/MaltMethodDev"><img src="https://github.com/MaltMethodDev.png" width="40px" alt="MaltMethodDev" /></a>&nbsp;&nbsp;<a href="https://github.com/bananabrann"><img src="https://github.com/bananabrann.png" width="40px" alt="bananabrann" /></a>&nbsp;&nbsp;<!-- supporters -->
 
-#### Special thanks
-We'd like to specifically thank a few folks for taking the time for being a sound board that deeply influenced the direction of this project.
-
-Please check out their work:
-- [Chris Fidao](https://x.com/fideloper)
-- [Joel Clermont](https://x.com/jclermont)
-- [Patricio](https://x.com/PatricioOnCode)
-
 ## About Us
 We're [Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers) - a two person team with a passion for open source products. We created [Server Side Up](https://serversideup.net) to help share what we learn.
 
