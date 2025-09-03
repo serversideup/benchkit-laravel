@@ -6,3 +6,4 @@ Dockerfile
 docker-*.yml
 .gitlab-ci.yml
 .spin*
+scripts/
