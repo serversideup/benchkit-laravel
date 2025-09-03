@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ❓ Support Question
+    url: https://github.com/serversideup/benchkit-laravel/discussions
+    about: Get friendly support from the community in Discussions.
+
+  - name: ✨ Request a feature
+    url: https://github.com/serversideup/benchkit-laravel/discussions/1
+    about: Learn how to request a new feature.
+
+  - name: 🤵 Get Professional Support & Customizations
+    url: https://serversideup.net/professional-support
+    about: Skip the line and get priority support directly from the creators of Server Side Up.
