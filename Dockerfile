@@ -12,6 +12,23 @@ ARG BASE_IMAGE=serversideup/php-dev:283-${PHP_VERSION}-${PHP_VARIATION}-${BASE_O
 # https://serversideup.net/open-source/docker-php/
 FROM ${BASE_IMAGE} AS php-base
 
+ARG TARGETPLATFORM
+
+# Switch to root to install dependencies
+USER root
+
+RUN \
+    # Install dependencies for installing NVM
+    docker-php-serversideup-dep-install-alpine "ca-certificates"; \
+    docker-php-serversideup-dep-install-debian "ca-certificates"; \
+    # Install cfspeed CLI
+    curl -fsSL "https://github.com/makotom/cfspeed/releases/download/0.2.926-bbecf77/cfspeed-0.2.926-bbecf77-linux-${TARGETPLATFORM#linux/}.tar.gz" \
+    | tar -xz -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/cfspeed
+
+# Switch back to www-data to run the application
+USER www-data
+
 # Install Yet Another Bench Script
 ADD --keep-git-dir=false --chmod=755 --chown=www-data:www-data https://github.com/masonr/yet-another-bench-script.git /opt/yet-another-bench-script/
 
@@ -83,6 +100,12 @@ ENV APP_NAME=BenchKit \
     MAIL_ENCRYPTION=
 
 ############################################
+# Node.js - Base Image
+############################################
+ARG BASE_OS=trixie
+FROM node:22-${BASE_OS} AS node-base
+
+############################################
 # PHP - Development Image
 ############################################
 FROM php-base AS php-development
@@ -122,11 +145,6 @@ RUN if command -v php-fpm > /dev/null 2>&1; then \
       echo "user = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
       echo "group = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf; \
     fi
-
-############################################
-# Node.js - Base Image
-############################################
-FROM node:22 AS node-base
 
 ############################################
 # Node.js - Development Image
