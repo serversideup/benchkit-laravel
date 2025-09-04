@@ -18,7 +18,7 @@ ARG TARGETPLATFORM
 USER root
 
 RUN \
-    # Install dependencies for installing NVM
+    # Install dependencies for cfspeed CLI
     docker-php-serversideup-dep-install-alpine "ca-certificates"; \
     docker-php-serversideup-dep-install-debian "ca-certificates"; \
     # Install cfspeed CLI
