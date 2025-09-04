@@ -20,14 +20,14 @@ services:
 
   php:
     build:
-      target: development
+      target: php-development
       args:
         USER_ID: ${SPIN_USER_ID}
         GROUP_ID: ${SPIN_GROUP_ID}
         PHP_VARIATION: "${PHP_VARIATION:-fpm-nginx}"
         PHP_VERSION: "${PHP_VERSION:-8.4}"
         BASE_OS: "${BASE_OS:-alpine}"
-      dockerfile: Dockerfile.php
+      dockerfile: Dockerfile
     stop_signal: SIGTERM
     environment:
       - APP_ENV=local
@@ -49,11 +49,11 @@ services:
   
   node:
     build:
-      target: development
+      target: node-development
       args:
         USER_ID: ${SPIN_USER_ID}
         GROUP_ID: ${SPIN_GROUP_ID}
-      dockerfile: Dockerfile.node
+      dockerfile: Dockerfile
     volumes:
       - .:/usr/src/app/
     working_dir: /usr/src/app/
