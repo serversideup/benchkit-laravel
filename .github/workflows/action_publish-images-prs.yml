@@ -1,4 +1,5 @@
 name: Docker Publish (PR Images)
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,11 +9,19 @@ on:
         type: string
   pull_request:
     types: [opened, synchronize, reopened]
+
 jobs:
-  build:
+  build-dev-images:
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
-      docker-tags: "ghcr.io/${{ github.repository }}:${{ github.sha }}"
-      dockerfile: "./Dockerfile.php"
-      environment: production
+      registry-repositories: "docker.io/serversideup/benchkit-laravel"
+      # Use PR number from input if provided, otherwise use the PR event number
+      tag-prefix: "pr-${{ inputs.pr_number || github.event.pull_request.number }}"
+      release-type: testing
+      authenticate_with_ghcr: false
+      push-to-registry: >-
+        ${{ 
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.type == 'Organization')
+        }}
     secrets: inherit
