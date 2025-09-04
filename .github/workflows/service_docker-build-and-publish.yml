@@ -15,6 +15,10 @@ on:
         type: string
         default: 'scripts/conf/php-versions.yml'
         description: 'The path to the PHP versions file.'
+      assemble-docker-tags-file:
+          type: string
+          default: 'scripts/conf/assemble-docker-tags.sh'
+          description: 'The path to the assemble-docker-tags.sh file.'
       registry-repositories:
         type: string
         required: true
@@ -39,7 +43,7 @@ jobs:
       php-version-map-json: ${{ steps.get-php-versions.outputs.php-version-map-json }}
     steps:
     - name: Check out code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         ref: ${{ inputs.ref }}
     
@@ -70,6 +74,12 @@ jobs:
         name: php-versions.yml
         path: ${{ inputs.php-versions-file }}
 
+    - name: Upload the assemble-docker-tags.sh file
+      uses: actions/upload-artifact@v5
+      with:
+        name: assemble-docker-tags.sh
+        path: ${{ inputs.assemble-docker-tags-file }}
+
   docker-publish:
     needs: setup-matrix
     runs-on: depot-ubuntu-24.04-4
@@ -78,15 +88,21 @@ jobs:
 
     steps:
       - name: Check out code.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
   
       - name: Download PHP Versions file
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: php-versions.yml
           path: ${{ inputs.php-versions-file }}
+
+      - name: Download assemble-docker-tags.sh file
+        uses: actions/download-artifact@v5
+        with:
+          name: assemble-docker-tags.sh
+          path: ${{ inputs.assemble-docker-tags-file }}
       
       ##
       # Docker build & publish
@@ -114,8 +130,8 @@ jobs:
 
       - name: "📦 Assemble the Docker Tags"
         run: |
-          chmod +x ./scripts/assemble-docker-tags.sh
-          ./scripts/assemble-docker-tags.sh
+          chmod +x ${{ inputs.assemble-docker-tags-file }}
+          ${{ inputs.assemble-docker-tags-file }}
         env:
           PHP_VERSIONS_FILE: "${{ inputs.php-versions-file }}"
           PHP_BUILD_VERSION: ${{ matrix.patch_version }}
