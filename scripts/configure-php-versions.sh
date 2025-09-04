@@ -26,9 +26,6 @@ DESTINATION_PHP_VERSIONS_FILE="$SCRIPTS_DIR/conf/php-versions.yml"
 SOURCE_PHP_VERSIONS_BRANCH="${SOURCE_PHP_VERSIONS_BRANCH:-"main"}"
 SOURCE_PHP_VERSIONS_REPOSITORY="https://github.com/serversideup/docker-php.git"
 
-# Default settings
-DEFAULT_PHP_VARIATION="fpm-nginx"
-
 ###################################################
 # Prepare for execution
 ###################################################
@@ -58,7 +55,11 @@ clone_docker_php_repository() {
   git clone --branch "$SOURCE_PHP_VERSIONS_BRANCH" "$SOURCE_PHP_VERSIONS_REPOSITORY" "$TMP_DIR"
 }
 
-enforce_minimum_php_version() {
+download_php_versions_file() {
+  bash "$TMP_DIR/scripts/get-php-versions.sh" --input "$TMP_DIR/scripts/conf/php-versions-base-config.yml" --output "$DESTINATION_PHP_VERSIONS_FILE"
+}
+
+enforce_minimum_php_version_from_composer_json() {
   # Enforce the minimum PHP version based on composer.json's require.php
   local composer_file
   composer_file="$(dirname "$SCRIPTS_DIR")/composer.json"
@@ -107,28 +108,36 @@ enforce_minimum_php_version() {
   yq -i '.php_versions |= map(select((.minor_versions | length) > 0))' "$DESTINATION_PHP_VERSIONS_FILE"
 }
 
+remove_operating_systems() {
+  set -f
+  for operating_system in "$@"; do
+    pattern="$operating_system"
+    regex=$(printf '%s' "$pattern" | sed -e 's|[.[\\^$|(){}+]|\\&|g' -e 's|[*]|.*|g' -e 's|[?]|.|g')
+    regex="^${regex}$"
+    env OS_REGEX="$regex" yq -i 'del(.php_versions[].minor_versions[].base_os[] | select(.name | test(strenv(OS_REGEX))))' "$DESTINATION_PHP_VERSIONS_FILE"
+  done
+  set +f
+}
+
 remove_variations() {
   for variation in "$@"; do
     yq -i 'del(.php_variations[] | select(.name == "'"$variation"'"))' "$DESTINATION_PHP_VERSIONS_FILE"
   done
 }
 
-set_php_versions_file() {
-  bash "$TMP_DIR/scripts/get-php-versions.sh" --input "$TMP_DIR/scripts/conf/php-versions-base-config.yml" --output "$DESTINATION_PHP_VERSIONS_FILE"
-}
-
-set_default_php_variation() {
-  # Remove default from all variations
-  yq -i '.php_variations[] |= del(.default)' "$DESTINATION_PHP_VERSIONS_FILE"
-  # Set default on the desired variation
-  env DEFAULT_PHP_VARIATION="$DEFAULT_PHP_VARIATION" \
-    yq -i '(.php_variations[] | select(.name == strenv(DEFAULT_PHP_VARIATION))).default = true' "$DESTINATION_PHP_VERSIONS_FILE"
-}
-
-move_other_serversideup_php_scripts() {
+reuse_other_serversideup_php_scripts() {
   for script in "$@"; do
     mv "$TMP_DIR/scripts/$script" "$SCRIPTS_DIR/$script"
   done
+}
+
+set_default_php_variation() {
+  local default_php_variation="$1"
+  # Remove default from all variations
+  yq -i '.php_variations[] |= del(.default)' "$DESTINATION_PHP_VERSIONS_FILE"
+  # Set default on the desired variation
+  env DEFAULT_PHP_VARIATION="$default_php_variation" \
+    yq -i '(.php_variations[] | select(.name == strenv(DEFAULT_PHP_VARIATION))).default = true' "$DESTINATION_PHP_VERSIONS_FILE"
 }
 
 ###################################################
@@ -137,8 +146,13 @@ move_other_serversideup_php_scripts() {
 
 check_dependencies curl yq jq git
 clone_docker_php_repository
-set_php_versions_file
-set_default_php_variation
+download_php_versions_file
+set_default_php_variation "fpm-nginx"
+
+# Don't test CLI or FPM variations
 remove_variations cli fpm
-enforce_minimum_php_version
-move_other_serversideup_php_scripts assemble-docker-tags.sh generate-matrix.sh
+
+# Remove Alpine operating systems for Geekbench compatibility reasons
+remove_operating_systems alpine*
+enforce_minimum_php_version_from_composer_json
+reuse_other_serversideup_php_scripts assemble-docker-tags.sh generate-matrix.sh
