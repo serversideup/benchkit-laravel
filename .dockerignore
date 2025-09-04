@@ -2,6 +2,9 @@
 .github
 .infrastructure
 !.infrastructure/**/local-ca.pem
+!.infrastructure/**/local-dev-key.pem
+!.infrastructure/**/local-dev.pem
+!.infrastructure/entrypoint.d/
 Dockerfile
 docker-*.yml
 .gitlab-ci.yml
