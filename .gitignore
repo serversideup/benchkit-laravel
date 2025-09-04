@@ -27,3 +27,4 @@ Thumbs.db
 scripts/assemble-docker-tags.sh
 scripts/generate-matrix.sh
 .build-version
+geekbench_claim.url
