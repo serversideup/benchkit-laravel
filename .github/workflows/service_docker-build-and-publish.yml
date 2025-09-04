@@ -1,120 +1,164 @@
+name: Build and Publish
+
 on:
   workflow_call:
     inputs:
-      platforms:
-        type: string
-        default: 'linux/amd64'
-      docker-tags:
+      authenticate_with_ghcr:
+        default: true
+        type: boolean
+        description: 'Whether to authenticate with DockerHub.'
+      tag-prefix:
         required: true
         type: string
-      dockerfile:
+        description: 'The prefix to use for the Docker image tags.'
+      php-versions-file:
         type: string
-        default: './Dockerfile'
-      target:
-        type: string
-        default: ''
-      environment:
+        default: 'scripts/conf/php-versions.yml'
+        description: 'The path to the PHP versions file.'
+      registry-repositories:
         type: string
         required: true
-env:
-  DOCKER_COMPOSE_CMD: docker compose -f docker-compose.yml -f docker-compose.ci.yml
+        description: 'The Docker registry repositories to push the images to. Separate multiple repositories with a comma (example: docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel)'
+      release-type:
+        type: string
+        default: 'testing'
+        description: 'The type of release to create. Options: testing, latest'
+      push-to-registry:
+        type: boolean
+        default: true
+        description: 'Whether to push the images to the registry.'
+      ref:
+        type: string
+        default: ${{ github.ref }}
+        description: 'The git ref to checkout (branch, tag, or commit SHA)'
+
 jobs:
-  docker-publish:
-    runs-on: ubuntu-24.04
+  setup-matrix:
+    runs-on: depot-ubuntu-24.04
+    outputs:
+      php-version-map-json: ${{ steps.get-php-versions.outputs.php-version-map-json }}
     steps:
-      - name: Checkout
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    
+    - name: Prepare PHP versions for the matrix. 😎
+      run: |
+        chmod +x ./scripts/configure-php-versions.sh
+        ./scripts/configure-php-versions.sh --branch 280-create-a-frankenphp-variation
+    
+    - name: Ensure our PHP Versions file exists.
+      run: |
+        if [ ! -f "${{ inputs.php-versions-file }}" ]; then
+          echo "PHP Versions file does not exist. Exiting."
+          exit 1
+        else
+          cat ${{ inputs.php-versions-file }}
+        fi
+
+    - name: Assemble PHP versions into the matrix. 😎
+      id: get-php-versions
+      run: |
+        MATRIX_JSON=$(bash ./scripts/generate-matrix.sh '${{ inputs.php-versions-file }}')
+        echo "php-version-map-json=${MATRIX_JSON}" >> $GITHUB_OUTPUT
+        echo "${MATRIX_JSON}" | jq '.'
+  
+    - name: Upload the php-versions.yml file
+      uses: actions/upload-artifact@v4
+      with:
+        name: php-versions.yml
+        path: ${{ inputs.php-versions-file }}
+
+  docker-publish:
+    needs: setup-matrix
+    runs-on: depot-ubuntu-24.04-4
+    strategy:
+      matrix: ${{fromJson(needs.setup-matrix.outputs.php-version-map-json)}}
+
+    steps:
+      - name: Check out code.
         uses: actions/checkout@v4
-      - name: Restore composer cache (if available)
-        id: composer-vendor-restore
-        uses: actions/cache/restore@v4
         with:
-          path: vendor/
-          key: ${{ runner.os }}-composer-vendor-${{ hashFiles('composer.lock') }}
-      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
-        name: List the composer packages
-        continue-on-error: true
-        run: |
-          $DOCKER_COMPOSE_CMD \
-          run \
-          php \
-          composer show --locked
-      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
-        name: Install Composer dependencies
-        run: |
-          $DOCKER_COMPOSE_CMD \
-          run \
-          php \
-          composer install --optimize-autoloader --no-interaction --no-progress --no-ansi
-      - if: ${{ steps.composer-vendor-restore.outputs.cache-hit != 'true' }}
-        name: Upload composer cache
-        uses: actions/cache/save@v4
+          ref: ${{ inputs.ref }}
+  
+      - name: Download PHP Versions file
+        uses: actions/download-artifact@v4
         with:
-          path: vendor/
-          key: ${{ runner.os }}-composer-vendor-${{ hashFiles('composer.lock') }}
-      - name: Set uppercase environment name
-        id: env-name
-        run: echo "upper_env=${ENVIRONMENT^^}" >> $GITHUB_OUTPUT
+          name: php-versions.yml
+          path: ${{ inputs.php-versions-file }}
+      
+      ##
+      # Docker build & publish
+      ##
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        if: ${{ inputs.push-to-registry }}
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        if: ${{ inputs.push-to-registry && inputs.authenticate_with_ghcr }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: "📦 Assemble the Docker Tags"
+        run: |
+          chmod +x ./scripts/assemble-docker-tags.sh
+          ./scripts/assemble-docker-tags.sh
         env:
-          ENVIRONMENT: ${{ inputs.environment }}
-      - name: Validate and set environment file
+          PHP_VERSIONS_FILE: "${{ inputs.php-versions-file }}"
+          PHP_BUILD_VERSION: ${{ matrix.patch_version }}
+          PHP_BUILD_VARIATION: ${{ matrix.php_variation }}
+          PHP_BUILD_BASE_OS: ${{ matrix.base_os }}
+          DOCKER_TAG_PREFIX: ${{ inputs.tag-prefix }}
+          DOCKER_REGISTRY_REPOSITORIES: ${{ inputs.registry-repositories }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          GITHUB_RELEASE_TAG: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+
+      - name: Set REPOSITORY_BUILD_VERSION
+        id: set_version
         run: |
-          SECRET_NAME="${{ steps.env-name.outputs.upper_env }}_ENV_FILE_BASE64"
-          if [ -z "$ENV_FILE_BASE64" ]; then
-            echo "::error::Required secret '$SECRET_NAME' is not set. Please add this secret to your repository. If you previously used 'ENV_FILE_BASE64', be sure to rename it to '$SECRET_NAME'."
-            exit 1
+          if [[ "${{ github.ref_type }}" == "tag" || "${{ inputs.ref }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Building from a tag (release or scheduled task)
+            echo "🚀 Setting REPOSITORY_BUILD_VERSION to Tag + Run ID"
+            if [[ "${{ github.ref_type }}" == "tag" ]]; then
+              VERSION="${{ github.ref_name }}"
+            else
+              VERSION="${{ inputs.ref }}"
+            fi
+            echo "REPOSITORY_BUILD_VERSION=${VERSION}-${{ github.run_id }}" >> $GITHUB_ENV
+          else
+            # Regular git build (PR, branch push, etc)
+            echo "👨‍🔬 Setting REPOSITORY_BUILD_VERSION to Git SHA + Run ID"
+            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+            echo "REPOSITORY_BUILD_VERSION=git-${SHORT_SHA}-${{ github.run_id }}" >> $GITHUB_ENV
           fi
 
-          echo $ENV_FILE_BASE64 | base64 -d > .env
-          chmod 600 .env
-        env:
-          ENV_FILE_BASE64: ${{ secrets[format('{0}_ENV_FILE_BASE64', steps.env-name.outputs.upper_env)] }}
-      - name: Determine package manager
-        id: determine-package-manager
-        run: |
-          if [ -f yarn.lock ]; then
-            echo "PACKAGE_MANAGER=yarn" >> $GITHUB_ENV
-            echo "LOCK_FILE=yarn.lock" >> $GITHUB_ENV
-          elif [ -f package-lock.json ]; then
-            echo "PACKAGE_MANAGER=npm" >> $GITHUB_ENV
-            echo "LOCK_FILE=package-lock.json" >> $GITHUB_ENV
-          else
-            echo "No lock file found. Exiting."
-            exit 1
-          fi
-      - name: Set cache key
-        id: set-cache-key
-        run: echo "CACHE_KEY=${{ runner.os }}-node-modules-${{ hashFiles(env.LOCK_FILE) }}" >> $GITHUB_OUTPUT
-      - name: Restore node_modules cache (if available)
-        id: node-modules-restore
-        uses: actions/cache/restore@v4
+      - name: Build images
+        uses: docker/build-push-action@v6
         with:
-          path: node_modules/
-          key: ${{ steps.set-cache-key.outputs.CACHE_KEY }}
-      - if: ${{ steps.node-modules-restore.outputs.cache-hit != 'true' }}
-        name: Install dependencies
-        run: |
-          $DOCKER_COMPOSE_CMD \
-          run \
-          node \
-          ${{ env.PACKAGE_MANAGER }} install
-      - name: Build node project
-        run: |
-          $DOCKER_COMPOSE_CMD \
-          run \
-          node \
-          ${{ env.PACKAGE_MANAGER }} run build
-      - if: ${{ steps.node-modules-restore.outputs.cache-hit != 'true' }}
-        name: Upload node_modules cache
-        uses: actions/cache/save@v4
-        with:
-          path: node_modules/
-          key: ${{ steps.set-cache-key.outputs.CACHE_KEY }}
-      - name: docker-build-action
-        uses: serversideup/github-action-docker-build@v5
-        with:
-          tags: "${{ inputs.docker-tags }}"
-          dockerfile: "${{ inputs.dockerfile }}"
-          registry: "ghcr.io"
-          registry-username: "${{ github.actor }}"
-          registry-token: "${{ secrets.GITHUB_TOKEN }}"
-          platforms: "${{ inputs.platforms }}"
+          file: Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            BASE_IMAGE="serversideup/php-dev:283-${{ matrix.patch_version }}-${{ matrix.php_variation }}-${{ matrix.base_os }}"
+            REPOSITORY_BUILD_VERSION=${{ env.REPOSITORY_BUILD_VERSION }}
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+          pull: true
+          push: ${{ inputs.push-to-registry }}
+          tags: ${{ env.DOCKER_TAGS }}
+          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=BenchKit for Laravel is an open source and containerized Laravel application to help you understand how your host and Laravel configurations are actually performing.
