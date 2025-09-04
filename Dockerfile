@@ -1,5 +1,7 @@
+# syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv
 ############################################
-# Base Image
+# PHP - Base Image
 ############################################
 ARG PHP_VARIATION=fpm-nginx
 ARG PHP_VERSION=8.4
@@ -8,7 +10,7 @@ ARG BASE_IMAGE="serversideup/php-dev:283-${PHP_VERSION}-${PHP_VARIATION}-${BASE_
 
 # Learn more about the Server Side Up PHP Docker Images at:
 # https://serversideup.net/open-source/docker-php/
-FROM ${BASE_IMAGE} AS base
+FROM ${BASE_IMAGE} AS php-base
 
 ## Uncomment if you need to install additional PHP extensions
 # USER root
@@ -78,13 +80,13 @@ ENV APP_NAME=BenchKit \
     AWS_BUCKET= \
     AWS_USE_PATH_STYLE_ENDPOINT=false \
     \
-    VITE_APP_NAME="${APP_NAME}" \
+    VITE_APP_NAME="BenchKit" \
     MAIL_ENCRYPTION=
 
 ############################################
-# Development Image
+# PHP - Development Image
 ############################################
-FROM base AS development
+FROM php-base AS php-development
 ARG PHP_VARIATION=fpm-nginx
 
 # We can pass USER_ID and GROUP_ID as build arguments
@@ -108,9 +110,9 @@ RUN docker-php-serversideup-set-id www-data $USER_ID:$GROUP_ID  && \
 USER www-data
 
 ############################################
-# CI image
+# PHP - CI Image
 ############################################
-FROM base AS ci
+FROM php-base AS php-ci
 
 # Sometimes CI images need to run as root
 # so we set the ROOT user and configure
@@ -123,17 +125,87 @@ RUN if command -v php-fpm > /dev/null 2>&1; then \
     fi
 
 ############################################
-# Production Image
+# Node.js - Base Image
 ############################################
-FROM base AS final
+FROM node:22 AS node-base
+
+############################################
+# Node.js - Development Image
+############################################
+FROM node-base AS node-development
+
+# We can pass USER_ID and GROUP_ID as build arguments
+# to ensure the node user has the same UID and GID
+# as the user running Docker.
+ARG USER_ID
+ARG GROUP_ID
+
+# Switch to root so we can set the user ID and group ID
+USER root
+
+# Script to handle existing group ID
+RUN if getent group "$GROUP_ID" > /dev/null; then \
+        moved_group_id="99$GROUP_ID"; \
+        existing_group_name=$(getent group "$GROUP_ID" | cut -d: -f1); \
+        echo "Moving GID of $existing_group_name to $moved_group_id..."; \
+        groupmod -g "$moved_group_id" "$existing_group_name"; \
+    fi
+
+# Script to handle existing user ID
+RUN if getent passwd "$USER_ID" > /dev/null; then \
+        moved_user_id="99$USER_ID"; \
+        existing_username=$(getent passwd "$USER_ID" | cut -d: -f1); \
+        echo "Moving UID of $existing_username to $moved_user_id..."; \
+        usermod -u "$moved_user_id" "$existing_username"; \
+    fi
+
+# Set the user ID and group ID for the node user
+RUN groupmod -g $GROUP_ID node && usermod -u $USER_ID -g $GROUP_ID node
+
+# Drop privileges back to node user
+USER node
+
+############################################
+# Node.js - CI Image
+############################################
+FROM node-base AS node-ci
+
+############################################
+# Node.js - Build Image
+############################################
+FROM node-base AS node-build
+
+WORKDIR /usr/src/app/
+
+COPY --chown=node:node . /usr/src/app/
+
+RUN yarn run build
+
+############################################
+# Final Image
+############################################
+FROM php-base AS final
 ARG REPOSITORY_BUILD_VERSION="dev"
 COPY --chown=www-data:www-data . /var/www/html
+COPY --chown=www-data:www-data --from=node-build /usr/src/app/public/build /var/www/html/public/build
+COPY --chmod=755 ./.infrastructure/entrypoint.d/ /etc/entrypoint.d/
+
+# Default to running the Laravel Automations with serversideup/php
+ENV AUTORUN_ENABLED="true"
+
+USER www-data
+
+WORKDIR /var/www/html
 
 # Create the SQLite directory and set the owner to www-data (remove this if you're not using SQLite)
 RUN mkdir -p /var/www/html/.infrastructure/volume_data/sqlite/; \
     chown -R www-data:www-data /var/www/html/.infrastructure/volume_data/sqlite/; \
-    echo "${REPOSITORY_BUILD_VERSION}" > /var/www/html/.build-version
-
-VOLUME /var/www/html/.env
-
-USER www-data
+    \
+    # Set the build version
+    echo "${REPOSITORY_BUILD_VERSION}" > /var/www/html/.build-version; \
+    \
+    # List the composer packages
+    composer show --locked; \
+    \
+    # Install Composer dependencies
+    composer install --optimize-autoloader --no-interaction --no-progress --no-ansi
