@@ -67,19 +67,12 @@ jobs:
         MATRIX_JSON=$(bash ./scripts/generate-matrix.sh '${{ inputs.php-versions-file }}')
         echo "php-version-map-json=${MATRIX_JSON}" >> $GITHUB_OUTPUT
         echo "${MATRIX_JSON}" | jq '.'
-  
-    - name: Upload the php-versions.yml file
-      uses: actions/upload-artifact@v4
-      with:
-        name: php-versions.yml
-        path: ${{ inputs.php-versions-file }}
-        if-no-files-found: error
 
-    - name: Upload the assemble-docker-tags.sh file
+    - name: Upload the build scripts
       uses: actions/upload-artifact@v4
       with:
-        name: assemble-docker-tags.sh
-        path: ${{ inputs.assemble-docker-tags-file }}
+        name: build-scripts
+        path: scripts
         if-no-files-found: error
 
   docker-publish:
@@ -93,19 +86,13 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
-  
-      - name: Download PHP Versions file
-        uses: actions/download-artifact@v5
-        with:
-          name: php-versions.yml
-          path: ${{ inputs.php-versions-file }}
 
-      - name: Download assemble-docker-tags.sh file
+      - name: Download build scripts
         uses: actions/download-artifact@v5
         with:
-          name: assemble-docker-tags.sh
-          path: ${{ inputs.assemble-docker-tags-file }}
-      
+          name: build-scripts
+          path: scripts
+
       ##
       # Docker build & publish
       ##
