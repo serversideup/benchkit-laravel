@@ -12,9 +12,8 @@ ARG BASE_IMAGE=serversideup/php-dev:283-${PHP_VERSION}-${PHP_VARIATION}-${BASE_O
 # https://serversideup.net/open-source/docker-php/
 FROM ${BASE_IMAGE} AS php-base
 
-## Uncomment if you need to install additional PHP extensions
-# USER root
-# RUN install-php-extensions bcmath gd
+# Install Yet Another Bench Script
+ADD --keep-git-dir=false --chmod=755 --chown=www-data:www-data https://github.com/masonr/yet-another-bench-script.git /opt/yet-another-bench-script/
 
 ## Laravel Environment Variable Defaults
 ENV APP_NAME=BenchKit \
@@ -104,7 +103,7 @@ RUN update-ca-certificates
 
 # Set the user ID and group ID for www-data
 RUN docker-php-serversideup-set-id www-data $USER_ID:$GROUP_ID  && \
-    docker-php-serversideup-set-file-permissions --owner $USER_ID:$GROUP_ID --service ${PHP_VARIATION#fpm-}
+    docker-php-serversideup-set-file-permissions --owner $USER_ID:$GROUP_ID --service ${PHP_VARIATION#fpm-} --dir /opt/
 
 # Drop privileges back to www-data    
 USER www-data
