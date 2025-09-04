@@ -26,7 +26,7 @@ services:
         GROUP_ID: ${SPIN_GROUP_ID}
         PHP_VARIATION: "${PHP_VARIATION:-fpm-nginx}"
         PHP_VERSION: "${PHP_VERSION:-8.4}"
-        BASE_OS: "${BASE_OS:-alpine}"
+        BASE_OS: "${BASE_OS:-trixie}"
       dockerfile: Dockerfile
     stop_signal: SIGTERM
     environment:
