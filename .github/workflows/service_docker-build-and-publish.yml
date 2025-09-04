@@ -158,7 +158,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
           build-args: |
-            BASE_IMAGE="serversideup/php-dev:283-${{ matrix.patch_version }}-${{ matrix.php_variation }}-${{ matrix.base_os }}"
+            PHP_VERSION=${{ matrix.patch_version }}
+            PHP_VARIATION=${{ matrix.php_variation }}
+            BASE_OS=${{ matrix.base_os }}
             REPOSITORY_BUILD_VERSION=${{ env.REPOSITORY_BUILD_VERSION }}
           platforms: |
             linux/amd64
