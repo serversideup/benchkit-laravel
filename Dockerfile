@@ -179,7 +179,8 @@ WORKDIR /usr/src/app/
 
 COPY --chown=node:node . /usr/src/app/
 
-RUN yarn run build
+RUN yarn install --frozen-lockfile; \
+    yarn run build
 
 ############################################
 # Final Image
