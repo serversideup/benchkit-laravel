@@ -75,7 +75,7 @@ jobs:
         path: ${{ inputs.php-versions-file }}
 
     - name: Upload the assemble-docker-tags.sh file
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
       with:
         name: assemble-docker-tags.sh
         path: ${{ inputs.assemble-docker-tags-file }}
