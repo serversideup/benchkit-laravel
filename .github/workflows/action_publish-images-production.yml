@@ -1,0 +1,29 @@
+name: Docker Publish (Production Images)
+
+on:
+  workflow_dispatch:
+  release:
+    types: [released]
+  schedule:
+    - cron: '0 9 * * 2'
+
+jobs:
+  get-latest-release:
+    runs-on: ubuntu-24.04
+    outputs:
+      release_tag: ${{ steps.get_latest_release.outputs.release_tag }}
+    steps:
+      - name: Get Latest Release
+        id: get_latest_release
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          echo "release_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+
+  build-production-images:
+    uses: ./.github/workflows/service_docker-build-and-publish.yml
+    with:
+      registry-repositories: "docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel"
+      tag-prefix: ''
+      release-type: latest
+      ref: ${{ needs.get-latest-release.outputs.release_tag }}
+    secrets: inherit
