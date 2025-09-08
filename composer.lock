@@ -8201,16 +8201,16 @@
         },
         {
             "name": "serversideup/spin",
-            "version": "v3.0.3",
+            "version": "v3.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/serversideup/spin.git",
-                "reference": "731de1896f3a3bce438290e400921b2d01a47b99"
+                "reference": "1ae6d510aa2af94c73d518de3667c2f94743f20c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/serversideup/spin/zipball/731de1896f3a3bce438290e400921b2d01a47b99",
-                "reference": "731de1896f3a3bce438290e400921b2d01a47b99",
+                "url": "https://api.github.com/repos/serversideup/spin/zipball/1ae6d510aa2af94c73d518de3667c2f94743f20c",
+                "reference": "1ae6d510aa2af94c73d518de3667c2f94743f20c",
                 "shasum": ""
             },
             "bin": [
@@ -8234,7 +8234,7 @@
             "description": "Replicate your production environment locally using Docker. Just run \"spin up\". It's really that easy.",
             "support": {
                 "issues": "https://github.com/serversideup/spin/issues",
-                "source": "https://github.com/serversideup/spin/tree/v3.0.3"
+                "source": "https://github.com/serversideup/spin/tree/v3.0.4"
             },
             "funding": [
                 {
@@ -8242,7 +8242,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-08-06T17:54:32+00:00"
+            "time": "2025-09-08T19:29:20+00:00"
         },
         {
             "name": "staabm/side-effects-detector",
