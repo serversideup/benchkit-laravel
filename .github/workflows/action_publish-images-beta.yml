@@ -22,7 +22,7 @@ jobs:
   build-beta-images:
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
-      registry-repositories: "docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel"
+      registry-repositories: "docker.io/serversideup/benchkit-laravel"
       tag-prefix: "beta"
       release-type: testing
       ref: ${{ needs.get-latest-beta-release.outputs.release_tag }}

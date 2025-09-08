@@ -22,7 +22,7 @@ on:
       registry-repositories:
         type: string
         required: true
-        description: 'The Docker registry repositories to push the images to. Separate multiple repositories with a comma (example: docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel)'
+        description: 'The Docker registry repositories to push the images to. Separate multiple repositories with a comma (example: docker.io/serversideup/benchkit-laravel)'
       release-type:
         type: string
         default: 'testing'

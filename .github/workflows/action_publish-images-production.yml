@@ -22,7 +22,7 @@ jobs:
   build-production-images:
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
-      registry-repositories: "docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel"
+      registry-repositories: "docker.io/serversideup/benchkit-laravel"
       tag-prefix: ''
       release-type: latest
       ref: ${{ needs.get-latest-release.outputs.release_tag }}
