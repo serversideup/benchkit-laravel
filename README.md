@@ -35,20 +35,7 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 
 Usage instructions will be added soon.
 
-## 🚀 Need help optimizing your Laravel app for maximum performance?
 
-**Get two senior Laravel experts who deliver quality code with predictable monthly pricing.**
-
-The creators of BenchKit ([Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers)) are available for hire with 30+ years of combined experience building scalable Laravel applications.
-
-### Why developers choose us:
-
-- **🎯 Complete Laravel expertise** - Full-stack development, CI/CD, database optimization, mobile apps
-- **💰 Predictable pricing** - Fixed monthly subscription, no hourly billing surprises, 40%+ savings
-- **⚡ Maximum productivity** - 90%+ development time, no meetings, results in days not weeks
-- **🛡️ Risk-free** - 7-day money-back guarantee, cancel anytime
-
-**[💬 Discuss Your Project →](https://serversideup.net/hire-us)**
 
 ## FAQs
 Here's common questions to help you understand how this application works.
@@ -111,8 +98,7 @@ This project takes an incredible amount of computing power to build and maintain
 #### Individual Supporters
 <!-- supporters --><a href="https://github.com/GeekDougle"><img src="https://github.com/GeekDougle.png" width="40px" alt="GeekDougle" /></a>&nbsp;&nbsp;<a href="https://github.com/MaltMethodDev"><img src="https://github.com/MaltMethodDev.png" width="40px" alt="MaltMethodDev" /></a>&nbsp;&nbsp;<a href="https://github.com/bananabrann"><img src="https://github.com/bananabrann.png" width="40px" alt="bananabrann" /></a>&nbsp;&nbsp;<!-- supporters -->
 
-## About Us
-We're [Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers) - a two person team with a passion for open source products. We created [Server Side Up](https://serversideup.net) to help share what we learn.
+## 🚀 Need help optimizing your app for maximum performance?
 
 <div align="center">
 
@@ -121,6 +107,20 @@ We're [Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers) - a tw
 | <div align="center"><a href="https://x.com/danpastori"><img src="https://serversideup.net/wp-content/uploads/2023/08/dan.jpg" title="Dan Pastori" width="150px"></a><br /><a href="https://x.com/danpastori"><img src="https://serversideup.net/wp-content/themes/serversideup/images/open-source/twitter.svg" title="Twitter" width="24px"></a><a href="https://github.com/danpastori"><img src="https://serversideup.net/wp-content/themes/serversideup/images/open-source/github.svg" title="GitHub" width="24px"></a></div>                        | <div align="center"><a href="https://x.com/jaydrogers"><img src="https://serversideup.net/wp-content/uploads/2023/08/jay.jpg" title="Jay Rogers" width="150px"></a><br /><a href="https://x.com/jaydrogers"><img src="https://serversideup.net/wp-content/themes/serversideup/images/open-source/twitter.svg" title="Twitter" width="24px"></a><a href="https://github.com/jaydrogers"><img src="https://serversideup.net/wp-content/themes/serversideup/images/open-source/github.svg" title="GitHub" width="24px"></a></div>                                       |
 
 </div>
+
+**Get two senior Laravel experts who deliver quality code with predictable monthly pricing.**
+
+The creators of Server Side Up ([Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers)) are available for hire with 30+ years of combined experience building scalable Laravel applications.
+
+### Why developers choose us:
+
+- **🎯 Complete Laravel expertise** - Full-stack development, CI/CD, database optimization, mobile apps
+- **💰 Predictable pricing** - Fixed monthly subscription, no hourly billing surprises, 40%+ savings
+- **⚡ Maximum productivity** - 90%+ development time, no meetings, results in days not weeks
+- **🛡️ Risk-free** - 7-day money-back guarantee, cancel anytime
+
+**[💬 Discuss Your Project →](https://serversideup.net/hire-us)**
+
 
 ### Find us at:
 
