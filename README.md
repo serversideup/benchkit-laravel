@@ -37,39 +37,16 @@ Usage instructions will be added soon.
 
 ## 🚀 Need help optimizing your Laravel app for maximum performance?
 
-**Deliver exceptional Laravel applications without the hiring headache.**
+**Get two senior Laravel experts who deliver quality code with predictable monthly pricing.**
 
-The creators of BenchKit ([Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers)) are available for hire to help you build faster, more scalable Laravel applications. With 30+ years of combined experience, we offer a unique development-first approach that maximizes productivity and minimizes overhead.
+The creators of BenchKit ([Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers)) are available for hire with 30+ years of combined experience building scalable Laravel applications.
 
-### Why work with us?
+### Why developers choose us:
 
-**🎯 Performance & Scalability Experts**
-- Complete-stack Laravel development (frontend, backend, database optimization)
-- Advanced CI/CD pipeline development with GitHub Actions
-- Self-hosted application deployment and server management
-- Database design that scales to millions of records
-
-**💰 Predictable Pricing, Exceptional Value**
-- Fixed monthly subscription (40%+ savings vs traditional hiring)
-- No hourly billing surprises or scope creep
-- Start seeing results in 48 hours, not months
-- Cancel anytime with 7-day money-back guarantee
-
-**⚡ Maximum Productivity**
-- 90%+ time dedicated to actual development (not meetings)
-- No daily standups or Slack interruptions
-- Asynchronous communication through GitHub issues
-- Results in days, not weeks
-
-**🛠️ Complete Laravel Ecosystem**
-- Laravel, Vue.js, Inertia.js, Nuxt.js
-- Docker, CI/CD, and DevOps automation
-- Mobile apps with CapacitorJS
-- UI/UX design with technical implementation expertise
-
-### Ready to accelerate your Laravel development?
-
-Whether you're launching your first product or scaling an established platform, we'll help you ship faster while maintaining the highest code quality standards.
+- **🎯 Complete Laravel expertise** - Full-stack development, CI/CD, database optimization, mobile apps
+- **💰 Predictable pricing** - Fixed monthly subscription, no hourly billing surprises, 40%+ savings
+- **⚡ Maximum productivity** - 90%+ development time, no meetings, results in days not weeks
+- **🛡️ Risk-free** - 7-day money-back guarantee, cancel anytime
 
 **[💬 Discuss Your Project →](https://serversideup.net/hire-us)**
 
