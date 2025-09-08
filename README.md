@@ -13,6 +13,12 @@
 ## Introduction
 BenchKit for Laravel is an open source and containerized Laravel application to help you understand how your host and Laravel configurations are actually performing. We put together this application that runs realistic benchmark tests through Laravel so you can understand the actual performance of your setup. Running BenchKit for Laravel also helps you build faster and more reliable applications.
 
+## View community results
+This application runs completely decentralized and community results are encourage to be shared on X (Twitter) with the hashtag of `#BenchKit and #Laravel`. View the community results below:
+
+- [View community results on X (Twitter) →](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live)
+- [View community results on Bluesky →](https://bsky.app/search?q=laravel+benchkit)
+
 ## Powered by Spin Pro
 Spin is an [open source tool built by Server Side Up](https://serversideup.net/open-source/spin/) to help you run Docker from development → production. Spin is language agnostic, so you can use it with any language but we also provide official templates. This project was powered by Spin Pro, which offers additional features for Laravel power users.
 
@@ -29,23 +35,66 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 
 Usage instructions will be added soon.
 
+## 🚀 Need help optimizing your Laravel app for maximum performance?
+
+**Deliver exceptional Laravel applications without the hiring headache.**
+
+The creators of BenchKit ([Dan](https://x.com/danpastori) and [Jay](https://x.com/jaydrogers)) are available for hire to help you build faster, more scalable Laravel applications. With 30+ years of combined experience, we offer a unique development-first approach that maximizes productivity and minimizes overhead.
+
+### Why work with us?
+
+**🎯 Performance & Scalability Experts**
+- Complete-stack Laravel development (frontend, backend, database optimization)
+- Advanced CI/CD pipeline development with GitHub Actions
+- Self-hosted application deployment and server management
+- Database design that scales to millions of records
+
+**💰 Predictable Pricing, Exceptional Value**
+- Fixed monthly subscription (40%+ savings vs traditional hiring)
+- No hourly billing surprises or scope creep
+- Start seeing results in 48 hours, not months
+- Cancel anytime with 7-day money-back guarantee
+
+**⚡ Maximum Productivity**
+- 90%+ time dedicated to actual development (not meetings)
+- No daily standups or Slack interruptions
+- Asynchronous communication through GitHub issues
+- Results in days, not weeks
+
+**🛠️ Complete Laravel Ecosystem**
+- Laravel, Vue.js, Inertia.js, Nuxt.js
+- Docker, CI/CD, and DevOps automation
+- Mobile apps with CapacitorJS
+- UI/UX design with technical implementation expertise
+
+### Ready to accelerate your Laravel development?
+
+Whether you're launching your first product or scaling an established platform, we'll help you ship faster while maintaining the highest code quality standards.
+
+**[💬 Discuss Your Project →](https://serversideup.net/hire-us)**
+
 ## FAQs
 Here's common questions to help you understand how this application works.
 <details>
   <summary>How does this application work?</summary>
-  This application is a dedicated Laravel application, built as "container first" so you can easily benchmark your VPS or hosting provider. We will run 
+
+  > This application is a dedicated Laravel application, built as "container first" so you can easily benchmark your VPS or hosting provider. We use [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) to test your hardware, [cfspeed](https://github.com/makotom/cfspeed) to test your network to CloudFlare, and then we run a series of CRUD tests to benchmark how your application performs.
+
 </details>
 <details>
   <summary>Do I install this as a Laravel package?</summary>
-  Nope! This is a standalone application that is intended to be run, then easily destroyed once you're done with it.
+  
+  > Nope! This is a standalone application that is intended to be run, then easily destroyed once you're done with it.
 </details>
 <details>
   <summary>Can I run this application without Docker?</summary>
-  Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps)
+
+  > Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps). There are dependencies that need to be installed (like [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) and [cfspeed](https://github.com/makotom/cfspeed)), but we will be sure to add more documentation once we get the Docker version up and running first.
 </details>
 <details>
   <summary>How can I share my results with the community?</summary>
-  When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of [#BenchKit and #Laravel](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live).
+
+  > When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of [#BenchKit and #Laravel](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live).
 </details>
 
 ## Resources
