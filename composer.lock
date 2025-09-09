@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "921af770e126551cd0e2e1bea5496c80",
+    "content-hash": "ffda30c26ad528a97b995a87c3ac0608",
     "packages": [
         {
             "name": "brick/math",
@@ -3273,6 +3273,96 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.0"
             },
             "time": "2025-06-25T14:20:11+00:00"
+        },
+        {
+            "name": "serversideup/cfspeedtest",
+            "version": "v2025.09.09.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/serversideup/composer-cfspeedtest.git",
+                "reference": "843f2f650b04822528ddb85efeb4345f8abc327f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/serversideup/composer-cfspeedtest/zipball/843f2f650b04822528ddb85efeb4345f8abc327f",
+                "reference": "843f2f650b04822528ddb85efeb4345f8abc327f",
+                "shasum": ""
+            },
+            "bin": [
+                "bin/cfspeedtest"
+            ],
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Dan Pastori",
+                    "homepage": "https://x.com/danpastori"
+                },
+                {
+                    "name": "Jay Rogers",
+                    "homepage": "https://x.com/jaydrogers"
+                }
+            ],
+            "description": "Distribute cfspeedtest as a Composer package.",
+            "support": {
+                "issues": "https://github.com/serversideup/composer-cfspeedtest/issues",
+                "source": "https://github.com/serversideup/composer-cfspeedtest/tree/v2025.09.09.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/serversideup",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-09-09T21:57:18+00:00"
+        },
+        {
+            "name": "serversideup/yabs",
+            "version": "v2025.09.09.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/serversideup/composer-yet-another-benchmark-script.git",
+                "reference": "330f458a84e7c09e8bfb8c74f5b91b029089c925"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/serversideup/composer-yet-another-benchmark-script/zipball/330f458a84e7c09e8bfb8c74f5b91b029089c925",
+                "reference": "330f458a84e7c09e8bfb8c74f5b91b029089c925",
+                "shasum": ""
+            },
+            "bin": [
+                "bin/yabs"
+            ],
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Dan Pastori",
+                    "homepage": "https://x.com/danpastori"
+                },
+                {
+                    "name": "Jay Rogers",
+                    "homepage": "https://x.com/jaydrogers"
+                }
+            ],
+            "description": "Distribute yet-another-bench-script as a Composer package.",
+            "support": {
+                "issues": "https://github.com/serversideup/composer-yet-another-benchmark-script/issues",
+                "source": "https://github.com/serversideup/composer-yet-another-benchmark-script/tree/v2025.09.09.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/serversideup",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-09-09T20:25:47+00:00"
         },
         {
             "name": "symfony/clock",

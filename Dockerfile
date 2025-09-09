@@ -12,29 +12,6 @@ ARG BASE_IMAGE=serversideup/php-dev:283-${PHP_VERSION}-${PHP_VARIATION}-${BASE_O
 # https://serversideup.net/open-source/docker-php/
 FROM ${BASE_IMAGE} AS php-base
 
-ARG TARGETPLATFORM
-
-# Install Yet Another Bench Script
-ADD --keep-git-dir=false --chmod=755 --chown=www-data:www-data https://github.com/masonr/yet-another-bench-script.git /opt/yet-another-bench-script/
-
-# Switch to root to install dependencies
-USER root
-
-RUN \
-    # Install dependencies for cfspeed CLI
-    docker-php-serversideup-dep-install-alpine "ca-certificates"; \
-    docker-php-serversideup-dep-install-debian "ca-certificates"; \
-    # Install cfspeed CLI
-    curl -fsSL "https://github.com/makotom/cfspeed/releases/download/0.2.926-bbecf77/cfspeed-0.2.926-bbecf77-linux-${TARGETPLATFORM#linux/}.tar.gz" \
-    | tar -xz -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/cfspeed; \
-    # Configure symbolic link for yet-another-bench-script
-    ln -s /opt/yet-another-bench-script/yabs.sh /usr/local/bin/yabs; \
-    chmod +x /usr/local/bin/yabs
-    
-# Switch back to www-data to run the application
-USER www-data
-
 ## Laravel Environment Variable Defaults
 ENV APP_NAME=BenchKit \
     APP_ENV=production \
