@@ -11,8 +11,8 @@ export default defineConfig({
             clientPort: 443,
         },
         https: {
-            key: fs.readFileSync('/usr/src/app/.infrastructure/conf/traefik/dev/certificates/local-dev-key.pem'),
-            cert: fs.readFileSync('/usr/src/app/.infrastructure/conf/traefik/dev/certificates/local-dev.pem'),
+            key: fs.readFileSync('.infrastructure/conf/traefik/dev/certificates/local-dev-key.pem'),
+            cert: fs.readFileSync('.infrastructure/conf/traefik/dev/certificates/local-dev.pem'),
         },
     },
     plugins: [
