@@ -29,3 +29,5 @@ scripts/generate-matrix.sh
 .build-version
 geekbench_claim.url
 /opt
+# Ignore FIO test outputs in development
+/20*
