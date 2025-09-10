@@ -42,7 +42,7 @@ Here's common questions to help you understand how this application works.
 <details>
   <summary>How does this application work?</summary>
 
-  > This application is a dedicated Laravel application, built as "container first" so you can easily benchmark your VPS or hosting provider. We use [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) to test your hardware, [cfspeed](https://github.com/makotom/cfspeed) to test your network to CloudFlare, and then we run a series of CRUD tests to benchmark how your application performs.
+  > This application is a dedicated Laravel application, built as "container first" so you can easily benchmark your VPS or hosting provider. We use [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) to test your hardware, [cfspeedtest](https://github.com/code-inflation/cfspeedtest) to test your network to CloudFlare, and then we run a series of CRUD tests to benchmark how your application performs.
 
 </details>
 <details>
@@ -53,7 +53,7 @@ Here's common questions to help you understand how this application works.
 <details>
   <summary>Can I run this application without Docker?</summary>
 
-  > Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps). There are dependencies that need to be installed (like [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) and [cfspeed](https://github.com/makotom/cfspeed)), but we will be sure to add more documentation once we get the Docker version up and running first.
+  > Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps). There are dependencies that need to be installed (like [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) and [cfspeedtest ](https://github.com/code-inflation/cfspeedtest)), but we will be sure to add more documentation once we get the Docker version up and running first.
 </details>
 <details>
   <summary>How can I share my results with the community?</summary>
