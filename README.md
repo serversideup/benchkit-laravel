@@ -35,8 +35,6 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 
 Usage instructions will be added soon.
 
-
-
 ## FAQs
 Here's common questions to help you understand how this application works.
 <details>
