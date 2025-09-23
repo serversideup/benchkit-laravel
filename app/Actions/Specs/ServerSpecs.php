@@ -17,17 +17,40 @@ class ServerSpecs
 
     public function getCpuModel()
     {
-        return trim(shell_exec('lscpu | grep "Model name:" | cut -d":" -f2'));
+        // Run multi-line command and capture output
+        $command = <<<'CMD'
+        if cpu_info=$(grep -m1 "model name" /proc/cpuinfo 2>/dev/null); then
+            echo "$cpu_info" | cut -d':' -f2- | sed 's/^ *//'
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            sysctl -n machdep.cpu.brand_string 2>/dev/null
+        else
+            echo "Unknown Processor Model"
+        fi
+        CMD;
+
+        return trim(shell_exec($command));
     }
 
     public function getCpuCores()
     {
-        return trim(shell_exec('lscpu | grep "CPU(s):" | awk \'{print $2}\''));
+        $command = <<<'CMD'
+        [ -f /proc/cpuinfo ] && grep -c "^processor" /proc/cpuinfo || sysctl -n hw.ncpu 2>/dev/null
+        CMD;
+
+        return trim(shell_exec($command));
     }
 
     public function getCpuFrequency()
     {
-        return trim(shell_exec('lscpu | grep "CPU MHz:" | awk \'{print $3}\''));
+        $command = <<<'CMD'
+        if cpu_info=$(grep -m1 "cpu MHz" /proc/cpuinfo 2>/dev/null); then
+            echo "$cpu_info" | cut -d':' -f2- | sed 's/^ *//'
+        else
+            echo "Unknown CPU Frequency"
+        fi
+        CMD;
+
+        return trim(shell_exec($command));
     }
 
     public function getOs()

@@ -20,4 +20,9 @@ class BenchmarkController extends Controller
             'laravel' => Inertia::defer(fn () => ( new LaravelSpecs() )->execute()),
         ]);
     }
+
+    public function store( Request $request )
+    {
+        
+    }
 }
