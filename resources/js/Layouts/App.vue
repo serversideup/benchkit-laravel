@@ -13,4 +13,16 @@
 <script setup>
 import AppHeader from '@/Components/AppHeader.vue';
 import Background from '@/Components/Background.vue';
+import { useStream } from '@/Composables/useStream';
+import { onMounted, onUnmounted } from 'vue';
+
+// const { startStream, stopStream } = useStream();
+
+// onMounted(() => {
+//     startStream();
+// });
+
+// onUnmounted(() => {
+//     stopStream();
+// });
 </script>
