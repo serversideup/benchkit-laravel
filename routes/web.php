@@ -2,6 +2,13 @@
 
 use Illuminate\Support\Facades\Route;
 
-use App\Http\Controllers\AppController;
+use App\Http\Controllers\BenchmarkController;
+use App\Http\Controllers\EventController;
 
-Route::get('/', [AppController::class, 'index']);
+Route::get('/', [BenchmarkController::class, 'index']);
+Route::post('/benchmark', [BenchmarkController::class, 'store']);
+
+Route::get('/events', [EventController::class, 'index']);
+
+
+
