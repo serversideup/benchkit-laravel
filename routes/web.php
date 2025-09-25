@@ -3,12 +3,12 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\BenchmarkController;
-use App\Http\Controllers\EventController;
+use App\Http\Controllers\Benchmarks\YabsController;
 
 Route::get('/', [BenchmarkController::class, 'index']);
-Route::post('/benchmark', [BenchmarkController::class, 'store']);
+Route::get('/running', [BenchmarkController::class, 'running']);
 
-Route::get('/events', [EventController::class, 'index']);
+Route::get('/yabs', [YabsController::class, 'index']);
 
 
 

@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Benchmarks;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Symfony\Component\Process\Process;
 
-class EventController extends Controller
+class YabsController extends Controller
 {
     public function index()
     {
@@ -27,7 +28,6 @@ class EventController extends Controller
 
             $process = Process::fromShellCommandline($command, base_path(), null, null, null);
 
-
             echo "retry: 2000\n\n"; // keep connection healthy
             @ob_flush(); flush();
 
@@ -40,6 +40,18 @@ class EventController extends Controller
                         'output' => $buffer,
                     ]) . "\n\n";
                     @ob_flush(); flush();
+                }
+
+                // Add heartbeat every 30 seconds to keep connection alive
+                static $lastHeartbeat = 0;
+                if (time() - $lastHeartbeat > 30) {
+                    echo "data: " . json_encode([
+                        'timestamp' => date('Y-m-d H:i:s'),
+                        'type' => 'heartbeat',
+                        'output' => 'Connection alive',
+                    ]) . "\n\n";
+                    @ob_flush(); flush();
+                    $lastHeartbeat = time();
                 }
             });
 

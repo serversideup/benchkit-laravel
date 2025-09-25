@@ -1,22 +1,25 @@
 import { ref } from 'vue';
+import { useEventBus } from '@vueuse/core';
 
 const eventSource = ref(null);
 
+const streamEventBus = useEventBus('stream-event-bus');
+
 export const useStream = () => {
 
-    const startStream = () => {
+    const startStream = ( url ) => {
         if (eventSource.value) {
             eventSource.value.close();
         }
 
-        eventSource.value = new EventSource('https://benchkit.dev.test/events');
+        eventSource.value = new EventSource(url);
 
         eventSource.value.onmessage = (event) => {
-            console.log(event.data);
+            streamEventBus.emit('benchmark:output', event.data);
         }
 
         eventSource.value.onerror = (event) => {
-            console.error(event);
+            console.error(eventSource.value,event);
         }
 
         eventSource.value.onopen = (event) => {
@@ -34,6 +37,6 @@ export const useStream = () => {
     return {
         eventSource,
         startStream,
-        stopStream,
+        stopStream
     }
 }

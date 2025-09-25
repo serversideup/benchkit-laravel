@@ -21,8 +21,8 @@ class BenchmarkController extends Controller
         ]);
     }
 
-    public function store( Request $request )
+    public function running( Request $request )
     {
-        
+        return Inertia::render('Running');
     }
 }
