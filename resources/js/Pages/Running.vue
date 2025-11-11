@@ -4,7 +4,7 @@
 
         <div class="mx-auto max-w-screen-lg w-full grid grid-cols-3 gap-x-4 mt-12">
             <div class="col-span-1">
-
+<button @click="startStream('https://benchkit.dev.test/yabs')">Start Benchmark</button>
             </div>
             <div class="col-span-2">
                 <div class="w-full p-8 rounded-lg border border-[#373A41] bg-[#13161B]">
@@ -40,17 +40,31 @@ const {
     stopStream,
 } = useStream();
 
-onMounted(() => {
-    startStream('https://benchkit.dev.test/yabs');
-});
+// onMounted(() => {
+//     startStream('https://benchkit.dev.test/yabs');
+// });
 
 const streamEventBus = useEventBus('stream-event-bus');
 
 const listener = (message, data) => {
     if( message === 'benchmark:output' ) {
         let benchmark = JSON.parse(data);
-        console.log(benchmark.output.trim());
-        appendOutput(activeBenchmark.value, benchmark.output.trim());
+
+        if( benchmark.type === 'out' ) {
+            appendOutput(activeBenchmark.value, benchmark.output.trim());
+        }
+
+        if( benchmark.type == 'heartbeat' ){
+            console.log(benchmark.output.trim());
+        }
+
+        if( benchmark.status === 'completed' ) {
+            stopStream();
+        }
+
+        if( benchmark.status === 'error' ) {
+            stopStream();
+        }
     }
 }
 streamEventBus.on(listener);
