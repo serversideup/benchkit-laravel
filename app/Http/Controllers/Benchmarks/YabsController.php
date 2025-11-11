@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Benchmarks;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Symfony\Component\Process\Process;
+use App\Actions\Benchmarks\YabsBenchmark;
 
 class YabsController extends Controller
 {
@@ -17,34 +16,73 @@ class YabsController extends Controller
             @ini_set('output_buffering', 'off');
             @ini_set('zlib.output_compression', '0');
             set_time_limit(0);
+
+            echo "retry: 2000\n\n"; // keep connection healthy
+            @ob_flush(); flush();
+
+            $lastHeartbeat = time();
+            $outputCallback = function ($data) use (&$lastHeartbeat) {
+                echo "data: " . json_encode($data) . "\n\n";
+                @ob_flush(); flush();
+            };
+
+            // Start the benchmark process
+            $processStarted = false;
+            $result = null;
             
+            // We need to manually handle the process to allow heartbeats
             $bin = base_path('vendor/bin/yabs');
             $results = base_path('yabs-results.json');
-
             $command = sprintf(
                 'script -q /dev/null -c %s',
                 escapeshellarg(sprintf('%s -i -6 -w %s', $bin, $results))
             );
 
-            $process = Process::fromShellCommandline($command, base_path(), null, null, null);
+            $process = \Symfony\Component\Process\Process::fromShellCommandline(
+                $command, 
+                base_path(), 
+                null, 
+                null, 
+                null
+            );
 
-            echo "retry: 2000\n\n"; // keep connection healthy
-            @ob_flush(); flush();
+            $process->start();
+            $processStarted = true;
 
-            $process->run(function ($type, $buffer) {
-                $buffer = trim($buffer);
-                if ($buffer !== '') {
-                    echo "data: " . json_encode([
-                        'timestamp' => date('Y-m-d H:i:s'),
-                        'type' => $type, // 'out' or 'err'
-                        'output' => $buffer,
-                    ]) . "\n\n";
-                    @ob_flush(); flush();
+            // Loop while process is running, sending heartbeats every 30 seconds
+            while ($process->isRunning()) {
+                // Check for process output
+                $output = $process->getIncrementalOutput();
+                $errorOutput = $process->getIncrementalErrorOutput();
+                
+                if ($output !== '') {
+                    $lines = explode("\n", trim($output));
+                    foreach ($lines as $line) {
+                        if (trim($line) !== '') {
+                            $outputCallback([
+                                'timestamp' => date('Y-m-d H:i:s'),
+                                'type' => 'out',
+                                'output' => $line,
+                            ]);
+                        }
+                    }
                 }
-
-                // Add heartbeat every 30 seconds to keep connection alive
-                static $lastHeartbeat = 0;
-                if (time() - $lastHeartbeat > 30) {
+                
+                if ($errorOutput !== '') {
+                    $lines = explode("\n", trim($errorOutput));
+                    foreach ($lines as $line) {
+                        if (trim($line) !== '') {
+                            $outputCallback([
+                                'timestamp' => date('Y-m-d H:i:s'),
+                                'type' => 'err',
+                                'output' => $line,
+                            ]);
+                        }
+                    }
+                }
+                
+                // Send heartbeat every 30 seconds
+                if (time() - $lastHeartbeat >= 30) {
                     echo "data: " . json_encode([
                         'timestamp' => date('Y-m-d H:i:s'),
                         'type' => 'heartbeat',
@@ -53,15 +91,50 @@ class YabsController extends Controller
                     @ob_flush(); flush();
                     $lastHeartbeat = time();
                 }
-            });
-
-            $status = $process->isSuccessful() ? 'completed' : 'error';
-            $error  = $process->isSuccessful() ? null : $process->getExitCodeText();
-
+                
+                // Small sleep to prevent CPU spinning
+                usleep(100000); // 0.1 seconds
+            }
+            
+            // Process any remaining output
+            $remainingOutput = $process->getOutput();
+            $remainingError = $process->getErrorOutput();
+            
+            if ($remainingOutput !== '') {
+                $lines = explode("\n", trim($remainingOutput));
+                foreach ($lines as $line) {
+                    if (trim($line) !== '') {
+                        $outputCallback([
+                            'timestamp' => date('Y-m-d H:i:s'),
+                            'type' => 'out',
+                            'output' => $line,
+                        ]);
+                    }
+                }
+            }
+            
+            if ($remainingError !== '') {
+                $lines = explode("\n", trim($remainingError));
+                foreach ($lines as $line) {
+                    if (trim($line) !== '') {
+                        $outputCallback([
+                            'timestamp' => date('Y-m-d H:i:s'),
+                            'type' => 'err',
+                            'output' => $line,
+                        ]);
+                    }
+                }
+            }
+            
+            $result = [
+                'status' => $process->isSuccessful() ? 'completed' : 'error',
+                'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
+            ];
+            
             echo "data: " . json_encode([
                 'timestamp' => date('Y-m-d H:i:s'),
-                'status' => $status,
-                'error' => $error,
+                'status' => $result['status'],
+                'error' => $result['error'],
             ]) . "\n\n";
             @ob_flush(); flush();
             
