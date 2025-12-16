@@ -1,16 +1,21 @@
 <template>
+    <Head :title="`${state == 'idle' ? 'Home' : 'Running'}`" />
     <div>
         <Home v-if="state == 'idle'" />
-        <Running v-if="state == 'running'" />
+        <Running 
+            v-if="state == 'running'" />
+        <Completed 
+            v-if="state == 'completed'" />
     </div>
-    
 </template>
 
 <script setup>
 import AppLayout from '@/Layouts/App.vue';
 import Home from '@/Pages/Partials/Home.vue';
 import Running from '@/Pages/Partials/Running.vue';
+import Completed from '@/Pages/Partials/Completed.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
+import { Head } from '@inertiajs/vue3';
 
 defineOptions({
     layout: AppLayout,

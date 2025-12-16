@@ -10,6 +10,8 @@
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "league/csv": "^9.27",
+        "phpbench/phpbench": "^1.4",
         "serversideup/cfspeedtest": "^2025.09",
         "serversideup/yabs": "^2025.09"
     },

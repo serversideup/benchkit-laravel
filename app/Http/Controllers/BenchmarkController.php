@@ -15,9 +15,9 @@ class BenchmarkController extends Controller
     public function index( Request $request )
     {
         return Inertia::render('Index', [
-            'server' => Inertia::defer(fn () => ( new ServerSpecs() )->execute()),
-            'php' => Inertia::defer(fn () => ( new PhpSpecs() )->execute()),
-            'laravel' => Inertia::defer(fn () => ( new LaravelSpecs() )->execute()),
+            'server' => ( new ServerSpecs() )->execute(),
+            'php' => ( new PhpSpecs() )->execute(),
+            'laravel' => ( new LaravelSpecs() )->execute(),
         ]);
     }
 }

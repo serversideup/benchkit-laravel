@@ -3,7 +3,7 @@
         <img src="/images/logos/benchkit-wide.svg" alt="Benchkit" class="h-16">
 
         <div class="w-full flex flex-col items-center justify-center mt-12">
-            <button @click="startBenchmark('cfspeedtest')" class="font-mono px-[18px] py-3 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] hover:bg-[#E62E05]/80 transition-all duration-300 cursor-pointer">
+            <button @click="startBenchkit()" class="font-mono px-[18px] py-3 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] hover:bg-[#E62E05]/80 transition-all duration-300 cursor-pointer">
                 <img src="/images/ui/lightning.svg" alt="Lightning" class="h-5 mr-2">
                 Start Benchmark
             </button>
@@ -31,8 +31,28 @@ import Server from '@/Pages/Partials/Server.vue';
 import Php from '@/Pages/Partials/Php.vue';
 import Laravel from '@/Pages/Partials/Laravel.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
+import { useSettings } from '@/Composables/useSettings';
 
 const {
-    startBenchmark
+    form
+} = useSettings();
+
+const startBenchkit = () => {
+    const firstBenchmark = findFirstBenchmark();
+    startBenchmark(firstBenchmark);
+}
+
+const findFirstBenchmark = () => {
+    if( form.hardware ) {
+        return 'yabs';
+    }else if( form.network ) {
+        return 'cfspeedtest';
+    }else if( form.php_database ) {
+        return 'php';
+    }
+}
+
+const {
+    startBenchmark,
 } = useBenchmarkQueue();
 </script>

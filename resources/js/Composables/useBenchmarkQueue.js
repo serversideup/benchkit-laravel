@@ -1,6 +1,10 @@
 import { ref, reactive } from 'vue';
-
 import { useStream } from '@/Composables/useStream';
+import { useSettings } from '@/Composables/useSettings';
+
+const {
+    form
+} = useSettings();
 
 const {
     startStream,
@@ -16,22 +20,24 @@ const queue = [
 const results = reactive({
     'yabs': {
         output: [],
-        status: '',
+        status: 'pending',
         url: '/yabs'
     },
     'cfspeedtest': {
         output: [],
-        status: '',
+        status: 'pending',
         url: '/cfspeedtest'
     },
     'php': {
         output: [],
-        status: '',
+        status: 'pending',
         url: '/php'
     }
 });
 
 const activeBenchmark = ref('yabs');
+const userViewingBenchmark = ref(null);
+const viewingBenchmark = ref('yabs');
 const state = ref('idle');
 
 export const useBenchmarkQueue = () => {
@@ -48,16 +54,42 @@ export const useBenchmarkQueue = () => {
         results[benchmark].status = 'running';
         results[benchmark].output = [];
         activeBenchmark.value = benchmark;
+        // If we are not viewing a benchmark, set the viewing benchmark to the active benchmark
+        if( !userViewingBenchmark.value ) {
+            viewingBenchmark.value = benchmark;
+        }
+
         startStream(results[benchmark].url);
+    }
+
+    const resetResults = () => {
+        results.yabs.output = [];
+        results.yabs.status = 'pending';
+        results.cfspeedtest.output = [];
+        results.cfspeedtest.status = 'pending';
+        results.php.output = [];
+        results.php.status = 'pending';
     }
 
     const nextBenchmark = () => {
         stopStream();
+        
+        let activeIndex = queue.indexOf(activeBenchmark.value);
 
-        if( queue.indexOf(activeBenchmark.value) + 1 < queue.length ) {
-            let nextBenchmark = queue[queue.indexOf(activeBenchmark.value) + 1];
-            startBenchmark(nextBenchmark);
-        } else {
+        if( activeIndex === 0 && form.network ) {
+            if( form.network ) {
+                startBenchmark('cfspeedtest');
+            }else{
+                activeBenchmark.value = 'cfspeedtest';
+                nextBenchmark();
+            }
+        }else if( activeIndex === 1 && form.php_database ) {
+            if( form.php_database ) {
+                startBenchmark('php');
+            }else{
+                state.value = 'completed';
+            }
+        }else{
             state.value = 'completed';
         }
     }
@@ -66,10 +98,13 @@ export const useBenchmarkQueue = () => {
         queue,
         results,
         activeBenchmark,
+        userViewingBenchmark,
+        viewingBenchmark,
         state,
 
         appendOutput,
         setStatus,
+        resetResults,
         nextBenchmark,
         startBenchmark
     }
