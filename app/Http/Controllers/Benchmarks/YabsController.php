@@ -3,12 +3,46 @@
 namespace App\Http\Controllers\Benchmarks;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 
 class YabsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->stream(function () {
+        $options = '';
+
+        $disk = $request->input('disk', false);
+        $geekbench = $request->input('geekbench', false);
+        $geekbenchVersion = $request->input('geekbench_version', 6);
+        $iperf = $request->input('iperf', false);
+
+        if( !$disk ) {
+            $options .= ' -f/-d';
+        }
+
+        if( !$geekbench ) {
+            $options .= ' -g';
+        }else{
+            switch( $geekbenchVersion ) {
+                case 4:
+                    $options .= ' -4';
+                    break;
+                case 5:
+                    $options .= ' -5';
+                    break;
+                case 6:
+                    $options .= ' -6';
+                    break;
+            }
+        }
+
+        if( !$iperf ) {
+            $options .= ' -i';
+        }
+
+        $options .= ' -w';
+
+        return response()->stream(function () use ($options) {
             while (ob_get_level()) {
                 ob_end_flush();
             }
@@ -31,10 +65,10 @@ class YabsController extends Controller
             
             // We need to manually handle the process to allow heartbeats
             $bin = base_path('vendor/bin/yabs');
-            $results = base_path('yabs-results.json');
+            $results = base_path('results/yabs-results.json');
             $command = sprintf(
                 'script -q /dev/null -c %s',
-                escapeshellarg(sprintf('%s -i -6 -w %s', $bin, $results))
+                escapeshellarg(sprintf('%s %s %s', $bin, $options, $results))
             );
 
             $process = \Symfony\Component\Process\Process::fromShellCommandline(
@@ -57,11 +91,16 @@ class YabsController extends Controller
                 if ($output !== '') {
                     $lines = explode("\n", trim($output));
                     foreach ($lines as $line) {
+                         // Remove ANSI escape sequences
+                         $text = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $line);
+                         // Remove other control characters except newlines and tabs
+                         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+
                         if (trim($line) !== '') {
                             $outputCallback([
                                 'timestamp' => date('Y-m-d H:i:s'),
                                 'type' => 'out',
-                                'output' => $line,
+                                'output' => $text,
                             ]);
                         }
                     }
@@ -144,5 +183,11 @@ class YabsController extends Controller
             'X-Accel-Buffering' => 'no',
             'Access-Control-Allow-Origin' => '*',
         ]);
+    }
+
+    public function results()
+    {
+        $results = json_decode(file_get_contents(base_path('results/yabs-results.json')), true);
+        return response()->json($results);
     }
 }

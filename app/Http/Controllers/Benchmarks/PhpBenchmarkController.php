@@ -3,23 +3,14 @@
 namespace App\Http\Controllers\Benchmarks;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use League\Csv\Reader;
 
-class CloudflareSpeedTestController extends Controller
+class PhpBenchmarkController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $options = '';
-
-        $networkTestType = $request->input('network_test_type', 'ipv4');
-
-        if( $networkTestType === 'ipv4' ) {
-            $options .= ' --ipv4';
-        }else{
-            $options .= ' --ipv6';
-        }
-
-        return response()->stream(function () use ($options) {
+        // spin exec php vendor/bin/phpbench run --report=comparison --output=csv > phpbench_results.csv
+        return response()->stream(function () {
             while (ob_get_level()) {
                 ob_end_flush();
             }
@@ -40,10 +31,10 @@ class CloudflareSpeedTestController extends Controller
             $result = null;
 
              // We need to manually handle the process to allow heartbeats
-            $bin = base_path('vendor/bin/cfspeedtest');
+            $bin = base_path('vendor/bin/phpbench');
             $command = sprintf(
                 'script -q /dev/null -c %s',
-                escapeshellarg(sprintf('%s %s', $bin, $options))
+                escapeshellarg(sprintf('%s run --report=comparison --output=csv > results/phpbench_results.csv', $bin))
             );
 
             $process = \Symfony\Component\Process\Process::fromShellCommandline(
@@ -66,12 +57,12 @@ class CloudflareSpeedTestController extends Controller
                 if ($output !== '') {
                     $lines = explode("\n", trim($output));
                     foreach ($lines as $line) {
+                         // Remove ANSI escape sequences
+                        $text = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $line);
+                        // Remove other control characters except newlines and tabs
+                        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+
                         if (trim($line) !== '') {
-                            // Remove ANSI escape sequences
-                            $text = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $line);
-                            // Remove other control characters except newlines and tabs
-                            $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-                            
                             $outputCallback([
                                 'timestamp' => date('Y-m-d H:i:s'),
                                 'type' => 'out',
@@ -143,6 +134,48 @@ class CloudflareSpeedTestController extends Controller
             'Connection' => 'keep-alive',
             'X-Accel-Buffering' => 'no',
             'Access-Control-Allow-Origin' => '*',
+        ]);
+    }
+
+    public function results()
+    {
+        $reader = Reader::createFromPath(base_path('results/phpbench_results.csv'));
+        $reader->setHeaderOffset(0);
+        $reader->setEscape('');
+
+        $records = $reader->getRecords();
+        
+        $create = '';
+        $read = '';
+        $update = '';
+        $delete = '';
+
+        foreach ($records as $record) {
+            if( $record['benchmark'] === 'QueryBenchmark' && $record['subject'] === 'benchSimpleSelect' ) {
+                // The 'mean' value is in microseconds, convert it to milliseconds (1 ms = 1000 us)
+                $read = round($record['mean'] / 1000, 0);
+            }
+
+            if( $record['benchmark'] === 'InsertBenchmark' && $record['subject'] === 'benchDbFacadeInsertIndividual' ) {
+                $create = round($record['mean'] / 1000, 0);
+            }
+
+            if( $record['benchmark'] === 'UpdateBenchmark' && $record['subject'] === 'benchQueryBuilderIndividual' ) {
+                $update = round($record['mean'] / 1000, 0);
+            }
+
+            if( $record['benchmark'] === 'DeleteBenchmark' && $record['subject'] === 'benchQueryBuilderIndividual' ) {
+                $delete = round($record['mean'] / 1000, 0);
+            }
+        }
+        
+        return response()->json([
+            'phpbench_results' => [
+                'create' => $create,
+                'read' => $read,
+                'update' => $update,
+                'delete' => $delete,
+            ]
         ]);
     }
 }

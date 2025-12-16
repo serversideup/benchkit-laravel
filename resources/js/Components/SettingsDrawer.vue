@@ -46,12 +46,12 @@
                             </p>
                         </div>
 
-                        <div class="flex items-center mt-2">
+                        <div class="flex items-center mt-2" v-show="form.hardware">
                             <input type="checkbox" id="disk" v-model="form.disk" class="w-5 h-5 appearance-none border border-[#373A41] bg-transparent checked:bg-[#E62E05] checked:text-white rounded-md ring-0 outline-none focus:ring-0 focus:ring-offset-0" />
                             <label for="disk" class="ml-3 font-medium text-[#CECFD2] font-mono">Disk test (fio)</label>
                         </div>
 
-                        <div class="flex items-start mt-1">
+                        <div class="flex items-start mt-1" v-show="form.hardware">
                             <input type="checkbox" id="geekbench" v-model="form.geekbench" class="w-5 h-5 appearance-none border border-[#373A41] bg-transparent checked:bg-[#E62E05] checked:text-white rounded-md ring-0 outline-none focus:ring-0 focus:ring-offset-0" />
                             <div class="flex flex-col flex-1 ml-3">
                                 <label for="geekbench" class="font-medium text-[#CECFD2] font-mono">Geekbench test</label>
@@ -68,7 +68,7 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center mt-2">
+                        <div class="flex items-center mt-2" v-show="form.hardware">
                             <input type="checkbox" id="iperf" v-model="form.iperf" class="w-5 h-5 appearance-none border border-[#373A41] bg-transparent checked:bg-[#E62E05] checked:text-white rounded-md ring-0 outline-none focus:ring-0 focus:ring-offset-0" />
                             <label for="iperf" class="ml-3 font-medium text-[#CECFD2] font-mono">Iperf test</label>
                         </div>
@@ -125,26 +125,6 @@
                                 Perform a series of "CRUD" tests against a database.
                             </p>
                         </div>
-
-                        <div class="flex flex-col mt-2" v-show="form.php_database">
-                            <label for="database-create" class="text-[#CECFD2] font-mono font-medium">Create operations <span class="text-[#94979C] font-mono font-medium">*</span></label>
-                            <input type="number" id="database-create" v-model="form.database.create" class="mt-1.5 appearance-none w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0" />
-                        </div>
-
-                        <div class="flex flex-col mt-2" v-show="form.php_database">
-                            <label for="database-read" class="text-[#CECFD2] font-mono font-medium">Read operations <span class="text-[#94979C] font-mono font-medium">*</span></label>
-                            <input type="number" id="database-read" v-model="form.database.read" class="mt-1.5 appearance-none w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0" />
-                        </div>
-
-                        <div class="flex flex-col mt-2" v-show="form.php_database">
-                            <label for="database-update" class="text-[#CECFD2] font-mono font-medium">Update operations <span class="text-[#94979C] font-mono font-medium">*</span></label>
-                            <input type="number" id="database-update" v-model="form.database.update" class="mt-1.5 appearance-none w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0" />
-                        </div>
-                        
-                        <div class="flex flex-col mt-2" v-show="form.php_database">
-                            <label for="database-delete" class="text-[#CECFD2] font-mono font-medium">Delete operations <span class="text-[#94979C] font-mono font-medium">*</span></label>
-                            <input type="number" id="database-delete" v-model="form.database.delete" class="mt-1.5 appearance-none w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0" />
-                        </div>
                     </div>
                 </div>
 
@@ -157,12 +137,16 @@
 </template>
   
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { TransitionRoot } from '@headlessui/vue'
 import { Switch } from '@headlessui/vue'
 import { useSettings } from '@/Composables/useSettings'
+import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue'
 
 const { form } = useSettings()
+const { 
+    results
+} = useBenchmarkQueue()
 
 const props = defineProps({
     open: {
@@ -193,6 +177,79 @@ const closeOnEscape = (e) => {
 };
 
 onMounted(() => document.addEventListener('keydown', closeOnEscape));
-
+onMounted(() => buildUrls());
 onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
+
+watch(form, () => {
+    buildUrls();
+    updateStatuses();
+}, { deep: true });
+
+const buildUrls = () => {
+    results.yabs.url = buildYabsUrl();
+    results.cfspeedtest.url = buildCfspeedtestUrl();
+    results.php.url = buildPhpUrl();
+}
+
+const buildYabsUrl = () => {
+    const params = new URLSearchParams();
+
+    if( form.disk ){
+        params.append('disk', 'true');
+    }
+
+    if( form.geekbench ){
+        params.append('geekbench', 'true');
+    }
+
+    if( form.geekbench_version ){
+        params.append('geekbench_version', form.geekbench_version);
+    }
+
+    if( form.iperf ){
+        params.append('iperf', 'true');
+    }
+
+    return `/yabs?${params.toString()}`;
+}
+
+const buildCfspeedtestUrl = () => {
+    const params = new URLSearchParams();
+
+    if( form.network_test_type ){
+        params.append('network_test_type', form.network_test_type);
+    }
+
+    return `/cfspeedtest?${params.toString()}`;
+}
+
+const buildPhpUrl = () => {
+    const params = new URLSearchParams();
+
+    if( form.php_database ){
+        params.append('php_database', 'true');
+    }
+
+    return `/php?${params.toString()}`;
+}
+
+const updateStatuses = () => {
+    if( form.hardware ){
+        results.yabs.status = 'pending';
+    }else{
+        results.yabs.status = 'skipped';
+    }
+
+    if( form.network ){
+        results.cfspeedtest.status = 'pending';
+    }else{
+        results.cfspeedtest.status = 'skipped';
+    }
+
+    if( form.php_database ){
+        results.php.status = 'pending';
+    }else{
+        results.php.status = 'skipped';
+    }
+}
 </script>

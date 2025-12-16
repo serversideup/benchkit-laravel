@@ -21,6 +21,7 @@
         "@tailwindcss/forms": "^0.5.10",
         "@vitejs/plugin-vue": "^6.0.1",
         "@vueuse/core": "^13.9.0",
+        "html-to-image": "^1.11.13",
         "vue": "^3.5.21"
     }
 }
