@@ -50,7 +50,7 @@ jobs:
     - name: Prepare PHP versions for the matrix. 😎
       run: |
         chmod +x ./scripts/configure-php-versions.sh
-        ./scripts/configure-php-versions.sh --branch 280-create-a-frankenphp-variation
+        ./scripts/configure-php-versions.sh
     
     - name: Ensure our PHP Versions file exists.
       run: |
