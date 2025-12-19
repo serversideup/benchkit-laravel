@@ -59,6 +59,7 @@ services:
     working_dir: /usr/src/app/
     networks: 
       - development
+    command: ["yarn", "dev"]
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vite.rule=HostRegexp(`vite.dev.test`)"
