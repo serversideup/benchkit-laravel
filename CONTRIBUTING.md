@@ -92,6 +92,11 @@ PHP_VARIATION=frankenphp spin up --build
 
 You can even set the PHP version with `PHP_VERSION=8.4` or the base operating system with `BASE_OS=trixie`. The input must match what's available on [serversideup/php](https://hub.docker.com/r/serversideup/php/tags).
 
+Example of changing versions:
+```bash
+PHP_VERSION=8.2 spin up --build
+```
+
 ## ⚡️ Adding or Improving our performance tests
 This is where we really rely on the community to help us ensure our performance tests are realistic and as accurate as possible.
 
