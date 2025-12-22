@@ -104,5 +104,28 @@ If you're looking to request a new test, you can do so by [submitting a feature 
 
 ### If you'd like to build a test yourself
 
-> [!IMPORTANT]  
-> This content should be replaced by @danpastori on how users can build their own tests.
+Benchkit uses a standardized benchmarking suite called [PHPBench](https://phpbench.readthedocs.io/en/latest/installing.html). It operates very similar to PHP Unit testing. To contribute your own benchmark, I'd familiarize yourself with PHP Bench (AI is very helpful).
+
+A few notes on structure.
+
+#### Laravel is Pre-Loaded
+Since Benchkit relies heavily on testing Laravel applications, I've bootstrapped Laravel when starting Benchkit tests. In the root directory there's a file `phpbench-bootstrap.php`. This runs before every test so if you want to bench a specific Laravel function, you can!
+
+#### Where Should I Place My New Benchmark?
+All benchmarks for PHP are located in `app/Benchmarks/Php`. In that directory, there are two sub-directories:
+
+1. Database
+2. Performance
+
+The `Database` directory contains all PHP Benchmarks that require a database. The `Performance` directory contains all PHP Benchmarks that are isolated to strictly the PHP docker container. If your benchmark requires a database query or interaction, place it in the `Database` directory. If you are isolating a PHP method to bench, place it in the `Performance` directory.
+
+If you have questions or want to contribute a whole new set of benchmarks, feel free to make a PR. I'd love to collaborate and add some extended benchmarks! We plan on making an API system to bench full responses from remote requests very soon!
+
+#### Database Tests Must Extend BaseBenchmark.php
+When testing the database, there needs to be a way to reset the database before each test. If you are writing your own, entirely different database test, you will need to extend the `BaseBenchmark.php` class. This will clear and reset the database each time you run a test.
+
+If you have a test you want run that matches the standard CRUD of a database, add it in the PHP Bench format to either:
+- InsertBenchmark.php
+- DeleteBenchmark.php
+- QueryBenchmark.php
+- UpdateBenchmark.php
