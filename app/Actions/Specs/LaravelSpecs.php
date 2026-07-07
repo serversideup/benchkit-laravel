@@ -9,6 +9,7 @@ class LaravelSpecs
     public function execute()
     {
         Artisan::call('about --json');
+
         return Artisan::output();
     }
 }

@@ -61,7 +61,7 @@ class ServerSpecs
     public function getRam()
     {
         $ram = (int) trim(shell_exec('awk \'/MemTotal/ {print $2}\' /proc/meminfo'));
-        return round($ram / 1024, 3) . ' MB';
-    }
 
+        return round($ram / 1024, 3).' MB';
+    }
 }
