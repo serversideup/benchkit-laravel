@@ -91,6 +91,9 @@ FROM node:22-${BASE_OS} AS node-base
 FROM php-base AS php-development
 ARG PHP_VARIATION=fpm-nginx
 
+# Expose the variation to the app so results can be labeled with it
+ENV PHP_VARIATION="${PHP_VARIATION}"
+
 # We can pass USER_ID and GROUP_ID as build arguments
 # to ensure the www-data user has the same UID and GID
 # as the user running Docker.
@@ -184,6 +187,10 @@ RUN yarn install --frozen-lockfile; \
 ############################################
 FROM php-base AS final
 ARG REPOSITORY_BUILD_VERSION="dev"
+ARG PHP_VARIATION=fpm-nginx
+
+# Expose the variation to the app so results can be labeled with it
+ENV PHP_VARIATION="${PHP_VARIATION}"
 COPY --chown=www-data:www-data . /var/www/html
 COPY --chown=www-data:www-data --from=node-build /usr/src/app/public/build /var/www/html/public/build
 COPY --chmod=755 ./.infrastructure/entrypoint.d/ /etc/entrypoint.d/
