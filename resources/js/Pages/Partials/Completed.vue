@@ -1,9 +1,9 @@
 <template>
     <div class="w-full flex flex-col items-center justify-center py-16">
         <div class="w-full flex flex-col items-center justify-center">
-            <h1 class="text-[#F7F7F7] uppercase font-bold font-mono text-6xl mb-3">Your Results</h1>
-            
-            <div>
+            <h1 class="results-anim text-[#F7F7F7] uppercase font-bold font-mono text-6xl mb-3">Your Results</h1>
+
+            <div class="results-anim" style="animation-delay: 120ms;">
                 <div v-show="!resultsImage" id="results-image" style="display: flex; flex-direction: column; justify-content: center; align-items: center; width: 750px;">
                     <div style="background-color: #771A0D; height: 88px; display: flex; align-items: center; justify-content: center; border-top-left-radius: 12px; border-top-right-radius: 12px; width: 100%;">
                         <img src="/images/results/title.png" style="max-width: 475px; margin: auto; display: block;"/>
@@ -142,29 +142,30 @@
                 </div>
             </div>
 
-            <div v-show="resultsImage" id="results-image-container">
+            <div v-show="resultsImage" id="results-image-container" class="relative group">
                 <img :src="resultsImage" alt="Results Image" class="w-[750px] mx-auto" />
+                <div class="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button @click="copyImage()" type="button" class="px-3 py-2 rounded-lg bg-black/80 border border-[#373A41] text-xs text-[#CECFD2] font-mono cursor-pointer hover:bg-black">{{ copiedImage ? 'Copied!' : 'Copy image' }}</button>
+                    <button @click="downloadImage()" type="button" class="px-3 py-2 rounded-lg bg-black/80 border border-[#373A41] text-xs text-[#CECFD2] font-mono cursor-pointer hover:bg-black">Download PNG</button>
+                </div>
             </div>
 
-            <div class="w-full flex items-center justify-center mt-7">
-                <a href="https://x.com/intent/tweet?text=Check%20out%20my%20%23BenchKit%20by%20%40serversideup%20results!%20How%20fast%20is%20your%20host%20with%20%23Laravel?" target="_blank" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-white bg-[#E62E05] border border-[#E62E05]">
-                    Share on 
+            <div class="results-anim w-full flex flex-col items-center gap-4 mt-7" style="animation-delay: 240ms;">
+                <button @click="shareOnX()" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-white bg-[#E62E05] border border-[#E62E05] cursor-pointer">
+                    Share on
                     <svg class="ml-2" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
                         <path d="M10.1909 7.41006L16.5656 0H15.055L9.51988 6.43405L5.09898 0H0L6.68527 9.72942L0 17.5H1.51068L7.35593 10.7054L12.0247 17.5H17.1237L10.1906 7.41006H10.1909ZM8.12184 9.81514L7.44449 8.84631L2.055 1.13722H4.37532L8.7247 7.3587L9.40206 8.32753L15.0557 16.4145H12.7354L8.12184 9.81551V9.81514Z" fill="white"/>
                     </svg>
-                </a>
-            </div>
+                </button>
+                <p v-if="shareHint" class="text-xs text-[#94979C] font-mono">{{ shareHint }}</p>
 
-            <div class="w-full flex items-center justify-center mt-4" v-show="resultsImage">
-                <button @click="downloadImage()" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] cursor-pointer">
+                <button @click="downloadResults()" v-show="resultsImage" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] cursor-pointer">
                     <svg class="mr-2" xmlns="http://www.w3.org/2000/svg" width="19" height="17" viewBox="0 0 19 17" fill="none">
                         <path d="M2.50016 11.8685C1.49517 11.1958 0.833496 10.0502 0.833496 8.75C0.833496 6.79702 2.32642 5.19274 4.23328 5.01614C4.62334 2.64344 6.6837 0.833332 9.16683 0.833332C11.65 0.833332 13.7103 2.64344 14.1004 5.01614C16.0072 5.19274 17.5002 6.79702 17.5002 8.75C17.5002 10.0502 16.8385 11.1958 15.8335 11.8685M5.8335 12.5L9.16683 15.8333M9.16683 15.8333L12.5002 12.5M9.16683 15.8333V8.33333" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    Download Image
+                    Download Results
                 </button>
-            </div>
 
-            <div class="w-full flex items-center justify-center mt-4">
                 <button @click="runAgain()" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] cursor-pointer">
                     <svg class="mr-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                         <path d="M1.6665 8.33333C1.6665 8.33333 3.33732 6.05685 4.6947 4.69854C6.05208 3.34022 7.92783 2.5 9.99984 2.5C14.142 2.5 17.4998 5.85786 17.4998 10C17.4998 14.1421 14.142 17.5 9.99984 17.5C6.58059 17.5 3.69576 15.2119 2.79298 12.0833M1.6665 8.33333V3.33333M1.6665 8.33333H6.6665" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
@@ -173,31 +174,29 @@
                 </button>
             </div>
         </div>
-        <div class="w-full flex items-center justify-between mx-auto max-w-screen-lg mt-16">
-            <h2 class="text-4xl font-medium text-[#F7F7F7] uppercase font-mono">Detailed Results</h2>
+        <div class="results-anim w-full flex items-center justify-between mx-auto max-w-screen-lg mt-16" style="animation-delay: 360ms;">
+            <button @click="showDetails = !showDetails" type="button" class="flex items-center cursor-pointer">
+                <h2 class="text-4xl font-medium text-[#F7F7F7] uppercase font-mono">Detailed Results</h2>
+                <svg :class="{ 'rotate-180': showDetails }" class="ml-3 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 20 20" fill="none">
+                    <path d="M5 7.5L10 12.5L15 7.5" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
 
-            <div class="flex items-center">
-                <a :href="geekBenchUrl" target="_blank" v-show="results['yabs'].status === 'completed' && geekBenchUrl" type="button" class="px-[14px] py-2.5 rounded-lg border border-[#373A41] bg-[#0C0E12] text-sm text-[#CECFD2] font-mono cursor-pointer flex items-center">
-                    <svg class="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="19" viewBox="0 0 16 19" fill="none">
-                        <path d="M8.69389 0.833382L1.27178 9.73993C0.981101 10.0887 0.835765 10.2631 0.833544 10.4104C0.831613 10.5385 0.888671 10.6603 0.988276 10.7408C1.10285 10.8334 1.32988 10.8334 1.78392 10.8334H7.86056L7.02723 17.5L14.4493 8.5935C14.74 8.2447 14.8854 8.07029 14.8876 7.923C14.8895 7.79495 14.8325 7.67313 14.7328 7.59264C14.6183 7.50005 14.3912 7.50005 13.9372 7.50005H7.86056L8.69389 0.833382Z" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    View Geekbench Results
-                </a>
-                <button @click="downloadResults()" type="button" class="ml-2.5 px-[14px] py-2.5 rounded-lg border border-[#373A41] bg-[#0C0E12] text-sm text-[#CECFD2] font-mono cursor-pointer flex items-center">
-                    <svg class="mr-1" xmlns="http://www.w3.org/2000/svg" width="19" height="17" viewBox="0 0 19 17" fill="none">
-                        <path d="M2.50016 11.8685C1.49517 11.1958 0.833496 10.0502 0.833496 8.75C0.833496 6.79702 2.32642 5.19274 4.23328 5.01614C4.62334 2.64344 6.6837 0.833332 9.16683 0.833332C11.65 0.833332 13.7103 2.64344 14.1004 5.01614C16.0072 5.19274 17.5002 6.79702 17.5002 8.75C17.5002 10.0502 16.8385 11.1958 15.8335 11.8685M5.8335 12.5L9.16683 15.8333M9.16683 15.8333L12.5002 12.5M9.16683 15.8333V8.33333" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Download Results
-                </button>
-            </div>
+            <a :href="geekBenchUrl" target="_blank" v-show="results['yabs'].status === 'completed' && geekBenchUrl" class="px-[14px] py-2.5 rounded-lg border border-[#373A41] bg-[#0C0E12] text-sm text-[#CECFD2] font-mono cursor-pointer flex items-center">
+                <svg class="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="19" viewBox="0 0 16 19" fill="none">
+                    <path d="M8.69389 0.833382L1.27178 9.73993C0.981101 10.0887 0.835765 10.2631 0.833544 10.4104C0.831613 10.5385 0.888671 10.6603 0.988276 10.7408C1.10285 10.8334 1.32988 10.8334 1.78392 10.8334H7.86056L7.02723 17.5L14.4493 8.5935C14.74 8.2447 14.8854 8.07029 14.8876 7.923C14.8895 7.79495 14.8325 7.67313 14.7328 7.59264C14.6183 7.50005 14.3912 7.50005 13.9372 7.50005H7.86056L8.69389 0.833382Z" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                View Geekbench Results
+            </a>
         </div>
 
-        <BenchmarkResults />
+        <BenchmarkResults v-show="showDetails" />
     </div>
 </template>
 
 <script setup>
 import * as htmlToImage from 'html-to-image';
+import JSZip from 'jszip';
 import BenchmarkResults from '@/Pages/Partials/BenchmarkResults.vue';
 import { onMounted, ref, reactive, computed, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
@@ -273,8 +272,15 @@ const formatMs = (ms) => {
 
 
 onMounted(() => {
+    // The user may be scrolled down watching logs when the run finishes —
+    // bring the results into view
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     buildSummary();
 });
+
+const showDetails = ref(false);
+const shareHint = ref(null);
+const copiedImage = ref(false);
 
 const summaryBuilt = reactive({
     yabs: false,
@@ -473,6 +479,7 @@ const downloadBlob = (blob, filename) => {
     URL.revokeObjectURL(url);
 }
 
+
 const downloadImage = () => {
     const a = document.createElement('a');
     a.href = resultsImage.value;
@@ -480,58 +487,102 @@ const downloadImage = () => {
     a.click();
 }
 
-const downloadResults = async () => {
-    let text = '';
+const imageBlob = async () => {
+    return (await fetch(resultsImage.value)).blob();
+}
 
-    if( results['yabs'].status === 'completed' ) {
-        text += '################################################################################\n';
-        text += '# HARDWARE TESTS\n';
-        text += '################################################################################\n';
-        text += results['yabs'].output.join('\n');
-        text += '\n';
+// The clipboard API only exists in secure contexts (https or localhost) —
+// plain-http homelab setups fall back to the download button
+const writeImageToClipboard = () => {
+    if( !navigator.clipboard || typeof ClipboardItem === 'undefined' ) {
+        return Promise.reject(new Error('Clipboard unavailable'));
     }
 
-    if( results['cfspeedtest'].status === 'completed' ) {
-        text += '################################################################################\n';
-        text += '# NETWORK TESTS\n';
-        text += '################################################################################\n';
-        text += results['cfspeedtest'].output.join('\n');
-        text += '\n';
-    }
+    return navigator.clipboard.write([new ClipboardItem({ 'image/png': imageBlob() })]);
+}
 
-    if( results['http'].status === 'completed' ) {
-        text += '################################################################################\n';
-        text += '# WEB SERVER TESTS\n';
-        text += '################################################################################\n';
-        text += results['http'].output.join('\n');
-        text += '\n';
-    }
-
-    if( results['php'].status === 'completed' ) {
-        text += '################################################################################\n';
-        text += '# PHP TESTS\n';
-        text += '################################################################################\n';
-        text += results['php'].output.join('\n');
-        text += '\n';
-    }
-
-    const formattedDate = fileTimestamp();
-
-    downloadBlob(new Blob([text], { type: 'text/plain' }), `benchkit-results-${formattedDate}.txt`);
-
-    // Also download the unified machine-readable results document
+const copyImage = async () => {
     try {
-        const response = await fetch('/results');
-
-        if( response.ok ) {
-            const json = await response.json();
-            downloadBlob(
-                new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' }),
-                `benchkit-results-${formattedDate}.json`
-            );
-        }
+        await writeImageToClipboard();
+        copiedImage.value = true;
+        setTimeout(() => copiedImage.value = false, 2000);
     } catch (error) {
         console.error(error);
     }
 }
+
+// The X web intent cannot attach media, so the image is copied to the
+// clipboard for the user to paste into the composer
+const shareOnX = () => {
+    const copied = writeImageToClipboard();
+
+    window.open('https://x.com/intent/tweet?text=Check%20out%20my%20%23BenchKit%20by%20%40serversideup%20results!%20How%20fast%20is%20your%20host%20with%20%23Laravel?', '_blank');
+
+    copied
+        .then(() => shareHint.value = 'Results image copied — paste it into your post!')
+        .catch(() => shareHint.value = 'Download the results image and attach it to your post.');
+}
+
+const buildLogText = () => {
+    const sections = [
+        { key: 'yabs', title: 'HARDWARE TESTS' },
+        { key: 'cfspeedtest', title: 'NETWORK TESTS' },
+        { key: 'http', title: 'WEB SERVER TESTS' },
+        { key: 'php', title: 'PHP TESTS' },
+    ];
+
+    let text = '';
+
+    sections.forEach(({ key, title }) => {
+        if( results[key].status === 'completed' ) {
+            text += '################################################################################\n';
+            text += `# ${title}\n`;
+            text += '################################################################################\n';
+            text += results[key].output.join('\n');
+            text += '\n';
+        }
+    });
+
+    return text;
+}
+
+const downloadResults = async () => {
+    const zip = new JSZip();
+    const formattedDate = fileTimestamp();
+
+    zip.file(`benchkit-results-${formattedDate}.txt`, buildLogText());
+
+    try {
+        const response = await fetch('/results');
+
+        if( response.ok ) {
+            zip.file(`benchkit-results-${formattedDate}.json`, JSON.stringify(await response.json(), null, 2));
+        }
+    } catch (error) {
+        console.error(error);
+    }
+
+    if( resultsImage.value ) {
+        zip.file(`benchkit-results-${formattedDate}.png`, await imageBlob());
+    }
+
+    downloadBlob(await zip.generateAsync({ type: 'blob' }), `benchkit-results-${formattedDate}.zip`);
+}
 </script>
+<style scoped>
+@keyframes results-rise {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.results-anim {
+    animation: results-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+</style>
