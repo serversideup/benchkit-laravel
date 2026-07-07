@@ -122,4 +122,29 @@ class BenchmarkResultsTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_cfspeedtest_results_parses_the_v2_output_format_without_an_asn_line(): void
+    {
+        File::put($this->resultsPath.'/cfspeedtest-output.txt', implode("\n", [
+            'Starting Cloudflare speed test',
+            'Country: US',
+            'Ip: 1.2.3.4',
+            'Colo: LAX',
+            'Avg GET request latency 18.00 ms',
+            'Download  25MB   |  min 220.42  max 323.23  avg 292.53',
+            'Upload    10MB   |  min 33.66   max 37.54   avg 35.84',
+        ]));
+
+        $response = $this->getJson('/cfspeedtest/results')->assertOk();
+
+        $response->assertJson([
+            'cfspeedtest_results' => [
+                'colo' => 'LAX',
+                'latency_ms' => 18.0,
+                'download_mbps' => 292.53,
+                'upload_mbps' => 35.84,
+            ],
+        ]);
+        $this->assertNull($response->json('cfspeedtest_results.asn'));
+    }
 }

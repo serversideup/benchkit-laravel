@@ -28,6 +28,8 @@ class StreamedProcess
     /** @var array<int, string> */
     protected array $collectedOutput = [];
 
+    protected ?Process $process = null;
+
     public function __construct(
         protected string $command,
         protected int $lockSeconds = 3600,
@@ -97,13 +99,16 @@ class StreamedProcess
         @ini_set('output_buffering', 'off');
         @ini_set('zlib.output_compression', '0');
         set_time_limit(0);
+        ignore_user_abort(true);
 
         // The finally block is the primary release; the shutdown function
         // covers FPM killing the script mid-stream on client disconnect,
         // where finally blocks never run. Under Octane, workers do not shut
         // down per request, so the shutdown callback may fire long after —
-        // that is safe because release() only succeeds for the lock owner.
+        // that is safe because release() only succeeds for the lock owner
+        // and stopProcess() is a no-op once the subprocess has exited.
         register_shutdown_function(function () use ($lock) {
+            $this->stopProcess();
             $lock->release();
         });
 
@@ -112,21 +117,25 @@ class StreamedProcess
             @ob_flush();
             flush();
 
-            $process = Process::fromShellCommandline(
-                sprintf('script -qe /dev/null -c %s', escapeshellarg($this->command)),
+            // `exec` makes the shell replace itself so getPid() is the
+            // `script` process and stop() signals it directly; `script`
+            // forwards the signal to the benchmark it wraps.
+            $this->process = Process::fromShellCommandline(
+                sprintf('exec script -qe /dev/null -c %s', escapeshellarg($this->command)),
                 base_path(),
                 null,
                 null,
                 null
             );
 
-            $process->start();
+            $this->process->start();
 
             $lastHeartbeat = time();
+            $lastPing = time();
 
-            while ($process->isRunning()) {
-                $this->emitLines($process->getIncrementalOutput(), 'out');
-                $this->emitLines($process->getIncrementalErrorOutput(), 'err');
+            while ($this->process->isRunning()) {
+                $this->emitLines($this->process->getIncrementalOutput(), 'out');
+                $this->emitLines($this->process->getIncrementalErrorOutput(), 'err');
 
                 if (time() - $lastHeartbeat >= self::HEARTBEAT_SECONDS) {
                     $this->emit([
@@ -138,22 +147,51 @@ class StreamedProcess
                     $lastHeartbeat = time();
                 }
 
+                // An SSE comment forces a write so a cancelled client is
+                // noticed within a second even when the benchmark is silent.
+                // A cancelled run returns without persisting output or
+                // emitting a status frame; finally still cleans up the lock.
+                if (time() - $lastPing >= 1) {
+                    echo ": ping\n\n";
+                    @ob_flush();
+                    flush();
+                    $lastPing = time();
+
+                    if (connection_aborted()) {
+                        $this->stopProcess();
+
+                        return;
+                    }
+                }
+
                 usleep(100000);
             }
 
-            $this->emitLines($process->getIncrementalOutput(), 'out');
-            $this->emitLines($process->getIncrementalErrorOutput(), 'err');
+            $this->emitLines($this->process->getIncrementalOutput(), 'out');
+            $this->emitLines($this->process->getIncrementalErrorOutput(), 'err');
 
             $this->persistCollectedOutput();
 
             $this->emit([
                 'timestamp' => date('Y-m-d H:i:s'),
-                'status' => $process->isSuccessful() ? 'completed' : 'error',
-                'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
+                'status' => $this->process->isSuccessful() ? 'completed' : 'error',
+                'error' => $this->process->isSuccessful() ? null : $this->process->getExitCodeText(),
             ]);
         } finally {
             Cache::forget(self::HEARTBEAT_KEY);
             $lock->release();
+        }
+    }
+
+    /**
+     * SIGTERM the wrapped `script` process, escalating to SIGKILL after
+     * five seconds. Killing `script` also tears down the benchmark running
+     * inside its pseudo-TTY.
+     */
+    protected function stopProcess(): void
+    {
+        if ($this->process?->isRunning()) {
+            $this->process->stop(5);
         }
     }
 

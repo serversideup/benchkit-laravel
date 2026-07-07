@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8303e7fc7bf877a26bbdc29464ee4131",
+    "content-hash": "eef64689ab413fa9adc2eec5343c3ac5",
     "packages": [
         {
             "name": "brick/math",
@@ -3986,16 +3986,16 @@
         },
         {
             "name": "serversideup/cfspeedtest",
-            "version": "v2025.09.09.0",
+            "version": "v2026.07.07.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/serversideup/composer-cfspeedtest.git",
-                "reference": "843f2f650b04822528ddb85efeb4345f8abc327f"
+                "reference": "00a78b656c54c595d6f341f23b28b7653223ed8d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/serversideup/composer-cfspeedtest/zipball/843f2f650b04822528ddb85efeb4345f8abc327f",
-                "reference": "843f2f650b04822528ddb85efeb4345f8abc327f",
+                "url": "https://api.github.com/repos/serversideup/composer-cfspeedtest/zipball/00a78b656c54c595d6f341f23b28b7653223ed8d",
+                "reference": "00a78b656c54c595d6f341f23b28b7653223ed8d",
                 "shasum": ""
             },
             "bin": [
@@ -4019,7 +4019,7 @@
             "description": "Distribute cfspeedtest as a Composer package.",
             "support": {
                 "issues": "https://github.com/serversideup/composer-cfspeedtest/issues",
-                "source": "https://github.com/serversideup/composer-cfspeedtest/tree/v2025.09.09.0"
+                "source": "https://github.com/serversideup/composer-cfspeedtest/tree/v2026.07.07.1"
             },
             "funding": [
                 {
@@ -4027,7 +4027,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-09-09T21:57:18+00:00"
+            "time": "2026-07-07T21:21:29+00:00"
         },
         {
             "name": "serversideup/oha",
