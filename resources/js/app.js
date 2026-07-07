@@ -3,10 +3,10 @@ import './bootstrap';
 import { createApp, h } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePage } from './resolvePage';
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// The tab title is managed by useDocumentTitle (idle/running/completed
+// states), not by Inertia Head components
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
     resolve: name => {
         return resolvePage(name)
     },
