@@ -2,192 +2,60 @@
 
 namespace App\Http\Controllers\Benchmarks;
 
+use App\Actions\Results\YabsResults;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Benchmarks\YabsBenchmarkRequest;
+use App\Support\StreamedProcess;
+use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class YabsController extends Controller
 {
-    public function index(Request $request)
+    public function index(YabsBenchmarkRequest $request): Response
+    {
+        $command = sprintf(
+            '%s%s %s',
+            base_path('vendor/bin/yabs'),
+            $this->buildOptions($request),
+            (new YabsResults)->path()
+        );
+
+        return (new StreamedProcess($command))->response();
+    }
+
+    public function results(): JsonResponse
+    {
+        $results = (new YabsResults)->execute();
+
+        if ($results === null) {
+            return response()->json(['status' => 'no_results'], 404);
+        }
+
+        return response()->json($results);
+    }
+
+    protected function buildOptions(YabsBenchmarkRequest $request): string
     {
         $options = '';
 
-        $disk = $request->input('disk', false);
-        $geekbench = $request->input('geekbench', false);
-        $geekbenchVersion = $request->input('geekbench_version', 6);
-        $iperf = $request->input('iperf', false);
-
-        if( !$disk ) {
-            $options .= ' -f/-d';
+        if (! $request->boolean('disk')) {
+            $options .= ' -f';
         }
 
-        if( !$geekbench ) {
+        if (! $request->boolean('geekbench')) {
             $options .= ' -g';
-        }else{
-            switch( $geekbenchVersion ) {
-                case 4:
-                    $options .= ' -4';
-                    break;
-                case 5:
-                    $options .= ' -5';
-                    break;
-                case 6:
-                    $options .= ' -6';
-                    break;
-            }
+        } else {
+            $options .= match ($request->integer('geekbench_version', 6)) {
+                4 => ' -4',
+                5 => ' -5',
+                default => ' -6',
+            };
         }
 
-        if( !$iperf ) {
+        if (! $request->boolean('iperf')) {
             $options .= ' -i';
         }
 
-        $options .= ' -w';
-
-        return response()->stream(function () use ($options) {
-            while (ob_get_level()) {
-                ob_end_flush();
-            }
-            @ini_set('output_buffering', 'off');
-            @ini_set('zlib.output_compression', '0');
-            set_time_limit(0);
-
-            echo "retry: 2000\n\n"; // keep connection healthy
-            @ob_flush(); flush();
-
-            $lastHeartbeat = time();
-            $outputCallback = function ($data) use (&$lastHeartbeat) {
-                echo "data: " . json_encode($data) . "\n\n";
-                @ob_flush(); flush();
-            };
-
-            // Start the benchmark process
-            $processStarted = false;
-            $result = null;
-            
-            // We need to manually handle the process to allow heartbeats
-            $bin = base_path('vendor/bin/yabs');
-            $results = base_path('results/yabs-results.json');
-            $command = sprintf(
-                'script -q /dev/null -c %s',
-                escapeshellarg(sprintf('%s %s %s', $bin, $options, $results))
-            );
-
-            $process = \Symfony\Component\Process\Process::fromShellCommandline(
-                $command, 
-                base_path(), 
-                null, 
-                null, 
-                null
-            );
-
-            $process->start();
-            $processStarted = true;
-
-            // Loop while process is running, sending heartbeats every 30 seconds
-            while ($process->isRunning()) {
-                // Check for process output
-                $output = $process->getIncrementalOutput();
-                $errorOutput = $process->getIncrementalErrorOutput();
-                
-                if ($output !== '') {
-                    $lines = explode("\n", trim($output));
-                    foreach ($lines as $line) {
-                         // Remove ANSI escape sequences
-                         $text = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $line);
-                         // Remove other control characters except newlines and tabs
-                         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-
-                        if (trim($line) !== '') {
-                            $outputCallback([
-                                'timestamp' => date('Y-m-d H:i:s'),
-                                'type' => 'out',
-                                'output' => $text,
-                            ]);
-                        }
-                    }
-                }
-                
-                if ($errorOutput !== '') {
-                    $lines = explode("\n", trim($errorOutput));
-                    foreach ($lines as $line) {
-                        if (trim($line) !== '') {
-                            $outputCallback([
-                                'timestamp' => date('Y-m-d H:i:s'),
-                                'type' => 'err',
-                                'output' => $line,
-                            ]);
-                        }
-                    }
-                }
-                
-                // Send heartbeat every 30 seconds
-                if (time() - $lastHeartbeat >= 30) {
-                    echo "data: " . json_encode([
-                        'timestamp' => date('Y-m-d H:i:s'),
-                        'type' => 'heartbeat',
-                        'output' => 'Connection alive',
-                    ]) . "\n\n";
-                    @ob_flush(); flush();
-                    $lastHeartbeat = time();
-                }
-                
-                // Small sleep to prevent CPU spinning
-                usleep(100000); // 0.1 seconds
-            }
-            
-            // Process any remaining output
-            $remainingOutput = $process->getOutput();
-            $remainingError = $process->getErrorOutput();
-            
-            if ($remainingOutput !== '') {
-                $lines = explode("\n", trim($remainingOutput));
-                foreach ($lines as $line) {
-                    if (trim($line) !== '') {
-                        $outputCallback([
-                            'timestamp' => date('Y-m-d H:i:s'),
-                            'type' => 'out',
-                            'output' => $line,
-                        ]);
-                    }
-                }
-            }
-            
-            if ($remainingError !== '') {
-                $lines = explode("\n", trim($remainingError));
-                foreach ($lines as $line) {
-                    if (trim($line) !== '') {
-                        $outputCallback([
-                            'timestamp' => date('Y-m-d H:i:s'),
-                            'type' => 'err',
-                            'output' => $line,
-                        ]);
-                    }
-                }
-            }
-            
-            $result = [
-                'status' => $process->isSuccessful() ? 'completed' : 'error',
-                'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
-            ];
-            
-            echo "data: " . json_encode([
-                'timestamp' => date('Y-m-d H:i:s'),
-                'status' => $result['status'],
-                'error' => $result['error'],
-            ]) . "\n\n";
-            @ob_flush(); flush();
-            
-        }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
-            'Access-Control-Allow-Origin' => '*',
-        ]);
-    }
-
-    public function results()
-    {
-        $results = json_decode(file_get_contents(base_path('results/yabs-results.json')), true);
-        return response()->json($results);
+        return $options.' -w';
     }
 }
