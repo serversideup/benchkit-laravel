@@ -8972,20 +8972,21 @@
         },
         {
             "name": "serversideup/spin",
-            "version": "v3.1.1",
+            "version": "v3.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/serversideup/spin.git",
-                "reference": "5da5b5485b03e4f75d501b93b8a7e8ab973157cd"
+                "reference": "67ebcfc6e3b64bb305486717a7d29409b8bfb6b7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/serversideup/spin/zipball/5da5b5485b03e4f75d501b93b8a7e8ab973157cd",
-                "reference": "5da5b5485b03e4f75d501b93b8a7e8ab973157cd",
+                "url": "https://api.github.com/repos/serversideup/spin/zipball/67ebcfc6e3b64bb305486717a7d29409b8bfb6b7",
+                "reference": "67ebcfc6e3b64bb305486717a7d29409b8bfb6b7",
                 "shasum": ""
             },
             "bin": [
-                "bin/spin"
+                "bin/spin",
+                "bin/spin-mcp-wait.sh"
             ],
             "type": "library",
             "notification-url": "https://packagist.org/downloads/",
@@ -9005,7 +9006,7 @@
             "description": "Replicate your production environment locally using Docker. Just run \"spin up\". It's really that easy.",
             "support": {
                 "issues": "https://github.com/serversideup/spin/issues",
-                "source": "https://github.com/serversideup/spin/tree/v3.1.1"
+                "source": "https://github.com/serversideup/spin/tree/v3.2.4"
             },
             "funding": [
                 {
@@ -9013,7 +9014,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-11-06T19:13:57+00:00"
+            "time": "2026-06-23T17:38:47+00:00"
         },
         {
             "name": "staabm/side-effects-detector",
