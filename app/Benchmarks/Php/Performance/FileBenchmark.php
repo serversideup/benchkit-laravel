@@ -3,42 +3,48 @@
 namespace App\Benchmarks\Php\Performance;
 
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 use PhpBench\Attributes as Bench;
 
 class FileBenchmark
 {
     private string $testDir;
+
     private string $smallContent;
+
     private string $mediumContent;
+
     private string $largeContent;
+
     private string $smallFile;
+
     private string $mediumFile;
+
     private string $largeFile;
+
     private array $csvData;
 
     public function __construct()
     {
         $this->testDir = storage_path('benchmarks');
-        
+
         // Create test directory
-        if (!File::exists($this->testDir)) {
+        if (! File::exists($this->testDir)) {
             File::makeDirectory($this->testDir, 0755, true);
         }
 
         // Small content - 1KB
         $this->smallContent = str_repeat('Small file content. ', 50);
-        
+
         // Medium content - 100KB
         $this->mediumContent = str_repeat('Medium file content with some data. ', 3000);
-        
+
         // Large content - 1MB
         $this->largeContent = str_repeat('Large file content with significant amount of data. ', 20000);
 
         // Create test files
-        $this->smallFile = $this->testDir . '/small_test.txt';
-        $this->mediumFile = $this->testDir . '/medium_test.txt';
-        $this->largeFile = $this->testDir . '/large_test.txt';
+        $this->smallFile = $this->testDir.'/small_test.txt';
+        $this->mediumFile = $this->testDir.'/medium_test.txt';
+        $this->largeFile = $this->testDir.'/large_test.txt';
 
         file_put_contents($this->smallFile, $this->smallContent);
         file_put_contents($this->mediumFile, $this->mediumContent);
@@ -51,7 +57,7 @@ class FileBenchmark
                 'id' => $i,
                 'name' => "User {$i}",
                 'email' => "user{$i}@example.com",
-                'score' => rand(0, 100)
+                'score' => ($i * 7) % 100,
             ];
         }
     }
@@ -73,7 +79,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'write'])]
     public function benchWriteSmallFile(): void
     {
-        file_put_contents($this->testDir . '/write_small.txt', $this->smallContent);
+        file_put_contents($this->testDir.'/write_small.txt', $this->smallContent);
     }
 
     /**
@@ -85,7 +91,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'write'])]
     public function benchWriteMediumFile(): void
     {
-        file_put_contents($this->testDir . '/write_medium.txt', $this->mediumContent);
+        file_put_contents($this->testDir.'/write_medium.txt', $this->mediumContent);
     }
 
     /**
@@ -97,7 +103,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'write'])]
     public function benchWriteLargeFile(): void
     {
-        file_put_contents($this->testDir . '/write_large.txt', $this->largeContent);
+        file_put_contents($this->testDir.'/write_large.txt', $this->largeContent);
     }
 
     /**
@@ -161,7 +167,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'laravel'])]
     public function benchLaravelFilePut(): void
     {
-        File::put($this->testDir . '/laravel_test.txt', $this->smallContent);
+        File::put($this->testDir.'/laravel_test.txt', $this->smallContent);
     }
 
     /**
@@ -185,7 +191,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'append'])]
     public function benchFileAppend(): void
     {
-        $file = $this->testDir . '/append_test.txt';
+        $file = $this->testDir.'/append_test.txt';
         file_put_contents($file, "Line 1\n", FILE_APPEND);
     }
 
@@ -198,7 +204,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'copy'])]
     public function benchFileCopy(): void
     {
-        copy($this->mediumFile, $this->testDir . '/copy_test.txt');
+        copy($this->mediumFile, $this->testDir.'/copy_test.txt');
     }
 
     /**
@@ -210,7 +216,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'delete'])]
     public function benchFileDelete(): void
     {
-        $file = $this->testDir . '/delete_test.txt';
+        $file = $this->testDir.'/delete_test.txt';
         file_put_contents($file, $this->smallContent);
         unlink($file);
     }
@@ -225,7 +231,7 @@ class FileBenchmark
     public function benchFileExists(): void
     {
         file_exists($this->smallFile);
-        file_exists($this->testDir . '/nonexistent.txt');
+        file_exists($this->testDir.'/nonexistent.txt');
     }
 
     /**
@@ -249,7 +255,7 @@ class FileBenchmark
     #[Bench\Groups(['file', 'csv'])]
     public function benchCsvWrite(): void
     {
-        $file = $this->testDir . '/test.csv';
+        $file = $this->testDir.'/test.csv';
         $handle = fopen($file, 'w');
         foreach ($this->csvData as $row) {
             fputcsv($handle, $row);
@@ -266,8 +272,8 @@ class FileBenchmark
     #[Bench\Groups(['file', 'csv'])]
     public function benchCsvRead(): void
     {
-        $file = $this->testDir . '/read_test.csv';
-        
+        $file = $this->testDir.'/read_test.csv';
+
         // Create CSV file first
         $handle = fopen($file, 'w');
         foreach ($this->csvData as $row) {
@@ -292,12 +298,12 @@ class FileBenchmark
     #[Bench\Groups(['file', 'json'])]
     public function benchJsonFileOperations(): void
     {
-        $file = $this->testDir . '/data.json';
+        $file = $this->testDir.'/data.json';
         $data = ['users' => $this->csvData];
-        
+
         // Write JSON
         file_put_contents($file, json_encode($data));
-        
+
         // Read JSON
         $content = file_get_contents($file);
         json_decode($content, true);

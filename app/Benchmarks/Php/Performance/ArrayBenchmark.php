@@ -7,9 +7,13 @@ use PhpBench\Attributes as Bench;
 class ArrayBenchmark
 {
     private array $smallArray;
+
     private array $largeArray;
+
     private array $associativeArray;
+
     private array $multidimensionalArray;
+
     private array $unsortedArray;
 
     public function __construct()
@@ -20,13 +24,13 @@ class ArrayBenchmark
         // Large array - 10,000 elements
         $this->largeArray = range(1, 10000);
 
-        // Associative array
+        // Associative array (deterministic values so runs are comparable)
         $this->associativeArray = [];
         for ($i = 0; $i < 5000; $i++) {
             $this->associativeArray["key_{$i}"] = [
                 'id' => $i,
-                'value' => rand(0, 1000),
-                'name' => "Item {$i}"
+                'value' => ($i * 31) % 1000,
+                'name' => "Item {$i}",
             ];
         }
 
@@ -37,15 +41,17 @@ class ArrayBenchmark
                 'id' => $i,
                 'data' => range(1, 10),
                 'nested' => [
-                    'value' => rand(0, 100),
-                    'tags' => ['tag1', 'tag2', 'tag3']
-                ]
+                    'value' => ($i * 7) % 100,
+                    'tags' => ['tag1', 'tag2', 'tag3'],
+                ],
             ];
         }
 
-        // Unsorted array for sorting benchmarks
+        // Unsorted array for sorting benchmarks (fixed seed so the permutation is identical every run)
         $this->unsortedArray = $this->largeArray;
+        mt_srand(42);
         shuffle($this->unsortedArray);
+        mt_srand();
     }
 
     /**
@@ -57,7 +63,7 @@ class ArrayBenchmark
     #[Bench\Groups(['array', 'array-map'])]
     public function benchArrayMap(): void
     {
-        array_map(fn($x) => $x * 2, $this->largeArray);
+        array_map(fn ($x) => $x * 2, $this->largeArray);
     }
 
     /**
@@ -69,7 +75,7 @@ class ArrayBenchmark
     #[Bench\Groups(['array', 'array-filter'])]
     public function benchArrayFilter(): void
     {
-        array_filter($this->largeArray, fn($x) => $x % 2 === 0);
+        array_filter($this->largeArray, fn ($x) => $x % 2 === 0);
     }
 
     /**
@@ -81,7 +87,7 @@ class ArrayBenchmark
     #[Bench\Groups(['array', 'array-reduce'])]
     public function benchArrayReduce(): void
     {
-        array_reduce($this->largeArray, fn($carry, $item) => $carry + $item, 0);
+        array_reduce($this->largeArray, fn ($carry, $item) => $carry + $item, 0);
     }
 
     /**
@@ -107,7 +113,7 @@ class ArrayBenchmark
     public function benchUsort(): void
     {
         $arr = $this->unsortedArray;
-        usort($arr, fn($a, $b) => $b <=> $a);
+        usort($arr, fn ($a, $b) => $b <=> $a);
     }
 
     /**
@@ -229,8 +235,8 @@ class ArrayBenchmark
     public function benchCombinedOperations(): void
     {
         $result = array_map(
-            fn($x) => $x * 2,
-            array_filter($this->largeArray, fn($x) => $x % 2 === 0)
+            fn ($x) => $x * 2,
+            array_filter($this->largeArray, fn ($x) => $x % 2 === 0)
         );
         sort($result);
     }

@@ -8,6 +8,7 @@ use PhpBench\Attributes as Bench;
 class BcryptBenchmark
 {
     private string $password;
+
     private string $hashedPassword;
 
     public function __construct()
@@ -63,7 +64,7 @@ class BcryptBenchmark
     public function benchMultipleHashOperations(): void
     {
         for ($i = 0; $i < 10; $i++) {
-            Hash::make($this->password . $i);
+            Hash::make($this->password.$i);
         }
     }
 }

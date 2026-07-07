@@ -4,7 +4,6 @@ namespace App\Benchmarks\Php\Database;
 
 use App\Benchmarks\Php\BaseBenchmark;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use PhpBench\Attributes as Bench;
 
 /**
@@ -15,6 +14,7 @@ use PhpBench\Attributes as Bench;
 class QueryBenchmark extends BaseBenchmark
 {
     private const TABLE_NAME = 'benchmark_products';
+
     private const RECORDS_COUNT = 10000;
 
     /**
@@ -22,6 +22,8 @@ class QueryBenchmark extends BaseBenchmark
      */
     public function setUpDatabase(): void
     {
+        $this->setUp();
+
         $this->ensureTestTable(self::TABLE_NAME, function ($table) {
             $table->id();
             $table->string('name');
@@ -30,7 +32,7 @@ class QueryBenchmark extends BaseBenchmark
             $table->integer('stock');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            
+
             // Add indexes for comparison
             $table->index('price');
             $table->index('is_active');
@@ -39,15 +41,15 @@ class QueryBenchmark extends BaseBenchmark
 
         $this->truncateTable(self::TABLE_NAME);
 
-        // Seed data
+        // Seed deterministic data so query row counts are identical across runs and hosts
         $records = [];
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             $records[] = [
                 'name' => "Product {$i}",
                 'description' => "Description for product {$i}",
-                'price' => rand(10, 1000),
-                'stock' => rand(0, 500),
-                'is_active' => (bool) rand(0, 1),
+                'price' => ($i % 990) + 10,
+                'stock' => $i % 500,
+                'is_active' => $i % 2 === 0,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -59,7 +61,7 @@ class QueryBenchmark extends BaseBenchmark
             }
         }
 
-        if (!empty($records)) {
+        if (! empty($records)) {
             DB::table(self::TABLE_NAME)->insert($records);
         }
     }
@@ -70,6 +72,8 @@ class QueryBenchmark extends BaseBenchmark
     public function tearDownDatabase(): void
     {
         $this->dropTestTable(self::TABLE_NAME);
+
+        $this->tearDown();
     }
 
     /**
@@ -200,7 +204,7 @@ class QueryBenchmark extends BaseBenchmark
     public function benchRawQuery(): void
     {
         DB::select(
-            'SELECT id, name, price FROM ' . self::TABLE_NAME . ' WHERE is_active = ? AND price > ? LIMIT 100',
+            'SELECT id, name, price FROM '.self::TABLE_NAME.' WHERE is_active = ? AND price > ? LIMIT 100',
             [true, 100]
         );
     }

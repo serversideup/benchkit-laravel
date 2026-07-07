@@ -4,13 +4,11 @@ namespace App\Benchmarks\Php\Database;
 
 use App\Benchmarks\Php\BaseBenchmark;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use PhpBench\Attributes as Bench;
-use App\Benchmarks\Php\Database\BenchmarkEloquentModel;
 
 /**
  * Benchmark comparing Eloquent ORM vs DB Facade for insert operations.
- * 
+ *
  * This benchmark demonstrates the performance difference between using
  * Laravel's Eloquent ORM and the DB facade for bulk insert operations.
  */
@@ -19,14 +17,20 @@ use App\Benchmarks\Php\Database\BenchmarkEloquentModel;
 class InsertBenchmark extends BaseBenchmark
 {
     private const TABLE_NAME = 'benchmark_users';
+
     private const RECORDS_COUNT = 100;
+
     private const CHUNK_SIZE = 10;
+
+    private int $emailSequence = 0;
 
     /**
      * Set up the test database table.
      */
     public function setUpDatabase(): void
     {
+        $this->setUp();
+
         $this->ensureTestTable(self::TABLE_NAME, function ($table) {
             $table->id();
             $table->string('name');
@@ -46,11 +50,22 @@ class InsertBenchmark extends BaseBenchmark
     public function tearDownDatabase(): void
     {
         $this->truncateTable(self::TABLE_NAME);
+
+        $this->tearDown();
+    }
+
+    /**
+     * Build a deterministic, unique email for the given seed index. A plain
+     * sequence keeps values reproducible across runs, unlike uniqid().
+     */
+    private function uniqueEmail(int $index): string
+    {
+        return "user{$index}_".($this->emailSequence++).'@example.com';
     }
 
     /**
      * Benchmark inserting records using Eloquent ORM (one by one).
-     * 
+     *
      * This simulates the common pattern of creating records individually
      * using Eloquent models, which triggers model events and validations.
      */
@@ -63,7 +78,7 @@ class InsertBenchmark extends BaseBenchmark
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             BenchmarkEloquentModel::create([
                 'name' => "User {$i}",
-                'email' => "user{$i}_" . uniqid() . "@example.com",
+                'email' => $this->uniqueEmail($i),
                 'password' => 'password',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -75,7 +90,7 @@ class InsertBenchmark extends BaseBenchmark
 
     /**
      * Benchmark inserting records using DB facade (one by one).
-     * 
+     *
      * This uses the DB facade without Eloquent overhead.
      */
     #[Bench\Revs(10)]
@@ -87,7 +102,7 @@ class InsertBenchmark extends BaseBenchmark
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             DB::table(self::TABLE_NAME)->insert([
                 'name' => "User {$i}",
-                'email' => "user{$i}_" . uniqid() . "@example.com",
+                'email' => $this->uniqueEmail($i),
                 'password' => 'password',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -99,7 +114,7 @@ class InsertBenchmark extends BaseBenchmark
 
     /**
      * Benchmark bulk insert using DB facade.
-     * 
+     *
      * This demonstrates the most efficient way to insert multiple records
      * using a single INSERT statement with multiple value sets.
      */
@@ -113,7 +128,7 @@ class InsertBenchmark extends BaseBenchmark
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             $records[] = [
                 'name' => "User {$i}",
-                'email' => "user{$i}_" . uniqid() . "@example.com",
+                'email' => $this->uniqueEmail($i),
                 'password' => 'password',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -126,7 +141,7 @@ class InsertBenchmark extends BaseBenchmark
 
     /**
      * Benchmark chunked bulk insert using DB facade.
-     * 
+     *
      * This demonstrates inserting records in chunks, which can be more
      * memory-efficient for very large datasets.
      */
@@ -141,7 +156,7 @@ class InsertBenchmark extends BaseBenchmark
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             $records[] = [
                 'name' => "User {$i}",
-                'email' => "user{$i}_" . uniqid() . "@example.com",
+                'email' => $this->uniqueEmail($i),
                 'password' => 'password',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -154,7 +169,7 @@ class InsertBenchmark extends BaseBenchmark
         }
 
         // Insert remaining records
-        if (!empty($records)) {
+        if (! empty($records)) {
             DB::table(self::TABLE_NAME)->insert($records);
         }
 

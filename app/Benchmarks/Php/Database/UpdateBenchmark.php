@@ -8,7 +8,7 @@ use PhpBench\Attributes as Bench;
 
 /**
  * Update Benchmark
- * 
+ *
  * Compares different update strategies:
  * - Individual vs bulk updates
  * - Eloquent vs Query Builder
@@ -20,12 +20,13 @@ use PhpBench\Attributes as Bench;
 class UpdateBenchmark extends BaseBenchmark
 {
     private array $recordIds = [];
+
     private int $totalRecords = 1000;
 
     public function setUp(): void
     {
         parent::setUp();
-        
+
         // Create test table
         $this->ensureTestTable('benchmark_products', function ($table) {
             $table->id();
@@ -37,19 +38,19 @@ class UpdateBenchmark extends BaseBenchmark
             $table->index('is_active');
         });
 
-        // Seed with test data
+        // Seed with deterministic test data so every run operates on identical rows
         $records = [];
         for ($i = 0; $i < $this->totalRecords; $i++) {
             $records[] = [
                 'name' => "Product {$i}",
-                'price' => rand(10, 1000),
-                'stock' => rand(0, 100),
+                'price' => ($i % 990) + 10,
+                'stock' => $i % 100,
                 'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
         }
-        
+
         DB::table('benchmark_products')->insert($records);
         $this->recordIds = DB::table('benchmark_products')->pluck('id')->toArray();
     }
@@ -71,12 +72,12 @@ class UpdateBenchmark extends BaseBenchmark
     {
         // Update 100 random records
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         foreach ($idsToUpdate as $id) {
             DB::table('benchmark_products')
                 ->where('id', $id)
                 ->update([
-                    'price' => rand(10, 1000),
+                    'price' => (($id * 7) % 990) + 10,
                     'updated_at' => now(),
                 ]);
         }
@@ -93,13 +94,13 @@ class UpdateBenchmark extends BaseBenchmark
     {
         // Update 100 random records
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         foreach ($idsToUpdate as $id) {
-            $model =BenchmarkEloquentModel::find($id);
-            
+            $model = BenchmarkProductModel::find($id);
+
             if ($model) {
                 $model->update([
-                    'price' => rand(10, 1000),
+                    'price' => (($id * 7) % 990) + 10,
                     'updated_at' => now(),
                 ]);
             }
@@ -116,7 +117,7 @@ class UpdateBenchmark extends BaseBenchmark
     public function benchBulkUpdateWhereIn(): void
     {
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         DB::table('benchmark_products')
             ->whereIn('id', $idsToUpdate)
             ->update([
@@ -152,7 +153,7 @@ class UpdateBenchmark extends BaseBenchmark
     public function benchIncrementUpdate(): void
     {
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         foreach ($idsToUpdate as $id) {
             DB::table('benchmark_products')
                 ->where('id', $id)
@@ -170,7 +171,7 @@ class UpdateBenchmark extends BaseBenchmark
     public function benchBulkIncrement(): void
     {
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         DB::table('benchmark_products')
             ->whereIn('id', $idsToUpdate)
             ->increment('stock', 5);
@@ -187,17 +188,17 @@ class UpdateBenchmark extends BaseBenchmark
     {
         $records = [];
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
-        
+
         foreach ($idsToUpdate as $id) {
             $records[] = [
                 'id' => $id,
                 'name' => "Updated Product {$id}",
-                'price' => rand(10, 1000),
-                'stock' => rand(0, 100),
+                'price' => (($id * 7) % 990) + 10,
+                'stock' => ($id * 3) % 100,
                 'is_active' => true,
             ];
         }
-        
+
         DB::table('benchmark_products')->upsert(
             $records,
             ['id'], // Unique identifier
@@ -218,7 +219,7 @@ class UpdateBenchmark extends BaseBenchmark
             ->where('is_active', true)
             ->chunkById(100, function ($products) {
                 $ids = $products->pluck('id')->toArray();
-                
+
                 DB::table('benchmark_products')
                     ->whereIn('id', $ids)
                     ->update([
