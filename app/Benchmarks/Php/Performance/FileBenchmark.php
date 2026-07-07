@@ -25,7 +25,7 @@ class FileBenchmark
 
     public function __construct()
     {
-        $this->testDir = storage_path('benchmarks');
+        $this->testDir = storage_path('app/private/benchmarks');
 
         // Create test directory
         if (! File::exists($this->testDir)) {

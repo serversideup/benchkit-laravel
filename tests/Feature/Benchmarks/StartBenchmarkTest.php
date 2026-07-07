@@ -23,10 +23,32 @@ class StartBenchmarkTest extends TestCase
     public function test_only_one_benchmark_can_run_at_a_time(): void
     {
         Cache::lock(StreamedProcess::LOCK_KEY, 60)->get();
+        Cache::put(StreamedProcess::HEARTBEAT_KEY, time(), 90);
 
         $this->post('/php')
             ->assertStatus(409)
             ->assertJson(['status' => 'busy']);
+    }
+
+    public function test_a_stale_lock_from_a_crashed_run_is_reclaimed(): void
+    {
+        Cache::lock(StreamedProcess::LOCK_KEY, 3600)->get();
+
+        $response = $this->post('/php');
+
+        $response->assertOk();
+        $this->assertStringStartsWith('text/event-stream', $response->headers->get('Content-Type'));
+    }
+
+    public function test_clear_lock_command_releases_an_active_lock(): void
+    {
+        Cache::lock(StreamedProcess::LOCK_KEY, 3600)->get();
+        Cache::put(StreamedProcess::HEARTBEAT_KEY, time(), 90);
+
+        $this->artisan('benchmark:clear-lock')->assertSuccessful();
+
+        $this->assertTrue(Cache::lock(StreamedProcess::LOCK_KEY, 1)->get());
+        $this->assertFalse(Cache::has(StreamedProcess::HEARTBEAT_KEY));
     }
 
     public function test_starting_a_benchmark_holds_the_run_lock(): void

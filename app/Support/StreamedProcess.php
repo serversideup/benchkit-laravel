@@ -17,7 +17,11 @@ class StreamedProcess
 {
     public const LOCK_KEY = 'benchmark-run';
 
+    public const HEARTBEAT_KEY = 'benchmark-run-heartbeat';
+
     protected const HEARTBEAT_SECONDS = 30;
+
+    protected const HEARTBEAT_TTL_SECONDS = 90;
 
     protected ?string $collectOutputPath = null;
 
@@ -44,12 +48,14 @@ class StreamedProcess
     {
         $lock = Cache::lock(self::LOCK_KEY, $this->lockSeconds);
 
-        if (! $lock->get()) {
+        if (! $lock->get() && ! $this->reclaimAbandonedLock($lock)) {
             return response()->json([
                 'status' => 'busy',
-                'message' => 'Another benchmark is already running.',
+                'message' => 'Another benchmark is already running. If a previous run was interrupted, the lock clears automatically within a couple of minutes.',
             ], 409);
         }
+
+        $this->refreshHeartbeat();
 
         return response()->stream(function () use ($lock) {
             $this->execute($lock);
@@ -59,6 +65,28 @@ class StreamedProcess
             'Connection' => 'keep-alive',
             'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * A live run refreshes a heartbeat key while it streams. When the lock
+     * is held but the heartbeat has expired, the run that owned it was
+     * killed without cleanup (container restart, crash) — reclaim the lock
+     * instead of refusing benchmarks until the lock TTL runs out.
+     */
+    protected function reclaimAbandonedLock(Lock $lock): bool
+    {
+        if (Cache::has(self::HEARTBEAT_KEY)) {
+            return false;
+        }
+
+        Cache::lock(self::LOCK_KEY)->forceRelease();
+
+        return $lock->get();
+    }
+
+    protected function refreshHeartbeat(): void
+    {
+        Cache::put(self::HEARTBEAT_KEY, time(), self::HEARTBEAT_TTL_SECONDS);
     }
 
     protected function execute(Lock $lock): void
@@ -106,6 +134,7 @@ class StreamedProcess
                         'type' => 'heartbeat',
                         'output' => 'Connection alive',
                     ]);
+                    $this->refreshHeartbeat();
                     $lastHeartbeat = time();
                 }
 
@@ -123,6 +152,7 @@ class StreamedProcess
                 'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
             ]);
         } finally {
+            Cache::forget(self::HEARTBEAT_KEY);
             $lock->release();
         }
     }
