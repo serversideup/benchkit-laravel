@@ -1,11 +1,10 @@
 <?php
 
-namespace Benchmarks\Database;
+namespace App\Benchmarks\Php\Database;
 
 use App\Benchmarks\Php\BaseBenchmark;
 use Illuminate\Support\Facades\DB;
 use PhpBench\Attributes as Bench;
-use App\Benchmarks\Php\Database\BenchmarkEloquentModel;
 
 /**
  * Update Benchmark
