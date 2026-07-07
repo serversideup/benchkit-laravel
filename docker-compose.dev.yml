@@ -25,7 +25,7 @@ services:
         USER_ID: ${SPIN_USER_ID}
         GROUP_ID: ${SPIN_GROUP_ID}
         PHP_VARIATION: "${PHP_VARIATION:-fpm-nginx}"
-        PHP_VERSION: "${PHP_VERSION:-8.4}"
+        PHP_VERSION: "${PHP_VERSION:-8.5}"
         BASE_OS: "${BASE_OS:-trixie}"
       dockerfile: Dockerfile
     stop_signal: SIGTERM

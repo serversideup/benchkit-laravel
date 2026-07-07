@@ -4,7 +4,7 @@
 # PHP - Base Image
 ############################################
 ARG PHP_VARIATION=fpm-nginx
-ARG PHP_VERSION=8.4
+ARG PHP_VERSION=8.5
 ARG BASE_OS=trixie
 ARG BASE_IMAGE=serversideup/php:${PHP_VERSION}-${PHP_VARIATION}-${BASE_OS}
 
