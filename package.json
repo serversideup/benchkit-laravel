@@ -22,6 +22,7 @@
         "@vitejs/plugin-vue": "^6.0.1",
         "@vueuse/core": "^13.9.0",
         "html-to-image": "^1.11.13",
+        "jszip": "^3.10.1",
         "vue": "^3.5.21"
     }
 }
