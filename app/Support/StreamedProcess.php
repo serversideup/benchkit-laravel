@@ -70,54 +70,61 @@ class StreamedProcess
         @ini_set('zlib.output_compression', '0');
         set_time_limit(0);
 
+        // The finally block is the primary release; the shutdown function
+        // covers FPM killing the script mid-stream on client disconnect,
+        // where finally blocks never run. Under Octane, workers do not shut
+        // down per request, so the shutdown callback may fire long after —
+        // that is safe because release() only succeeds for the lock owner.
         register_shutdown_function(function () use ($lock) {
             $lock->release();
         });
 
-        echo ": stream start\n\n";
-        @ob_flush();
-        flush();
+        try {
+            echo ": stream start\n\n";
+            @ob_flush();
+            flush();
 
-        $process = Process::fromShellCommandline(
-            sprintf('script -qe /dev/null -c %s', escapeshellarg($this->command)),
-            base_path(),
-            null,
-            null,
-            null
-        );
+            $process = Process::fromShellCommandline(
+                sprintf('script -qe /dev/null -c %s', escapeshellarg($this->command)),
+                base_path(),
+                null,
+                null,
+                null
+            );
 
-        $process->start();
+            $process->start();
 
-        $lastHeartbeat = time();
+            $lastHeartbeat = time();
 
-        while ($process->isRunning()) {
+            while ($process->isRunning()) {
+                $this->emitLines($process->getIncrementalOutput(), 'out');
+                $this->emitLines($process->getIncrementalErrorOutput(), 'err');
+
+                if (time() - $lastHeartbeat >= self::HEARTBEAT_SECONDS) {
+                    $this->emit([
+                        'timestamp' => date('Y-m-d H:i:s'),
+                        'type' => 'heartbeat',
+                        'output' => 'Connection alive',
+                    ]);
+                    $lastHeartbeat = time();
+                }
+
+                usleep(100000);
+            }
+
             $this->emitLines($process->getIncrementalOutput(), 'out');
             $this->emitLines($process->getIncrementalErrorOutput(), 'err');
 
-            if (time() - $lastHeartbeat >= self::HEARTBEAT_SECONDS) {
-                $this->emit([
-                    'timestamp' => date('Y-m-d H:i:s'),
-                    'type' => 'heartbeat',
-                    'output' => 'Connection alive',
-                ]);
-                $lastHeartbeat = time();
-            }
+            $this->persistCollectedOutput();
 
-            usleep(100000);
+            $this->emit([
+                'timestamp' => date('Y-m-d H:i:s'),
+                'status' => $process->isSuccessful() ? 'completed' : 'error',
+                'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
+            ]);
+        } finally {
+            $lock->release();
         }
-
-        $this->emitLines($process->getIncrementalOutput(), 'out');
-        $this->emitLines($process->getIncrementalErrorOutput(), 'err');
-
-        $this->persistCollectedOutput();
-
-        $this->emit([
-            'timestamp' => date('Y-m-d H:i:s'),
-            'status' => $process->isSuccessful() ? 'completed' : 'error',
-            'error' => $process->isSuccessful() ? null : $process->getExitCodeText(),
-        ]);
-
-        $lock->release();
     }
 
     protected function emitLines(string $output, string $type): void

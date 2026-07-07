@@ -9,11 +9,23 @@ class PhpSpecs
         return [
             'php_version' => $this->getPhpVersion(),
             'php_server_api' => $this->getPhpServerApi(),
+            'php_variation' => $this->getPhpVariation(),
+            'octane' => $this->isRunningOctane(),
             'memory_limit' => $this->getMemoryLimit(),
             'op_cache' => $this->getOpCache(),
             'op_cache_jit' => $this->getOpCacheJit(),
             'op_cache_jit_buffer_size' => $this->getOpCacheJitBufferSize(),
         ];
+    }
+
+    public function getPhpVariation(): ?string
+    {
+        return config('benchmark.php_variation');
+    }
+
+    public function isRunningOctane(): bool
+    {
+        return isset($_SERVER['LARAVEL_OCTANE']) || getenv('LARAVEL_OCTANE') !== false;
     }
 
     public function getPhpVersion(): string
