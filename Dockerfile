@@ -61,7 +61,7 @@ ENV APP_NAME=BenchKit \
     REDIS_PASSWORD=null \
     REDIS_PORT=6379 \
     \
-    MAIL_MAILER=smtp \
+    MAIL_MAILER=log \
     MAIL_SCHEME=null \
     MAIL_HOST=mailpit \
     MAIL_PORT=1025 \
