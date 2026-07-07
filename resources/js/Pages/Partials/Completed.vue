@@ -9,6 +9,26 @@
                         <img src="/images/results/title.png" style="max-width: 475px; margin: auto; display: block;"/>
                     </div>
 
+                    <div v-if="summary.http.rps" style="background-color: #13161B; width: 100%; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #22262F;">
+                        <div style="display: flex; flex-direction: column;">
+                            <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">WEB SERVER THROUGHPUT (SELF-TEST)</label>
+                            <div style="display: flex; align-items: baseline;">
+                                <span style="color: #FFF; font-size: 54px; font-family: var(--font-mono); font-weight: 500; line-height: 1.1;">{{ Math.round(summary.http.rps).toLocaleString() }}</span>
+                                <span style="color: #94979C; font-size: 20px; font-family: var(--font-mono); margin-left: 8px;">req/s</span>
+                            </div>
+                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono);">
+                                p95 {{ summary.http.p95 }}ms
+                                <template v-if="summary.http.json_rps"> &middot; JSON API {{ Math.round(summary.http.json_rps).toLocaleString() }} req/s</template>
+                                <template v-if="summary.http.db_rps"> &middot; DB read {{ Math.round(summary.http.db_rps).toLocaleString() }} req/s</template>
+                            </span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                            <span v-if="php.octane" style="background-color: #E62E05; color: #FFF; font-size: 12px; font-family: var(--font-mono); font-weight: 700; padding: 3px 12px; border-radius: 9999px; letter-spacing: 2px;">OCTANE</span>
+                            <span style="color: #ECECED; font-size: 22px; font-family: var(--font-mono); font-weight: 500; margin-top: 6px;">{{ (php.php_variation || php.php_server_api || '').toUpperCase() }}</span>
+                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono);">{{ php.octane ? 'worker mode' : 'standard mode' }}</span>
+                        </div>
+                    </div>
+
                     <div style="background-color: #0C0E12; height: 256px; width: 100%; padding-left: 24px; padding-right: 24px; padding-top: 4px; padding-bottom: 4px; display: flex; align-items: start; justify-content: space-between;">
                         <div style="display: flex; flex-direction: column; padding-top: 12px; padding-bottom: 12px;">
                             <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">LARAVEL DATABASE PERFORMANCE</label>
@@ -55,7 +75,7 @@
                             <div style="display: flex; align-items: center; justify-content: space-between;">
                                 <div style="display: flex; flex-direction: column;">
                                     <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">SERVER</label>
-                                    <span style="font-size: 16px; color: #CECFD2; font-family: var(--font-mono); font-weight: 500;">{{ php.php_server_api }}</span>
+                                    <span style="font-size: 16px; color: #CECFD2; font-family: var(--font-mono); font-weight: 500;">{{ serverLabel }}</span>
                                 </div>
                                 <div style="display: flex; flex-direction: column; margin-left: 16px; margin-right: 16px;">
                                     <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">PHP</label>
@@ -190,6 +210,12 @@ const {
 const php = computed(() => usePage().props.php);
 const laravel = computed(() => JSON.parse(usePage().props.laravel));
 
+const serverLabel = computed(() => {
+    const base = php.value.php_variation || php.value.php_server_api;
+
+    return php.value.octane ? `${base} + octane` : base;
+});
+
 const formatUTCTimestamp = (date) => {
     const pad = n => n < 10 ? '0' + n : n;
     const day = pad(date.getUTCDate());
@@ -217,6 +243,13 @@ const summary = reactive({
         source: null,
         destination: null
     },
+    http: {
+        rps: null,
+        p95: null,
+        json_rps: null,
+        db_rps: null,
+        mode: null
+    },
     php: {
         create: { ms: null, records: null },
         read: { ms: null, records: null },
@@ -237,11 +270,12 @@ onMounted(() => {
 const summaryBuilt = reactive({
     yabs: false,
     cfspeedtest: false,
+    http: false,
     php: false
 });
 
 const readyToGenerateImage = computed(() => {
-    return summaryBuilt.yabs && summaryBuilt.cfspeedtest && summaryBuilt.php;
+    return summaryBuilt.yabs && summaryBuilt.cfspeedtest && summaryBuilt.http && summaryBuilt.php;
 });
 
 watch(readyToGenerateImage, () => {
@@ -263,10 +297,37 @@ const buildSummary = () => {
         summaryBuilt.cfspeedtest = true;
     }
 
+    if( results['http'].status === 'completed' ) {
+        buildHttpSummary();
+    }else{
+        summaryBuilt.http = true;
+    }
+
     if( results['php'].status === 'completed' ) {
         buildPhpSummary();
     }else{
         summaryBuilt.php = true;
+    }
+}
+
+const buildHttpSummary = async () => {
+    try {
+        const response = await fetch('/http/results');
+
+        if( response.ok ) {
+            const data = await response.json();
+            const routes = data.http_results.routes;
+
+            summary.http.mode = data.http_results.mode;
+            summary.http.rps = routes.static?.requests_per_second ?? null;
+            summary.http.p95 = routes.static?.p95_ms ?? null;
+            summary.http.json_rps = routes.json?.requests_per_second ?? null;
+            summary.http.db_rps = routes.db_read?.requests_per_second ?? null;
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
+        summaryBuilt.http = true;
     }
 }
 
@@ -363,6 +424,11 @@ const resetSummary = () => {
     summary.network.latency = null;
     summary.network.source = null;
     summary.network.destination = null;
+    summary.http.rps = null;
+    summary.http.p95 = null;
+    summary.http.json_rps = null;
+    summary.http.db_rps = null;
+    summary.http.mode = null;
 
     ['create', 'read', 'update', 'delete'].forEach((key) => {
         summary.php[key].ms = null;
@@ -371,6 +437,7 @@ const resetSummary = () => {
 
     summaryBuilt.yabs = false;
     summaryBuilt.cfspeedtest = false;
+    summaryBuilt.http = false;
     summaryBuilt.php = false;
     geekBenchUrl.value = null;
     resultsImage.value = null;
@@ -420,6 +487,14 @@ const downloadResults = async () => {
         text += '# NETWORK TESTS\n';
         text += '################################################################################\n';
         text += results['cfspeedtest'].output.join('\n');
+        text += '\n';
+    }
+
+    if( results['http'].status === 'completed' ) {
+        text += '################################################################################\n';
+        text += '# WEB SERVER TESTS\n';
+        text += '################################################################################\n';
+        text += results['http'].output.join('\n');
         text += '\n';
     }
 
