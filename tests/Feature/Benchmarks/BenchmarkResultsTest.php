@@ -83,6 +83,15 @@ class BenchmarkResultsTest extends TestCase
         $this->assertNull($response->json('phpbench_results.read.milliseconds'));
     }
 
+    public function test_php_results_handles_an_empty_csv_from_an_aborted_run(): void
+    {
+        File::put($this->resultsPath.'/phpbench_results.csv', '');
+
+        $this->getJson('/php/results')
+            ->assertNotFound()
+            ->assertJson(['status' => 'no_results']);
+    }
+
     public function test_cfspeedtest_results_returns_no_results_when_no_run_has_happened(): void
     {
         $this->getJson('/cfspeedtest/results')
