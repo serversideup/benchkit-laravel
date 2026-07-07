@@ -22,13 +22,22 @@
                     <Status :status="results['yabs'].status" />
                 </button>
                 <button @click="viewBenchmark('cfspeedtest')" class="cursor-pointer flex items-center justify-between py-2 px-3 font-mono text-[#ECECED] rounded-md mb-1"
-                    :class="{ 
+                    :class="{
                         'bg-[#22262F]' : viewingBenchmark === 'cfspeedtest',
                         'bg-[#0C0E12]' : viewingBenchmark !== 'cfspeedtest',
                     }">
                     Network
 
                     <Status :status="results['cfspeedtest'].status" />
+                </button>
+                <button @click="viewBenchmark('http')" class="cursor-pointer flex items-center justify-between py-2 px-3 font-mono text-[#ECECED] rounded-md mb-1"
+                    :class="{
+                        'bg-[#22262F]' : viewingBenchmark === 'http',
+                        'bg-[#0C0E12]' : viewingBenchmark !== 'http',
+                    }">
+                    Web Server
+
+                    <Status :status="results['http'].status" />
                 </button>
                 <button @click="viewBenchmark('php')" class="cursor-pointer flex items-center justify-between py-2 px-3 font-mono text-[#ECECED] rounded-md mb-1"
                     :class="{ 

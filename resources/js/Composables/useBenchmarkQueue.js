@@ -14,6 +14,7 @@ const {
 const queue = [
     'yabs',
     'cfspeedtest',
+    'http',
     'php'
 ];
 
@@ -33,6 +34,10 @@ const stages = {
             network_test_type: form.network_test_type,
         }),
     },
+    http: {
+        enabled: () => form.http,
+        options: () => ({}),
+    },
     php: {
         enabled: () => form.php_database,
         options: () => ({}),
@@ -49,6 +54,11 @@ const results = reactive({
         output: [],
         status: 'pending',
         url: '/cfspeedtest'
+    },
+    'http': {
+        output: [],
+        status: 'pending',
+        url: '/http'
     },
     'php': {
         output: [],
@@ -85,12 +95,10 @@ export const useBenchmarkQueue = () => {
     }
 
     const resetResults = () => {
-        results.yabs.output = [];
-        results.yabs.status = 'pending';
-        results.cfspeedtest.output = [];
-        results.cfspeedtest.status = 'pending';
-        results.php.output = [];
-        results.php.status = 'pending';
+        queue.forEach((benchmark) => {
+            results[benchmark].output = [];
+            results[benchmark].status = 'pending';
+        });
     }
 
     // Start the queue from the first enabled stage, marking disabled stages as skipped

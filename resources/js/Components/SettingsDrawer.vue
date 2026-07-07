@@ -109,6 +109,28 @@
                         <div class="flex flex-col">
                             <div class="flex items-center">
                                 <Switch
+                                    v-model="form.http"
+                                    :class="form.http ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
+                                    class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
+                                    <span class="sr-only">Enable Web Server Test</span>
+                                    <span
+                                        aria-hidden="true"
+                                        :class="form.http ? 'translate-x-[15px]' : 'translate-x-0'"
+                                        class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                                    />
+                                </Switch>
+                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Web Server Test</label>
+                            </div>
+                            <p class="mt-2 text-sm text-[#94979C] font-mono">
+                                Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col py-6 border-b border-[#22262F]">
+                        <div class="flex flex-col">
+                            <div class="flex items-center">
+                                <Switch
                                     v-model="form.php_database"
                                     :class="form.php_database ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
                                     class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
@@ -177,79 +199,18 @@ const closeOnEscape = (e) => {
 };
 
 onMounted(() => document.addEventListener('keydown', closeOnEscape));
-onMounted(() => buildUrls());
 onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 
+// Benchmark options are sent as the POST body when each stage starts
+// (see useBenchmarkQueue); the drawer only previews pending/skipped states.
 watch(form, () => {
-    buildUrls();
     updateStatuses();
 }, { deep: true });
 
-const buildUrls = () => {
-    results.yabs.url = buildYabsUrl();
-    results.cfspeedtest.url = buildCfspeedtestUrl();
-    results.php.url = buildPhpUrl();
-}
-
-const buildYabsUrl = () => {
-    const params = new URLSearchParams();
-
-    if( form.disk ){
-        params.append('disk', 'true');
-    }
-
-    if( form.geekbench ){
-        params.append('geekbench', 'true');
-    }
-
-    if( form.geekbench_version ){
-        params.append('geekbench_version', form.geekbench_version);
-    }
-
-    if( form.iperf ){
-        params.append('iperf', 'true');
-    }
-
-    return `/yabs?${params.toString()}`;
-}
-
-const buildCfspeedtestUrl = () => {
-    const params = new URLSearchParams();
-
-    if( form.network_test_type ){
-        params.append('network_test_type', form.network_test_type);
-    }
-
-    return `/cfspeedtest?${params.toString()}`;
-}
-
-const buildPhpUrl = () => {
-    const params = new URLSearchParams();
-
-    if( form.php_database ){
-        params.append('php_database', 'true');
-    }
-
-    return `/php?${params.toString()}`;
-}
-
 const updateStatuses = () => {
-    if( form.hardware ){
-        results.yabs.status = 'pending';
-    }else{
-        results.yabs.status = 'skipped';
-    }
-
-    if( form.network ){
-        results.cfspeedtest.status = 'pending';
-    }else{
-        results.cfspeedtest.status = 'skipped';
-    }
-
-    if( form.php_database ){
-        results.php.status = 'pending';
-    }else{
-        results.php.status = 'skipped';
-    }
+    results.yabs.status = form.hardware ? 'pending' : 'skipped';
+    results.cfspeedtest.status = form.network ? 'pending' : 'skipped';
+    results.http.status = form.http ? 'pending' : 'skipped';
+    results.php.status = form.php_database ? 'pending' : 'skipped';
 }
 </script>

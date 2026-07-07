@@ -8,6 +8,7 @@ const form = useForm({
     iperf: false,
     network: true,
     network_test_type: 'ipv4',
+    http: true,
     php_database: true
 })
 
