@@ -66,6 +66,20 @@ If you want to have a trusted SSL locally, you'll need to install our Developmen
 
 [Learn how to install the Development CA certificate →](https://serversideup.net/ca/)
 
+## Copy the .env.example file
+Copy the .env.example file to .env.
+
+```bash
+cp .env.example .env
+```
+
+## Run migrations
+Run the following command to run the migrations.
+
+```bash
+spin run php artisan migrate
+```
+
 ## Run the development environment
 Run the following command to start the development environment.
 
