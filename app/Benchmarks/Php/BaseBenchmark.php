@@ -15,7 +15,7 @@ abstract class BaseBenchmark
     {
         // Disable query logging for accurate benchmarks
         DB::connection()->disableQueryLog();
-        
+
         // Clear any query caches
         DB::connection()->flushQueryLog();
     }
@@ -36,7 +36,7 @@ abstract class BaseBenchmark
     protected function truncateTable(string $table): void
     {
         $driver = DB::connection()->getDriverName();
-        
+
         if ($driver === 'mysql') {
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
             DB::table($table)->truncate();
@@ -59,7 +59,7 @@ abstract class BaseBenchmark
      */
     protected function ensureTestTable(string $table, callable $schemaBuilder): void
     {
-        if (!Schema::hasTable($table)) {
+        if (! Schema::hasTable($table)) {
             Schema::create($table, $schemaBuilder);
         }
     }

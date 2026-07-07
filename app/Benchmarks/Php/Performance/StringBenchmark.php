@@ -8,22 +8,26 @@ use PhpBench\Attributes as Bench;
 class StringBenchmark
 {
     private string $shortString;
+
     private string $longString;
+
     private string $htmlString;
+
     private string $unicodeString;
+
     private array $stringArray;
 
     public function __construct()
     {
         $this->shortString = 'The quick brown fox jumps over the lazy dog';
-        
+
         // Generate a long string (50KB)
         $this->longString = str_repeat('Lorem ipsum dolor sit amet, consectetur adipiscing elit. ', 1000);
-        
-        $this->htmlString = '<div class="container"><p>Hello <strong>World</strong>!</p></div>' . str_repeat('<span>Content</span>', 100);
-        
+
+        $this->htmlString = '<div class="container"><p>Hello <strong>World</strong>!</p></div>'.str_repeat('<span>Content</span>', 100);
+
         $this->unicodeString = 'Hello 世界 🌍 Привет مرحبا';
-        
+
         $this->stringArray = array_fill(0, 1000, 'test string for implode');
     }
 

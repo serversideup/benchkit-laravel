@@ -4,14 +4,15 @@ namespace App\Benchmarks\Php\Database;
 
 use Illuminate\Database\Eloquent\Model;
 
-class BenchmarkEloquentModel extends Model
+class BenchmarkProductModel extends Model
 {
-    protected $table = 'benchmark_users';
+    protected $table = 'benchmark_products';
 
     protected $fillable = [
         'name',
-        'email',
-        'password',
+        'price',
+        'stock',
+        'is_active',
         'created_at',
         'updated_at',
     ];

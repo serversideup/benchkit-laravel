@@ -7,10 +7,15 @@ use PhpBench\Attributes as Bench;
 class JsonBenchmark
 {
     private array $smallData;
+
     private array $largeData;
+
     private array $deeplyNestedData;
+
     private string $smallJson;
+
     private string $largeJson;
+
     private string $deeplyNestedJson;
 
     public function __construct()
@@ -24,7 +29,7 @@ class JsonBenchmark
             'settings' => [
                 'theme' => 'dark',
                 'notifications' => true,
-            ]
+            ],
         ];
 
         // Large dataset - collection of 1000 records
@@ -35,12 +40,12 @@ class JsonBenchmark
                 'name' => "User {$i}",
                 'email' => "user{$i}@example.com",
                 'active' => $i % 2 === 0,
-                'score' => rand(0, 100),
+                'score' => ($i * 7) % 100,
                 'tags' => ['tag1', 'tag2', 'tag3'],
                 'metadata' => [
                     'last_login' => '2024-01-01 12:00:00',
                     'ip_address' => "192.168.1.{$i}",
-                ]
+                ],
             ];
         }
 
@@ -53,6 +58,11 @@ class JsonBenchmark
         $this->deeplyNestedJson = json_encode($this->deeplyNestedData);
     }
 
+    /**
+     * A branching factor of 2 keeps the tree at ~2^depth nodes — a factor of
+     * 5 produced ~10 million nodes at depth 10 and exhausted memory before
+     * any subject could run.
+     */
     private function createNestedArray(int $depth, int $current = 0): array
     {
         if ($current >= $depth) {
@@ -61,7 +71,7 @@ class JsonBenchmark
 
         return [
             'level' => $current,
-            'data' => array_fill(0, 5, $this->createNestedArray($depth, $current + 1))
+            'data' => array_fill(0, 2, $this->createNestedArray($depth, $current + 1)),
         ];
     }
 
