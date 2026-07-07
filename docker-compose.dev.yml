@@ -30,9 +30,9 @@ services:
       dockerfile: Dockerfile
     stop_signal: SIGTERM
     environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
-      - APP_URL=https://benchkit.dev.test
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-https://benchkit.dev.test}
     volumes:
       - .:/var/www/html/
     networks:
