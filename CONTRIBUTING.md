@@ -108,8 +108,13 @@ You can even set the PHP version with `PHP_VERSION=8.4` or the base operating sy
 
 Example of changing versions:
 ```bash
-PHP_VERSION=8.2 spin up --build
+PHP_VERSION=8.4 spin up --build
 ```
+
+## How the published Docker images are built
+The `action_publish-images-*.yml` workflows call the reusable `service_docker-build-and-publish.yml`, which builds one image per PHP version × variation × OS. The version matrix is generated at build time by `scripts/configure-php-versions.sh` — read that script for the exact rules. In short, it pulls the available versions from [serversideup/docker-php](https://github.com/serversideup/docker-php) and drops anything below the `require.php` floor in `composer.json`, so the supported range follows `composer.json` and `:latest` tracks the newest stable version automatically.
+
+Only `configure-php-versions.sh` is committed. Its helpers — `scripts/assemble-docker-tags.sh`, `scripts/generate-matrix.sh`, and `scripts/conf/php-versions.yml` — are fetched or generated from upstream during CI and are intentionally gitignored; don't commit them.
 
 ## ⚡️ Adding or Improving our performance tests
 This is where we really rely on the community to help us ensure our performance tests are realistic and as accurate as possible.
