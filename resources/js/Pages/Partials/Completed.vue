@@ -29,8 +29,9 @@
                         </div>
                     </div>
 
-                    <div style="background-color: #0C0E12; height: 256px; width: 100%; padding-left: 24px; padding-right: 24px; padding-top: 4px; padding-bottom: 4px; display: flex; align-items: start; justify-content: space-between;">
-                        <div style="display: flex; flex-direction: column; padding-top: 12px; padding-bottom: 12px;">
+                    <div style="background-color: #0C0E12; min-height: 176px; width: 100%; padding-left: 24px; padding-right: 24px; padding-top: 4px; padding-bottom: 4px; display: flex; align-items: start;"
+                        :style="{ justifyContent: phpCompleted ? 'space-between' : 'flex-end' }">
+                        <div v-if="phpCompleted" style="display: flex; flex-direction: column; padding-top: 12px; padding-bottom: 12px;">
                             <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">LARAVEL DATABASE PERFORMANCE</label>
                             <div style="display: flex; align-items: center; justify-content: space-between">
                                 <div style="display: flex; flex-direction: column;">
@@ -86,9 +87,9 @@
                                     <span style="font-size: 16px; color: #CECFD2; font-family: var(--font-mono); font-weight: 500;">{{ laravel.drivers.database }}</span>
                                 </div>
                             </div>
-                            <div style="display: flex; flex-direction: column; margin-top: 24px; margin-bottom: 24px;">
+                            <div v-if="networkCompleted" style="display: flex; flex-direction: column; margin-top: 24px;">
                                 <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400; text-align: right;">NETWORK SPEED TEST</label>
-                                <div style="display: flex; flex-direction: column;" v-if="results['cfspeedtest'].status === 'completed'">
+                                <div style="display: flex; flex-direction: column;">
                                     <div style="display: flex; align-items: center; justify-content: space-between;">
                                         <span style="display: flex; align-items: center;">
                                             <img src="/images/results/download-cloud.png" style="width: 14px; margin-right: 4px;"/>
@@ -104,16 +105,17 @@
                                         </span>
                                     </div>
                                     <div style="display: flex; align-items: center; justify-content: end;">
-                                        <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">{{ summary.network.source }}</span>
-                                        <img src="/images/results/right-arrow.png" style="width: 16px; height: 16px; margin-right: 8px; margin-left: 8px;"/>
+                                        <template v-if="summary.network.source">
+                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">{{ summary.network.source }}</span>
+                                            <img src="/images/results/right-arrow.png" style="width: 16px; height: 16px; margin-right: 8px; margin-left: 8px;"/>
+                                        </template>
                                         <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">Cloudflare ({{ summary.network.colo }})</span>
                                     </div>
                                 </div>
-                                <span v-else style="font-size: 16px; color: #CECFD2; font-family: var(--font-mono); font-weight: 500; text-align: right;">N/A</span>
                             </div>
-                            <div style="display: flex; flex-direction: column;">
+                            <div v-if="geekbenchCompleted" style="display: flex; flex-direction: column; margin-top: 24px;">
                                 <label style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400; text-align: right;">GEEKBENCH RESULTS</label>
-                                <div style="display: flex; align-items: center; justify-content: end;" v-if="results['yabs'].status === 'completed' && summary.yabs.score_single && summary.yabs.score_multi">
+                                <div style="display: flex; align-items: center; justify-content: end;">
                                     <div style="display: flex; flex-direction: column; margin-right: 16px;">
                                         <div style="display: flex; align-items: center; justify-content: end;">
                                             <img src="/images/results/single-core.png" style="width: 16px; margin-right: 4px;"/>
@@ -129,7 +131,6 @@
                                         <span style="font-size: 14px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">multi-core</span>
                                     </div>
                                 </div>
-                                <span v-else style="font-size: 16px; color: #CECFD2; font-family: var(--font-mono); font-weight: 500; text-align: right;">N/A</span>
                             </div>
                         </div>
                     </div>
@@ -214,6 +215,14 @@ const serverLabel = computed(() => {
     const base = php.value.php_variation || php.value.php_server_api;
 
     return php.value.octane ? `${base} + octane` : base;
+});
+
+// Sections for stages that did not run are omitted from the share card
+// entirely rather than rendered as "N/A"
+const phpCompleted = computed(() => results['php'].status === 'completed');
+const networkCompleted = computed(() => results['cfspeedtest'].status === 'completed');
+const geekbenchCompleted = computed(() => {
+    return results['yabs'].status === 'completed' && summary.yabs.score_single && summary.yabs.score_multi;
 });
 
 const formatUTCTimestamp = (date) => {

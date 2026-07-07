@@ -17,13 +17,23 @@
                             <p class="text-sm text-[#94979C] font-mono">Choose test behavior.</p>
                         </div>
                     </div>
-                    <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="close">
+                    <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="cancel">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                             <path d="M15 5L5 15M5 5L15 15" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </button>
                 </div>
-                
+
+                <div class="flex-shrink-0 flex items-center justify-between mt-6">
+                    <div class="inline-flex rounded-lg border border-[#373A41] bg-[#0C0E12] p-1 font-mono text-xs">
+                        <button @click="fillPreset('quick')" class="px-3 py-1.5 rounded-md cursor-pointer transition-colors duration-200"
+                            :class="activePreset === 'quick' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">Quick</button>
+                        <button @click="fillPreset('full')" class="px-3 py-1.5 rounded-md cursor-pointer transition-colors duration-200"
+                            :class="activePreset === 'full' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">Full</button>
+                    </div>
+                    <button v-show="form.isDirty" @click="form.reset()" class="text-xs font-mono text-[#94979C] hover:text-[#CECFD2] underline cursor-pointer">Reset changes</button>
+                </div>
+
                 <div class="flex flex-col flex-1 overflow-y-auto">
                     <div class="flex flex-col pb-6 border-b border-[#22262F]">
                         <div class="flex flex-col mt-6">
@@ -147,12 +157,21 @@
                                 Perform a series of "CRUD" tests against a database.
                             </p>
                         </div>
+
+                        <div class="flex flex-col mt-4" v-show="form.php_database">
+                            <label for="php-mode" class="text-[#CECFD2] font-mono font-medium">Test scope <span class="text-[#94979C] font-mono font-medium">*</span></label>
+                            <select id="php-mode" v-model="form.php_mode" class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0">
+                                <option value="quick">Quick — headline CRUD only (~1 min)</option>
+                                <option value="full">Full suite (~30 min)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 <div class="flex-shrink-0 flex items-center justify-end border-t border-[#22262F] py-4 px-6">
                     <button @click="cancel()" class="px-4 py-2.5 rounded-lg border border-[#373A41] bg-transparent hover:bg-[rgba(255,255,255,0.12)] cursor-pointer transition-colors duration-200 ease-in-out text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0 mr-3">Cancel</button>
-                    <button @click="save()" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] hover:bg-[#E62E05]/80 cursor-pointer transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus:ring-0 focus:ring-offset-0">Save</button>
+                    <button @click="save()" :disabled="!form.isDirty" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus:ring-0 focus:ring-offset-0"
+                        :class="form.isDirty ? 'hover:bg-[#E62E05]/80 cursor-pointer' : 'opacity-50 cursor-not-allowed'">Save</button>
                 </div>
             </div>
     </TransitionRoot>
@@ -165,9 +184,9 @@ import { Switch } from '@headlessui/vue'
 import { useSettings } from '@/Composables/useSettings'
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue'
 
-const { form } = useSettings()
-const { 
-    results
+const { form, saveSettings, fillPreset, activePreset } = useSettings()
+const {
+    previewStatuses
 } = useBenchmarkQueue()
 
 const props = defineProps({
@@ -179,12 +198,15 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+// Fields are live-bound to the shared form, so closing without saving
+// must revert to the last saved values
 const cancel = () => {
    form.reset();
    close();
 }
 
 const save = () => {
+    saveSettings();
     close();
 }
 
@@ -194,7 +216,7 @@ const close = () => {
 
 const closeOnEscape = (e) => {
     if (e.key === 'Escape' && props.open) {
-        close();
+        cancel();
     }
 };
 
@@ -204,13 +226,6 @@ onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 // Benchmark options are sent as the POST body when each stage starts
 // (see useBenchmarkQueue); the drawer only previews pending/skipped states.
 watch(form, () => {
-    updateStatuses();
+    previewStatuses();
 }, { deep: true });
-
-const updateStatuses = () => {
-    results.yabs.status = form.hardware ? 'pending' : 'skipped';
-    results.cfspeedtest.status = form.network ? 'pending' : 'skipped';
-    results.http.status = form.http ? 'pending' : 'skipped';
-    results.php.status = form.php_database ? 'pending' : 'skipped';
-}
 </script>

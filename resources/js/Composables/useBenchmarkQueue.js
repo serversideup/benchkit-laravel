@@ -40,7 +40,7 @@ const stages = {
     },
     php: {
         enabled: () => form.php_database,
-        options: () => ({}),
+        options: () => ({ mode: form.php_mode }),
     },
 };
 
@@ -48,22 +48,30 @@ const results = reactive({
     'yabs': {
         output: [],
         status: 'pending',
-        url: '/yabs'
+        url: '/yabs',
+        startedAt: null,
+        endedAt: null
     },
     'cfspeedtest': {
         output: [],
         status: 'pending',
-        url: '/cfspeedtest'
+        url: '/cfspeedtest',
+        startedAt: null,
+        endedAt: null
     },
     'http': {
         output: [],
         status: 'pending',
-        url: '/http'
+        url: '/http',
+        startedAt: null,
+        endedAt: null
     },
     'php': {
         output: [],
         status: 'pending',
-        url: '/php'
+        url: '/php',
+        startedAt: null,
+        endedAt: null
     }
 });
 
@@ -79,12 +87,18 @@ export const useBenchmarkQueue = () => {
 
     const setStatus = (benchmark, status) => {
         results[benchmark].status = status;
+
+        if( status === 'completed' || status === 'error' ) {
+            results[benchmark].endedAt = Date.now();
+        }
     }
 
     const startBenchmark = (benchmark) => {
         state.value = 'running';
         results[benchmark].status = 'running';
         results[benchmark].output = [];
+        results[benchmark].startedAt = Date.now();
+        results[benchmark].endedAt = null;
         activeBenchmark.value = benchmark;
         // If we are not viewing a benchmark, set the viewing benchmark to the active benchmark
         if( !userViewingBenchmark.value ) {
@@ -94,14 +108,30 @@ export const useBenchmarkQueue = () => {
         startStream(results[benchmark].url, stages[benchmark].options());
     }
 
+    // Disabled stages are marked skipped up front so they never show the
+    // amber "pending" icon while the queue runs
     const resetResults = () => {
         queue.forEach((benchmark) => {
             results[benchmark].output = [];
-            results[benchmark].status = 'pending';
+            results[benchmark].status = stages[benchmark].enabled() ? 'pending' : 'skipped';
+            results[benchmark].startedAt = null;
+            results[benchmark].endedAt = null;
         });
     }
 
-    // Start the queue from the first enabled stage, marking disabled stages as skipped
+    // Preview pending/skipped statuses while the user edits settings,
+    // without touching a run that is already in progress
+    const previewStatuses = () => {
+        if( state.value !== 'idle' ) {
+            return;
+        }
+
+        queue.forEach((benchmark) => {
+            results[benchmark].status = stages[benchmark].enabled() ? 'pending' : 'skipped';
+        });
+    }
+
+    // Start the queue from the first enabled stage
     const startQueue = () => {
         resetResults();
 
@@ -110,8 +140,6 @@ export const useBenchmarkQueue = () => {
                 startBenchmark(benchmark);
                 return;
             }
-
-            results[benchmark].status = 'skipped';
         }
 
         state.value = 'completed';
@@ -129,11 +157,20 @@ export const useBenchmarkQueue = () => {
                 startBenchmark(benchmark);
                 return;
             }
-
-            results[benchmark].status = 'skipped';
         }
 
         state.value = 'completed';
+    }
+
+    // Aborting the stream disconnects the SSE request, which the server
+    // detects within a second and kills the running benchmark subprocess
+    const cancelQueue = () => {
+        stopStream();
+        resetResults();
+        state.value = 'idle';
+        activeBenchmark.value = 'yabs';
+        userViewingBenchmark.value = null;
+        viewingBenchmark.value = 'yabs';
     }
 
     return {
@@ -147,8 +184,10 @@ export const useBenchmarkQueue = () => {
         appendOutput,
         setStatus,
         resetResults,
+        previewStatuses,
         nextBenchmark,
         startBenchmark,
-        startQueue
+        startQueue,
+        cancelQueue
     }
 };
