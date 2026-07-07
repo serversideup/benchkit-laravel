@@ -2,6 +2,7 @@
 
 namespace App\Actions\Results;
 
+use League\Csv\Exception;
 use League\Csv\Reader;
 
 class PhpBenchmarkResults
@@ -53,10 +54,6 @@ class PhpBenchmarkResults
             return null;
         }
 
-        $reader = Reader::createFromPath($this->path());
-        $reader->setHeaderOffset(0);
-        $reader->setEscape('');
-
         $headline = [];
 
         foreach (self::HEADLINE_SUBJECTS as $key => $spec) {
@@ -69,18 +66,26 @@ class PhpBenchmarkResults
 
         $subjects = [];
 
-        foreach ($reader->getRecords() as $record) {
-            $subjects[] = [
-                'benchmark' => $record['benchmark'],
-                'subject' => $record['subject'],
-                'mean_us' => (float) $record['mean'],
-            ];
+        try {
+            $reader = Reader::createFromPath($this->path());
+            $reader->setHeaderOffset(0);
+            $reader->setEscape('');
 
-            foreach (self::HEADLINE_SUBJECTS as $key => $spec) {
-                if ($record['benchmark'] === $spec['benchmark'] && $record['subject'] === $spec['subject']) {
-                    $headline[$key]['milliseconds'] = round($record['mean'] / 1000, 1);
+            foreach ($reader->getRecords() as $record) {
+                $subjects[] = [
+                    'benchmark' => $record['benchmark'],
+                    'subject' => $record['subject'],
+                    'mean_us' => (float) $record['mean'],
+                ];
+
+                foreach (self::HEADLINE_SUBJECTS as $key => $spec) {
+                    if ($record['benchmark'] === $spec['benchmark'] && $record['subject'] === $spec['subject']) {
+                        $headline[$key]['milliseconds'] = round($record['mean'] / 1000, 1);
+                    }
                 }
             }
+        } catch (Exception) {
+            return null;
         }
 
         return [
