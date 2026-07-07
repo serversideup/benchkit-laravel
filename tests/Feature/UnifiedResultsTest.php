@@ -39,12 +39,12 @@ class UnifiedResultsTest extends TestCase
             'generated_at',
             'environment' => [
                 'server',
-                'php' => ['php_version', 'php_server_api', 'memory_limit', 'op_cache', 'op_cache_jit', 'op_cache_jit_buffer_size'],
+                'php' => ['php_version', 'php_server_api', 'php_variation', 'octane', 'memory_limit', 'op_cache', 'op_cache_jit', 'op_cache_jit_buffer_size'],
                 'laravel',
                 'php_variation',
                 'build_version',
             ],
-            'benchmarks' => ['yabs', 'cfspeedtest', 'php'],
+            'benchmarks' => ['yabs', 'cfspeedtest', 'http', 'php'],
         ]);
 
         $response->assertJsonPath('benchmarks.yabs.geekbench.0.single', 1000);

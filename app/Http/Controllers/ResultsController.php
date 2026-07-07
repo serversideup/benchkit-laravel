@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Results\CloudflareSpeedTestResults;
+use App\Actions\Results\HttpBenchmarkResults;
 use App\Actions\Results\PhpBenchmarkResults;
 use App\Actions\Results\YabsResults;
 use App\Actions\Specs\LaravelSpecs;
@@ -32,6 +33,7 @@ class ResultsController extends Controller
             'benchmarks' => [
                 'yabs' => (new YabsResults)->execute(),
                 'cfspeedtest' => (new CloudflareSpeedTestResults)->execute(),
+                'http' => (new HttpBenchmarkResults)->execute(),
                 'php' => (new PhpBenchmarkResults)->execute(),
             ],
         ]);

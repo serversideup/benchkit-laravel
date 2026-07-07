@@ -28,4 +28,26 @@ return [
 
     'php_variation' => env('PHP_VARIATION'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | HTTP Self-Test
+    |--------------------------------------------------------------------------
+    |
+    | Load generator configuration for the HTTP benchmark stage (oha). The
+    | duration and connection count are intentionally fixed — consistent
+    | loadgen settings across runs matter more than the specific values,
+    | so results stay comparable between hosts and image variations.
+    |
+    | The target URL is normally auto-detected (loopback first, APP_URL as
+    | a fallback). Set BENCHMARK_HTTP_URL only when the app can't reach
+    | itself on a standard port.
+    |
+    */
+
+    'http' => [
+        'url' => env('BENCHMARK_HTTP_URL'),
+        'duration_seconds' => 10,
+        'connections' => 50,
+    ],
+
 ];
