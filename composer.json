@@ -6,11 +6,11 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "inertiajs/inertia-laravel": "^2.0",
-        "laravel/framework": "^12.0",
+        "laravel/framework": "^13.0",
         "laravel/octane": "^2.17",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^3.0",
         "league/csv": "^9.27",
         "phpbench/phpbench": "^1.4",
         "serversideup/cfspeedtest": "^2025.09",
@@ -19,12 +19,12 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
-        "laravel/boost": "^1.8",
+        "laravel/boost": "^2.0",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^11.5.3",
+        "phpunit/phpunit": "^12.0",
         "serversideup/spin": "^3.0"
     },
     "autoload": {
