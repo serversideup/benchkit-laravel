@@ -40,6 +40,14 @@ class PhpBenchmarkResults
         ],
     ];
 
+    /**
+     * @return array<string, array{benchmark: string, subject: string, records: int, label: string}>
+     */
+    public static function headlineSubjects(): array
+    {
+        return self::HEADLINE_SUBJECTS;
+    }
+
     public function path(): string
     {
         return config('benchmark.results_path').'/phpbench_results.csv';

@@ -1,7 +1,5 @@
 <template>
     <div class="w-full flex flex-col items-center justify-center py-16">
-        <img src="/images/logos/benchkit-wide.svg" alt="Benchkit" class="h-16">
-
         <BenchmarkResults />
     </div>
 </template>

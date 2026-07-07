@@ -4,19 +4,17 @@ namespace App\Http\Controllers\Benchmarks;
 
 use App\Actions\Results\PhpBenchmarkResults;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Benchmarks\PhpBenchmarkRequest;
+use App\Support\PhpBenchCommand;
 use App\Support\StreamedProcess;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class PhpBenchmarkController extends Controller
 {
-    public function index(): Response
+    public function index(PhpBenchmarkRequest $request): Response
     {
-        $command = sprintf(
-            '%s run --report=comparison --output=csv > %s',
-            base_path('vendor/bin/phpbench'),
-            escapeshellarg((new PhpBenchmarkResults)->path())
-        );
+        $command = (new PhpBenchCommand)->build($request->input('mode', 'full'));
 
         return (new StreamedProcess($command))->response();
     }
