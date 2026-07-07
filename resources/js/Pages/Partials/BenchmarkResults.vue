@@ -35,6 +35,10 @@
                 <img src="/images/icons/warning.svg" alt="Warning" class="h-5 w-5 mr-2">
                 Geekbench takes a while to run. Be patient (could be 10-15+ minutes).
             </div>
+            <div v-if="activeBenchmark === 'php' && form.php_mode === 'full'" class="flex items-center rounded-xl bg-[#13161B] p-4 border border-[#373A41] font-mono text-sm text-[#CECFD2]">
+                <img src="/images/icons/warning.svg" alt="Warning" class="h-5 w-5 mr-2">
+                The full PHP suite runs 80+ benchmarks and can take 30+ minutes. Quick mode covers the headline CRUD metrics in about a minute.
+            </div>
             <div v-if="results[viewingBenchmark].status === 'pending'" class="w-full p-8 rounded-lg border border-[#373A41] bg-[#13161B] overflow-y-auto mt-2.5">
                 <pre 
                     class="text-xs font-mono text-white"

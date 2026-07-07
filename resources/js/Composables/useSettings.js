@@ -95,7 +95,7 @@ const durations = {
     network: 0.5,
     http: 0.5,
     php_quick: 1,
-    php_full: 15,
+    php_full: 30,
 }
 
 const estimatedMinutes = computed(() => {
