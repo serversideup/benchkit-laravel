@@ -18,17 +18,17 @@
                                         <div style="display: flex; align-items: center">
                                             <img src="/images/results/create.png" style="width: 20px; margin-right: 4px;"/>
                                             <span style="color: #FFF; font-size: 20px; font-family: var(--font-mono);">CREATE</span>
-                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">(100 RECORDS)</span>
+                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">({{ summary.php.create.records ?? 100 }} RECORDS)</span>
                                         </div>
-                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ summary.php.create }}ms</span>
+                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ formatMs(summary.php.create.ms) }}</span>
                                     </div>
                                     <div style="display: flex; flex-direction: column; margin-top: 12px;">
                                         <div style="display: flex; align-items: center">
                                             <img src="/images/results/update.png" style="width: 20px; margin-right: 4px;"/>
                                             <span style="color: #FFF; font-size: 20px; font-family: var(--font-mono);">UPDATE</span>
-                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">(1K RECORDS)</span>
+                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">({{ summary.php.update.records ?? 100 }} RECORDS)</span>
                                         </div>
-                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ summary.php.update }}ms</span>
+                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ formatMs(summary.php.update.ms) }}</span>
                                     </div>
                                 </div>
                                 <div style="display: flex; flex-direction: column; margin-left: 24px;">
@@ -36,17 +36,17 @@
                                         <div style="display: flex; align-items: center">
                                             <img src="/images/results/read.png" style="width: 20px; margin-right: 4px;"/>
                                             <span style="color: #FFF; font-size: 20px; font-family: var(--font-mono);">READ</span>
-                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">(10K RECORDS)</span>
+                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">({{ summary.php.read.records ?? 100 }} RECORDS)</span>
                                         </div>
-                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ summary.php.read }}ms</span>
+                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ formatMs(summary.php.read.ms) }}</span>
                                     </div>
                                     <div style="display: flex; flex-direction: column; margin-top: 12px;">
                                         <div style="display: flex; align-items: center">
                                             <img src="/images/results/delete.png" style="width: 20px; margin-right: 4px;"/>
                                             <span style="color: #FFF; font-size: 20px; font-family: var(--font-mono);">DELETE</span>
-                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">(2K RECORDS)</span>
+                                            <span style="font-size: 12px; color: #61656C; font-family: var(--font-mono); font-weight: 400;">({{ summary.php.delete.records ?? 100 }} RECORDS)</span>
                                         </div>
-                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ summary.php.delete }}ms</span>
+                                        <span style="color: white; font-size: 48px; font-family: var(--font-mono); font-weight: 500;">{{ formatMs(summary.php.delete.ms) }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -134,6 +134,15 @@
                 </a>
             </div>
 
+            <div class="w-full flex items-center justify-center mt-4" v-show="resultsImage">
+                <button @click="downloadImage()" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] cursor-pointer">
+                    <svg class="mr-2" xmlns="http://www.w3.org/2000/svg" width="19" height="17" viewBox="0 0 19 17" fill="none">
+                        <path d="M2.50016 11.8685C1.49517 11.1958 0.833496 10.0502 0.833496 8.75C0.833496 6.79702 2.32642 5.19274 4.23328 5.01614C4.62334 2.64344 6.6837 0.833332 9.16683 0.833332C11.65 0.833332 13.7103 2.64344 14.1004 5.01614C16.0072 5.19274 17.5002 6.79702 17.5002 8.75C17.5002 10.0502 16.8385 11.1958 15.8335 11.8685M5.8335 12.5L9.16683 15.8333M9.16683 15.8333L12.5002 12.5M9.16683 15.8333V8.33333" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Download Image
+                </button>
+            </div>
+
             <div class="w-full flex items-center justify-center mt-4">
                 <button @click="runAgain()" type="button" class="w-80 rounded-lg py-3 flex items-center justify-center font-mono shadow-sm text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] cursor-pointer">
                     <svg class="mr-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -172,15 +181,9 @@ import BenchmarkResults from '@/Pages/Partials/BenchmarkResults.vue';
 import { onMounted, ref, reactive, computed, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
-import { useSettings } from '@/Composables/useSettings';
 
 const {
-    form
-} = useSettings();
-
-const {
-    resetResults,
-    startBenchmark,
+    startQueue,
     results
 } = useBenchmarkQueue();
 
@@ -215,12 +218,16 @@ const summary = reactive({
         destination: null
     },
     php: {
-        create: null,
-        read: null,
-        update: null,
-        delete: null
+        create: { ms: null, records: null },
+        read: { ms: null, records: null },
+        update: { ms: null, records: null },
+        delete: { ms: null, records: null }
     }
 });
+
+const formatMs = (ms) => {
+    return ms === null || ms === undefined ? 'N/A' : `${ms}ms`;
+}
 
 
 onMounted(() => {
@@ -264,75 +271,68 @@ const buildSummary = () => {
 }
 
 const buildCfspeedtestSummary = async () => {
-    results['cfspeedtest'].output.forEach( (output) => {
-        if( output.startsWith("Asn:") ) {
-            const asn = output.split(":")[1].trim();
-            summary.network.asn = asn;
-        }
-        if( output.startsWith("Colo:") ) {
-            const colo = output.split(":")[1].trim();
-            summary.network.colo = colo;
-        }
-        if( output.startsWith("Avg GET request latency") ){
-            // Example line: "Avg GET request latency 17.11 ms (RTT excluding server processing time)"
-            const latencyMatch = output.match(/Avg GET request latency\s+([0-9.]+ ms)/);
-            if (latencyMatch && latencyMatch[1]) {
-                summary.network.latency = latencyMatch[1];
+    try {
+        const response = await fetch('/cfspeedtest/results');
+
+        if( response.ok ) {
+            const data = await response.json();
+            const network = data.cfspeedtest_results;
+
+            summary.network.asn = network.asn;
+            summary.network.colo = network.colo;
+            summary.network.latency = network.latency_ms;
+            summary.network.download = network.download_mbps;
+            summary.network.upload = network.upload_mbps;
+
+            if( network.asn ) {
+                const asData = await fetch(`https://stat.ripe.net/data/as-overview/data.json?resource=AS${network.asn}`).then(response => response.json());
+                summary.network.source = asData.data.holder;
             }
         }
-    });
-
-    let upload = results['cfspeedtest'].output[ results['cfspeedtest'].output.length - 1 ];
-
-    // Grabs avg from lines like: Upload    10MB   |  min 18.04   max 83.87   avg 41.11
-    if (upload && upload.includes('avg')) {
-        // Match avg: (label 'avg' followed by whitespace, then the value)
-        const avgMatch = upload.match(/avg\s+([0-9.]+)/);
-        if (avgMatch) {
-            summary.network.upload = avgMatch[1];
-        }
-    }
-    
-    for( let i = results['cfspeedtest'].output.length - 1; i >= 0; i-- ) {
-        if( results['cfspeedtest'].output[i].startsWith("Download") ) {
-            let download = results['cfspeedtest'].output[i];
-            if (download && download.includes('avg')) {
-                const avgMatch = download.match(/avg\s+([0-9.]+)/);
-                if (avgMatch) {
-                    summary.network.download = avgMatch[1];
-                }
-            }
-            break;
-        }
-    }
-
-    await fetch(`https://stat.ripe.net/data/as-overview/data.json?resource=AS${summary.network.asn}`).then(response => response.json()).then(data => {
-        summary.network.source = data.data.holder;
+    } catch (error) {
+        console.error(error);
+    } finally {
         summaryBuilt.cfspeedtest = true;
-    });
+    }
 }
 
 const buildYabsSummary = async () => {
-    await fetch('/yabs/results').then(response => response.json()).then(data => {
-        if( data.geekbench[0].single && data.geekbench[0].multi ) {
-            summary.yabs.score_single = data.geekbench[0].single;
-            summary.yabs.score_multi = data.geekbench[0].multi;
-            geekBenchUrl.value = data.geekbench[0].url;
-        }
+    try {
+        const response = await fetch('/yabs/results');
 
+        if( response.ok ) {
+            const data = await response.json();
+
+            if( data.geekbench && data.geekbench[0] && data.geekbench[0].single && data.geekbench[0].multi ) {
+                summary.yabs.score_single = data.geekbench[0].single;
+                summary.yabs.score_multi = data.geekbench[0].multi;
+                geekBenchUrl.value = data.geekbench[0].url;
+            }
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
         summaryBuilt.yabs = true;
-    });
+    }
 }
 
 const buildPhpSummary = async () => {
-    await fetch('/php/results').then(response => response.json()).then(data => {
-        summary.php.create = data.phpbench_results.create;
-        summary.php.read = data.phpbench_results.read;
-        summary.php.update = data.phpbench_results.update;
-        summary.php.delete = data.phpbench_results.delete;
-        
+    try {
+        const response = await fetch('/php/results');
+
+        if( response.ok ) {
+            const data = await response.json();
+
+            ['create', 'read', 'update', 'delete'].forEach((key) => {
+                summary.php[key].ms = data.phpbench_results[key].milliseconds;
+                summary.php[key].records = data.phpbench_results[key].records;
+            });
+        }
+    } catch (error) {
+        console.error(error);
+    } finally {
         summaryBuilt.php = true;
-    });
+    }
 }
 
 const resultsImage = ref(null);
@@ -349,20 +349,8 @@ const generateImage = () => {
 }
 
 const runAgain = () => {
-    resetResults();
     resetSummary();
-    const firstBenchmark = findFirstBenchmark();
-    startBenchmark(firstBenchmark);
-}
-
-const findFirstBenchmark = () => {
-    if( form.hardware ) {
-        return 'yabs';
-    }else if( form.network ) {
-        return 'cfspeedtest';
-    }else if( form.php_database ) {
-        return 'php';
-    }
+    startQueue();
 }
 
 const resetSummary = () => {
@@ -375,16 +363,48 @@ const resetSummary = () => {
     summary.network.latency = null;
     summary.network.source = null;
     summary.network.destination = null;
-    summary.php.create = null;
-    summary.php.read = null;
-    summary.php.update = null;
-    summary.php.delete = null;
+
+    ['create', 'read', 'update', 'delete'].forEach((key) => {
+        summary.php[key].ms = null;
+        summary.php[key].records = null;
+    });
+
     summaryBuilt.yabs = false;
     summaryBuilt.cfspeedtest = false;
     summaryBuilt.php = false;
+    geekBenchUrl.value = null;
+    resultsImage.value = null;
 }
 
-const downloadResults = () => {
+const fileTimestamp = () => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const second = date.getSeconds();
+
+    return `${year}-${month}-${day}-${hour}${minute}${second}`;
+}
+
+const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+const downloadImage = () => {
+    const a = document.createElement('a');
+    a.href = resultsImage.value;
+    a.download = `benchkit-results-${fileTimestamp()}.png`;
+    a.click();
+}
+
+const downloadResults = async () => {
     let text = '';
 
     if( results['yabs'].status === 'completed' ) {
@@ -411,20 +431,23 @@ const downloadResults = () => {
         text += '\n';
     }
 
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    const second = date.getSeconds();
-    const formattedDate = `${year}-${month}-${day}-${hour}${minute}${second}`;
+    const formattedDate = fileTimestamp();
 
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `benchkit-results-${formattedDate}.txt`;
-    a.click();
+    downloadBlob(new Blob([text], { type: 'text/plain' }), `benchkit-results-${formattedDate}.txt`);
+
+    // Also download the unified machine-readable results document
+    try {
+        const response = await fetch('/results');
+
+        if( response.ok ) {
+            const json = await response.json();
+            downloadBlob(
+                new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' }),
+                `benchkit-results-${formattedDate}.json`
+            );
+        }
+    } catch (error) {
+        console.error(error);
+    }
 }
 </script>

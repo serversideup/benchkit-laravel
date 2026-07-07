@@ -17,6 +17,28 @@ const queue = [
     'php'
 ];
 
+const stages = {
+    yabs: {
+        enabled: () => form.hardware,
+        options: () => ({
+            disk: form.disk,
+            geekbench: form.geekbench,
+            geekbench_version: form.geekbench_version,
+            iperf: form.iperf,
+        }),
+    },
+    cfspeedtest: {
+        enabled: () => form.network,
+        options: () => ({
+            network_test_type: form.network_test_type,
+        }),
+    },
+    php: {
+        enabled: () => form.php_database,
+        options: () => ({}),
+    },
+};
+
 const results = reactive({
     'yabs': {
         output: [],
@@ -59,7 +81,7 @@ export const useBenchmarkQueue = () => {
             viewingBenchmark.value = benchmark;
         }
 
-        startStream(results[benchmark].url);
+        startStream(results[benchmark].url, stages[benchmark].options());
     }
 
     const resetResults = () => {
@@ -71,27 +93,39 @@ export const useBenchmarkQueue = () => {
         results.php.status = 'pending';
     }
 
+    // Start the queue from the first enabled stage, marking disabled stages as skipped
+    const startQueue = () => {
+        resetResults();
+
+        for (const benchmark of queue) {
+            if( stages[benchmark].enabled() ) {
+                startBenchmark(benchmark);
+                return;
+            }
+
+            results[benchmark].status = 'skipped';
+        }
+
+        state.value = 'completed';
+    }
+
     const nextBenchmark = () => {
         stopStream();
-        
-        let activeIndex = queue.indexOf(activeBenchmark.value);
 
-        if( activeIndex === 0 && form.network ) {
-            if( form.network ) {
-                startBenchmark('cfspeedtest');
-            }else{
-                activeBenchmark.value = 'cfspeedtest';
-                nextBenchmark();
+        const activeIndex = queue.indexOf(activeBenchmark.value);
+
+        for (let i = activeIndex + 1; i < queue.length; i++) {
+            const benchmark = queue[i];
+
+            if( stages[benchmark].enabled() ) {
+                startBenchmark(benchmark);
+                return;
             }
-        }else if( activeIndex === 1 && form.php_database ) {
-            if( form.php_database ) {
-                startBenchmark('php');
-            }else{
-                state.value = 'completed';
-            }
-        }else{
-            state.value = 'completed';
+
+            results[benchmark].status = 'skipped';
         }
+
+        state.value = 'completed';
     }
 
     return {
@@ -106,6 +140,7 @@ export const useBenchmarkQueue = () => {
         setStatus,
         resetResults,
         nextBenchmark,
-        startBenchmark
+        startBenchmark,
+        startQueue
     }
 };

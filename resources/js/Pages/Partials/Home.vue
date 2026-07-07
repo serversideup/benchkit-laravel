@@ -31,28 +31,12 @@ import Server from '@/Pages/Partials/Server.vue';
 import Php from '@/Pages/Partials/Php.vue';
 import Laravel from '@/Pages/Partials/Laravel.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
-import { useSettings } from '@/Composables/useSettings';
-
-const {
-    form
-} = useSettings();
 
 const startBenchkit = () => {
-    const firstBenchmark = findFirstBenchmark();
-    startBenchmark(firstBenchmark);
-}
-
-const findFirstBenchmark = () => {
-    if( form.hardware ) {
-        return 'yabs';
-    }else if( form.network ) {
-        return 'cfspeedtest';
-    }else if( form.php_database ) {
-        return 'php';
-    }
+    startQueue();
 }
 
 const {
-    startBenchmark,
+    startQueue,
 } = useBenchmarkQueue();
 </script>
