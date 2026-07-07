@@ -54,6 +54,24 @@ Here's common questions to help you understand how this application works.
   > Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps). There are dependencies that need to be installed (like [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) and [cfspeedtest ](https://github.com/code-inflation/cfspeedtest)), but we will be sure to add more documentation once we get the Docker version up and running first.
 </details>
 <details>
+  <summary>How do I benchmark Laravel Octane?</summary>
+
+  > Use the FrankenPHP variation of the BenchKit image — the same image runs both modes, so results are directly comparable. Standard mode:
+  >
+  > ```bash
+  > docker run -p 80:8080 serversideup/benchkit-laravel:frankenphp
+  > ```
+  >
+  > Octane worker mode — same image, just swap the command:
+  >
+  > ```bash
+  > docker run -p 80:8080 serversideup/benchkit-laravel:frankenphp \
+  >   php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080
+  > ```
+  >
+  > The results output and share image are labeled with the mode that produced them (look for the "OCTANE / worker mode" badge), so shared results always say which mode was benchmarked.
+</details>
+<details>
   <summary>How can I share my results with the community?</summary>
 
   > When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of [#BenchKit and #Laravel](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live).

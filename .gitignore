@@ -44,3 +44,9 @@ boost.json
 .codex/
 .claude/
 opencode.json
+
+# Octane/FrankenPHP local artifacts. The standalone frankenphp binary is
+# downloaded by octane:install for local dev; public/frankenphp-worker.php
+# is intentionally committed (see serversideup/php Octane docs).
+**/caddy
+/frankenphp
