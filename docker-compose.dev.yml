@@ -33,8 +33,26 @@ services:
       - APP_ENV=${APP_ENV:-local}
       - APP_DEBUG=${APP_DEBUG:-true}
       - APP_URL=${APP_URL:-https://benchkit.dev.test}
+      # Ephemeral database: the tmpfs mount below is wiped on every container
+      # start, so the DB (and any benchmark run lock in it) can never go
+      # stale. Nothing in the DB needs to survive — results are files.
+      - DB_DATABASE=/var/lib/benchkit/database.sqlite
+      # Migrate the fresh database on boot using the image's built-in
+      # automations (Laravel auto-creates the missing SQLite file). The cache
+      # automations are disabled — cached config would ignore .env changes.
+      - AUTORUN_ENABLED=true
+      - AUTORUN_LARAVEL_STORAGE_LINK=false
+      - AUTORUN_LARAVEL_OPTIMIZE=false
+      - AUTORUN_LARAVEL_CONFIG_CACHE=false
+      - AUTORUN_LARAVEL_ROUTE_CACHE=false
+      - AUTORUN_LARAVEL_VIEW_CACHE=false
+      - AUTORUN_LARAVEL_EVENT_CACHE=false
     volumes:
       - .:/var/www/html/
+      - type: tmpfs
+        target: /var/lib/benchkit
+        tmpfs:
+          mode: 0o1777
     networks:
       - development
     depends_on:

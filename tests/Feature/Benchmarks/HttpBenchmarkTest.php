@@ -56,6 +56,7 @@ class HttpBenchmarkTest extends TestCase
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
         Cache::lock(StreamedProcess::LOCK_KEY, 60)->get();
+        Cache::put(StreamedProcess::HEARTBEAT_KEY, time(), 90);
 
         $this->post('/http')->assertStatus(409);
     }

@@ -31,10 +31,18 @@ export const useStream = () => {
             });
 
             if (!response.ok) {
-                const error = response.status === 409
-                    ? 'Another benchmark is already running.'
-                    : `Benchmark request failed (HTTP ${response.status}).`;
+                let error = `Benchmark request failed (HTTP ${response.status}).`;
 
+                try {
+                    const data = await response.json();
+                    if (data.message) {
+                        error = data.message;
+                    }
+                } catch {
+                    // Keep the generic message when the body isn't JSON
+                }
+
+                streamEventBus.emit('benchmark:output', JSON.stringify({ type: 'err', output: error }));
                 streamEventBus.emit('benchmark:output', JSON.stringify({ status: 'error', error }));
                 return;
             }
@@ -67,6 +75,7 @@ export const useStream = () => {
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error(error);
+                streamEventBus.emit('benchmark:output', JSON.stringify({ type: 'err', output: `Connection to the benchmark stream failed: ${error.message}` }));
                 streamEventBus.emit('benchmark:output', JSON.stringify({ status: 'error', error: error.message }));
             }
         }

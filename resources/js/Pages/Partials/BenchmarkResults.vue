@@ -67,9 +67,9 @@
                     v-text="'This benchmark has been skipped. Please check your settings and try again.'"/>
             </div>
             <div v-else class="w-full p-8 rounded-lg border border-[#373A41] bg-[#13161B] h-[calc(100vh-200px)] overflow-y-auto mt-2.5">
-                <pre 
-                    v-for="output in results[viewingBenchmark].output" 
-                    :key="output" class="text-xs font-mono text-white"
+                <pre
+                    v-for="output in results[viewingBenchmark].output"
+                    :key="output" class="text-xs font-mono text-white whitespace-pre-wrap break-words"
                     v-text="output"/>
             </div>
         </div>
@@ -103,12 +103,14 @@ const listener = (message, data) => {
     if( message === 'benchmark:output' ) {
         let benchmark = JSON.parse(data);
 
-        if( benchmark.type === 'out' ) {
+        if( benchmark.type === 'out' || benchmark.type === 'err' ) {
             appendOutput(activeBenchmark.value, benchmark.output.trim());
         }
 
+        // Long-running subjects can go a minute or more between output lines —
+        // surface the server heartbeat so the run never looks hung
         if( benchmark.type == 'heartbeat' ){
-            
+            appendOutput(activeBenchmark.value, `... still running (${benchmark.timestamp} UTC)`);
         }
 
         if( benchmark.status === 'completed' ) {
