@@ -69,7 +69,7 @@
 
                             <p class="mt-4 text-xs text-[#61656C] font-mono leading-relaxed">
                                 External runs include network time and keep the load generator off this machine &mdash;
-                                expect different numbers than the built-in Web Server Test.
+                                expect different numbers than the built-in Web Server Load Test.
                             </p>
                         </DialogPanel>
                     </TransitionChild>

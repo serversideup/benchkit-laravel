@@ -138,7 +138,7 @@ const runSummary = computed(() => {
     }
 
     if (form.http) {
-        tests.push('Web Server')
+        tests.push('Web Server Load')
     }
 
     if (form.php_database) {

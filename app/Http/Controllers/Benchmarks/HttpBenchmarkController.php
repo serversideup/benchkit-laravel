@@ -76,7 +76,7 @@ class HttpBenchmarkController extends Controller
                 escapeshellarg($url),
                 escapeshellarg($results->routePath($key))
             );
-            $steps[] = sprintf('echo %s', escapeshellarg("Completed {$path}"));
+            $steps[] = sprintf('php artisan benchmark:http-summary %s', escapeshellarg($key));
         }
 
         return implode(' && ', $steps);

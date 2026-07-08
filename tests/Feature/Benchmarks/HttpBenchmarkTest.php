@@ -68,6 +68,39 @@ class HttpBenchmarkTest extends TestCase
             ->assertJson(['status' => 'no_results']);
     }
 
+    public function test_http_summary_command_prints_detailed_metrics_from_oha_json(): void
+    {
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => [
+                'successRate' => 1.0,
+                'requestsPerSec' => 5623.4,
+                'total' => 10.0,
+                'average' => 0.0089,
+                'fastest' => 0.0012,
+                'slowest' => 0.0234,
+                'sizePerSec' => 12960890,
+                'totalData' => 1804000,
+            ],
+            'latencyPercentiles' => ['p50' => 0.0085, 'p90' => 0.0121, 'p95' => 0.014, 'p99' => 0.018],
+            'statusCodeDistribution' => ['200' => 56238],
+            'errorDistribution' => ['aborted due to deadline' => 50],
+        ]));
+
+        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Requests/sec   5,623.4')
+            ->expectsOutputToContain('p95 14.00')
+            ->expectsOutputToContain('200: 56,238')
+            ->expectsOutputToContain('aborted due to deadline: 50');
+    }
+
+    public function test_http_summary_command_is_quiet_when_a_route_has_no_results(): void
+    {
+        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('No results were captured for static.');
+    }
+
     public function test_http_results_parses_oha_output_per_route(): void
     {
         File::put($this->resultsPath.'/http-meta.json', json_encode([
