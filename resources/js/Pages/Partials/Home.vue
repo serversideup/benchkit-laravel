@@ -1,9 +1,9 @@
 <template>
     <div class="w-full flex flex-col items-center justify-center py-16">
         <div class="w-full flex flex-col items-center justify-center">
-            <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="font-mono px-[18px] py-3 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] transition-all duration-300"
+            <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="font-mono text-lg px-7 py-3.5 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] transition-all duration-300"
                 :class="runSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#E62E05]/80 cursor-pointer'">
-                <img src="/images/ui/lightning.svg" alt="Lightning" class="h-5 mr-2">
+                <img src="/images/ui/lightning.svg" alt="Lightning" class="h-5 mr-2.5">
                 Start Benchmark
             </button>
 
@@ -28,6 +28,10 @@
             <p v-else class="mt-3 text-xs text-[#94979C] font-mono">
                 No tests selected &mdash; choose a preset or customize.
             </p>
+
+            <button @click="showEndpointsModal = true" class="mt-6 text-xs font-mono text-[#94979C] hover:text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] cursor-pointer transition-colors duration-200">
+                Prefer your own tools? You can run some tests externally too
+            </button>
         </div>
 
         <div class="mx-auto w-[700px] flex flex-col items-center justify-center mt-12">
@@ -44,13 +48,17 @@
                 <Laravel />
             </div>
         </div>
+
+        <ExternalEndpointsModal :open="showEndpointsModal" @close="showEndpointsModal = false" />
     </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import Server from '@/Pages/Partials/Server.vue';
 import Php from '@/Pages/Partials/Php.vue';
 import Laravel from '@/Pages/Partials/Laravel.vue';
+import ExternalEndpointsModal from '@/Components/ExternalEndpointsModal.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
 import { useSettings } from '@/Composables/useSettings';
 import { useSettingsDrawer } from '@/Composables/useSettingsDrawer';
@@ -71,4 +79,6 @@ const {
 } = useSettings();
 
 const { open: openDrawer } = useSettingsDrawer();
+
+const showEndpointsModal = ref(false);
 </script>
