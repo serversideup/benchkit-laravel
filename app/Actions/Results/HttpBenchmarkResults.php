@@ -75,6 +75,67 @@ class HttpBenchmarkResults
         ];
     }
 
+    /**
+     * Full per-route detail for the live console summary, normalised from a
+     * single oha JSON file. Latencies are converted to milliseconds. Returns
+     * null when the file is missing or unreadable.
+     *
+     * @return array{
+     *     path: string,
+     *     requests_per_second: float,
+     *     total_requests: int,
+     *     duration_seconds: float|null,
+     *     success_rate: float|null,
+     *     bytes_per_second: float|null,
+     *     total_bytes: int|null,
+     *     average_ms: float|null,
+     *     fastest_ms: float|null,
+     *     slowest_ms: float|null,
+     *     latency_ms: array{p50: float|null, p90: float|null, p95: float|null, p99: float|null},
+     *     status_codes: array<string, int>,
+     *     errors: array<string, int>
+     * }|null
+     */
+    public function detail(string $key): ?array
+    {
+        $file = $this->routePath($key);
+
+        if (! file_exists($file)) {
+            return null;
+        }
+
+        $data = json_decode(file_get_contents($file), true);
+
+        if (! is_array($data)) {
+            return null;
+        }
+
+        $summary = $data['summary'] ?? [];
+        $percentiles = $data['latencyPercentiles'] ?? [];
+        $statusCodes = $data['statusCodeDistribution'] ?? [];
+
+        return [
+            'path' => self::ROUTES[$key] ?? $key,
+            'requests_per_second' => round($summary['requestsPerSec'] ?? 0, 1),
+            'total_requests' => (int) array_sum($statusCodes),
+            'duration_seconds' => $summary['total'] ?? null,
+            'success_rate' => $summary['successRate'] ?? null,
+            'bytes_per_second' => $summary['sizePerSec'] ?? null,
+            'total_bytes' => $summary['totalData'] ?? null,
+            'average_ms' => $this->toMilliseconds($summary['average'] ?? null),
+            'fastest_ms' => $this->toMilliseconds($summary['fastest'] ?? null),
+            'slowest_ms' => $this->toMilliseconds($summary['slowest'] ?? null),
+            'latency_ms' => [
+                'p50' => $this->toMilliseconds($percentiles['p50'] ?? null),
+                'p90' => $this->toMilliseconds($percentiles['p90'] ?? null),
+                'p95' => $this->toMilliseconds($percentiles['p95'] ?? null),
+                'p99' => $this->toMilliseconds($percentiles['p99'] ?? null),
+            ],
+            'status_codes' => $statusCodes,
+            'errors' => $data['errorDistribution'] ?? [],
+        ];
+    }
+
     protected function toMilliseconds(?float $seconds): ?float
     {
         return $seconds === null ? null : round($seconds * 1000, 2);

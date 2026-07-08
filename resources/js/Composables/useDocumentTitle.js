@@ -6,7 +6,7 @@ const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '
 const STAGE_LABELS = {
     yabs: 'Hardware',
     cfspeedtest: 'Network',
-    http: 'Web Server',
+    http: 'Web Server Load',
     php: 'PHP',
 };
 

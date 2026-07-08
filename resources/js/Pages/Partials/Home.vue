@@ -1,5 +1,6 @@
 <template>
-    <div class="w-full flex flex-col items-center justify-center py-16">
+    <div class="flex-1 min-h-0 w-full overflow-y-auto">
+        <div class="w-full flex flex-col items-center py-16">
         <div class="w-full flex flex-col items-center justify-center">
             <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="font-mono text-lg px-7 py-3.5 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] transition-all duration-300"
                 :class="runSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#E62E05]/80 cursor-pointer'">
@@ -50,6 +51,7 @@
         </div>
 
         <ExternalEndpointsModal :open="showEndpointsModal" @close="showEndpointsModal = false" />
+        </div>
     </div>
 </template>
 

@@ -80,9 +80,39 @@ const userViewingBenchmark = ref(null);
 const viewingBenchmark = ref('yabs');
 const state = ref('idle');
 
+// Progress bars (cfspeedtest, fio) repaint a line in place with carriage
+// returns rather than printing a new line each frame. In a terminal each
+// \r returns the cursor to column 0 and following characters overwrite what
+// is there; rendered verbatim in a <pre> those frames instead jam together
+// on one line. Collapse each streamed line to what a terminal would finally
+// show so the console reads cleanly.
+const renderTerminalLine = (text) => {
+    if( !text.includes('\r') ) {
+        return text;
+    }
+
+    const buffer = [];
+    let column = 0;
+
+    for( const character of text ) {
+        if( character === '\r' ) {
+            column = 0;
+        } else {
+            buffer[column] = character;
+            column++;
+        }
+    }
+
+    return buffer.join('');
+}
+
 export const useBenchmarkQueue = () => {
     const appendOutput = (benchmark, output) => {
-        results[benchmark].output.push(output);
+        const line = renderTerminalLine(output).trim();
+
+        if( line !== '' ) {
+            results[benchmark].output.push(line);
+        }
     }
 
     const setStatus = (benchmark, status) => {
