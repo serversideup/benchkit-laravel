@@ -2,13 +2,13 @@
     <TransitionRoot 
         as="template" 
         :show="open" 
-        enter="transition ease-in-out duration-500" 
-        enter-from="-translate-x-full" 
-        enter-to="translate-x-0" 
-        leave="transition ease-in-out duration-500" 
-        leave-from="translate-x-0" 
-        leave-to="-translate-x-full">
-            <div class="fixed left-0 top-0 bottom-0 bg-black z-[99999] w-[400px] p-6 flex flex-col">
+        enter="transition ease-in-out duration-500"
+        enter-from="translate-x-full"
+        enter-to="translate-x-0"
+        leave="transition ease-in-out duration-500"
+        leave-from="translate-x-0"
+        leave-to="translate-x-full">
+            <div class="fixed right-0 top-0 bottom-0 bg-black z-[99999] w-[400px] p-6 flex flex-col">
                 <div class="flex flex-shrink-0 items-start justify-between">
                     <div class="flex items-start">
                         <img src="/images/icons/square-settings.svg" alt="Settings" class="w-10 h-10" />
