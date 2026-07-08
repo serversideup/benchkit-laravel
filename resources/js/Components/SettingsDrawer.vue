@@ -1,14 +1,26 @@
 <template>
-    <TransitionRoot 
-        as="template" 
-        :show="open" 
-        enter="transition ease-in-out duration-500"
-        enter-from="translate-x-full"
-        enter-to="translate-x-0"
-        leave="transition ease-in-out duration-500"
-        leave-from="translate-x-0"
-        leave-to="translate-x-full">
-            <div class="fixed right-0 top-0 bottom-0 bg-black z-[99999] w-[400px] p-6 flex flex-col">
+    <TransitionRoot as="template" :show="open">
+        <div class="fixed inset-0 z-[99999]">
+            <TransitionChild
+                as="template"
+                enter="transition-opacity ease-in-out duration-500"
+                enter-from="opacity-0"
+                enter-to="opacity-100"
+                leave="transition-opacity ease-in-out duration-500"
+                leave-from="opacity-100"
+                leave-to="opacity-0">
+                <div class="absolute inset-0 bg-black/40" aria-hidden="true" @click="attemptClose" />
+            </TransitionChild>
+
+            <TransitionChild
+                as="template"
+                enter="transition ease-in-out duration-500"
+                enter-from="translate-x-full"
+                enter-to="translate-x-0"
+                leave="transition ease-in-out duration-500"
+                leave-from="translate-x-0"
+                leave-to="translate-x-full">
+                <div class="absolute right-0 top-0 bottom-0 bg-black w-[400px] max-w-full p-6 flex flex-col">
                 <div class="flex flex-shrink-0 items-start justify-between">
                     <div class="flex items-start">
                         <img src="/images/icons/square-settings.svg" alt="Settings" class="w-10 h-10" />
@@ -17,7 +29,7 @@
                             <p class="text-sm text-[#94979C] font-mono">Choose test behavior.</p>
                         </div>
                     </div>
-                    <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="cancel">
+                    <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="attemptClose">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
                             <path d="M15 5L5 15M5 5L15 15" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -49,7 +61,7 @@
                                         class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
                                     />
                                 </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Hardware Test</label>  
+                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Hardware Test</label>
                             </div>
                             <p class="mt-2 text-sm text-[#94979C] font-mono">
                                 Use <a href="https://github.com/masonr/yet-another-bench-script" target="_blank" class="underline font-mono">yet-another-benchmark-script</a> to perform hardware tests with fio, Geekbench, and iperf.
@@ -65,7 +77,7 @@
                             <input type="checkbox" id="geekbench" v-model="form.geekbench" class="w-5 h-5 appearance-none border border-[#373A41] bg-transparent checked:bg-[#E62E05] checked:text-white rounded-md ring-0 outline-none focus:ring-0 focus:ring-offset-0" />
                             <div class="flex flex-col flex-1 ml-3">
                                 <label for="geekbench" class="font-medium text-[#CECFD2] font-mono">Geekbench test</label>
-                                
+
                                 <div class="flex flex-col mt-2.5" v-show="form.geekbench">
                                     <label for="geekbench-version" class="text-sm text-[#CECFD2] font-mono font-medium">Geekbench version <span class="text-[#94979C] font-mono font-medium">*</span></label>
                                     <select id="geekbench-version" v-model="form.geekbench_version" class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0">
@@ -98,7 +110,7 @@
                                         class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
                                     />
                                 </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Network Test</label>  
+                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Network Test</label>
                             </div>
                             <p class="mt-2 text-sm text-[#94979C] font-mono">
                                 Use <a href="https://github.com/code-inflation/cfspeedtest" target="_blank" class="underline font-mono">cfspeedtest</a> to perform a network test against CloudFlare's network.
@@ -151,7 +163,7 @@
                                         class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
                                     />
                                 </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">PHP Database Test</label>  
+                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">PHP Database Test</label>
                             </div>
                             <p class="mt-2 text-sm text-[#94979C] font-mono">
                                 Perform a series of "CRUD" tests against a database.
@@ -169,17 +181,64 @@
                 </div>
 
                 <div class="flex-shrink-0 flex items-center justify-end border-t border-[#22262F] py-4 px-6">
-                    <button @click="cancel()" class="px-4 py-2.5 rounded-lg border border-[#373A41] bg-transparent hover:bg-[rgba(255,255,255,0.12)] cursor-pointer transition-colors duration-200 ease-in-out text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0 mr-3">Cancel</button>
-                    <button @click="save()" :disabled="!form.isDirty" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus:ring-0 focus:ring-offset-0"
-                        :class="form.isDirty ? 'hover:bg-[#E62E05]/80 cursor-pointer' : 'opacity-50 cursor-not-allowed'">Save</button>
+                    <button @click="attemptClose()" class="px-4 py-2.5 rounded-lg border border-[#373A41] bg-transparent hover:bg-[rgba(255,255,255,0.12)] cursor-pointer transition-colors duration-200 ease-in-out text-sm text-[#CECFD2] font-mono focus:outline-none focus:ring-0 focus:ring-offset-0 mr-3">Cancel</button>
+                    <button @click="save()" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] hover:bg-[#E62E05]/80 cursor-pointer transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus:ring-0 focus:ring-offset-0">Save</button>
+                </div>
+                </div>
+            </TransitionChild>
+        </div>
+    </TransitionRoot>
+
+    <TransitionRoot as="template" :show="confirmingClose">
+        <Dialog class="relative z-[100000]" :initial-focus="keepEditingButton" @close="confirmingClose = false">
+            <TransitionChild
+                as="template"
+                enter="ease-out duration-300"
+                enter-from="opacity-0"
+                enter-to="opacity-100"
+                leave="ease-in duration-200"
+                leave-from="opacity-100"
+                leave-to="opacity-0">
+                <div class="fixed inset-0 bg-black/70" aria-hidden="true" />
+            </TransitionChild>
+
+            <div class="fixed inset-0 overflow-y-auto">
+                <div class="flex min-h-full items-center justify-center p-4">
+                    <TransitionChild
+                        as="template"
+                        enter="ease-out duration-300"
+                        enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                        enter-to="opacity-100 translate-y-0 sm:scale-100"
+                        leave="ease-in duration-200"
+                        leave-from="opacity-100 translate-y-0 sm:scale-100"
+                        leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                        <DialogPanel class="w-full max-w-md rounded-xl border border-[#22262F] bg-[#0C0E12] p-6 sm:p-8">
+                            <div class="flex items-start">
+                                <img src="/images/icons/warning.svg" alt="Warning" class="h-10 w-10 shrink-0" />
+                                <div class="flex flex-col ml-4">
+                                    <DialogTitle class="text-lg text-[#F7F7F7] font-mono">Unsaved changes</DialogTitle>
+                                    <p class="mt-1.5 text-sm text-[#94979C] font-mono leading-relaxed">
+                                        You changed some test settings but haven't saved them.
+                                        Close now and your setup reverts to the last saved settings.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="mt-6 flex items-center justify-end">
+                                <button @click="discard()" class="px-4 py-2.5 rounded-lg border border-[#373A41] bg-transparent hover:bg-[rgba(255,255,255,0.12)] cursor-pointer transition-colors duration-200 ease-in-out text-sm text-[#CECFD2] font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 mr-3">Discard changes</button>
+                                <button ref="keepEditingButton" @click="confirmingClose = false" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] hover:bg-[#E62E05]/80 cursor-pointer transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">Keep editing</button>
+                            </div>
+                        </DialogPanel>
+                    </TransitionChild>
                 </div>
             </div>
+        </Dialog>
     </TransitionRoot>
 </template>
-  
+
 <script setup>
-import { onMounted, onUnmounted, watch } from 'vue'
-import { TransitionRoot } from '@headlessui/vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { Switch } from '@headlessui/vue'
 import { useSettings } from '@/Composables/useSettings'
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue'
@@ -198,11 +257,23 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-// Fields are live-bound to the shared form, so closing without saving
-// must revert to the last saved values
-const cancel = () => {
-   form.reset();
-   close();
+const confirmingClose = ref(false);
+const keepEditingButton = ref(null);
+
+// Fields are live-bound to the shared form, so leaving without saving
+// must revert to the last saved values — warn before discarding a draft
+const attemptClose = () => {
+    if (form.isDirty) {
+        confirmingClose.value = true;
+        return;
+    }
+
+    close();
+}
+
+const discard = () => {
+    form.reset();
+    close();
 }
 
 const save = () => {
@@ -214,9 +285,15 @@ const close = () => {
     emit('close');
 }
 
+watch(() => props.open, () => {
+    confirmingClose.value = false;
+});
+
+// While the confirm dialog is open it owns Escape (closing itself back
+// to "keep editing"), so the drawer must not react to the same keypress
 const closeOnEscape = (e) => {
-    if (e.key === 'Escape' && props.open) {
-        cancel();
+    if (e.key === 'Escape' && props.open && !confirmingClose.value) {
+        attemptClose();
     }
 };
 
