@@ -134,14 +134,14 @@
                                     v-model="form.http"
                                     :class="form.http ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
                                     class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
-                                    <span class="sr-only">Enable Web Server Test</span>
+                                    <span class="sr-only">Enable Web Server Load Test</span>
                                     <span
                                         aria-hidden="true"
                                         :class="form.http ? 'translate-x-[15px]' : 'translate-x-0'"
                                         class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
                                     />
                                 </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Web Server Test</label>
+                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Web Server Load Test</label>
                             </div>
                             <p class="mt-2 text-sm text-[#94979C] font-mono">
                                 Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.

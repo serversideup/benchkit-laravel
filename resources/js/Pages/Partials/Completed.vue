@@ -1,5 +1,6 @@
 <template>
-    <div class="w-full flex flex-col items-center justify-center py-16">
+    <div class="flex-1 min-h-0 w-full overflow-y-auto">
+        <div class="w-full flex flex-col items-center py-16">
         <div class="w-full flex flex-col items-center justify-center">
             <h1 class="results-anim text-[#F7F7F7] uppercase font-bold font-mono text-6xl mb-3">Your Results</h1>
 
@@ -191,6 +192,7 @@
         </div>
 
         <BenchmarkResults v-show="showDetails" />
+        </div>
     </div>
 </template>
 

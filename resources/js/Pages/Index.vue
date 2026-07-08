@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="flex-1 min-h-0 w-full flex flex-col">
         <Home v-if="state == 'idle'" />
         <Running
             v-if="state == 'running'" />
