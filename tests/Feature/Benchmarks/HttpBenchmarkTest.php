@@ -6,27 +6,12 @@ use App\Support\StreamedProcess;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
 class HttpBenchmarkTest extends TestCase
 {
-    protected string $resultsPath;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->resultsPath = sys_get_temp_dir().'/benchkit-results-'.uniqid();
-        File::ensureDirectoryExists($this->resultsPath);
-        config(['benchmark.results_path' => $this->resultsPath]);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->resultsPath);
-
-        parent::tearDown();
-    }
+    use UsesFakeResultsPath;
 
     public function test_http_benchmark_streams_and_records_the_resolved_target(): void
     {

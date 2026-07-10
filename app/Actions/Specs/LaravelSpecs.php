@@ -6,10 +6,13 @@ use Illuminate\Support\Facades\Artisan;
 
 class LaravelSpecs
 {
-    public function execute()
+    /**
+     * @return array<string, mixed>
+     */
+    public function execute(): array
     {
         Artisan::call('about --json');
 
-        return Artisan::output();
+        return json_decode(Artisan::output(), true) ?? [];
     }
 }

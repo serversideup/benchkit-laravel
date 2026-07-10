@@ -2,11 +2,11 @@
 
 namespace App\Actions\Results;
 
-class CloudflareSpeedTestResults
+class CloudflareSpeedTestResults extends BenchmarkResults
 {
     public function path(): string
     {
-        return config('benchmark.results_path').'/cfspeedtest-output.txt';
+        return $this->resultsPath('cfspeedtest-output.txt');
     }
 
     /**

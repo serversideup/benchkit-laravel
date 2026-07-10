@@ -3,27 +3,12 @@
 namespace Tests\Feature\Benchmarks;
 
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
 class BenchmarkResultsTest extends TestCase
 {
-    protected string $resultsPath;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->resultsPath = sys_get_temp_dir().'/benchkit-results-'.uniqid();
-        File::ensureDirectoryExists($this->resultsPath);
-        config(['benchmark.results_path' => $this->resultsPath]);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->resultsPath);
-
-        parent::tearDown();
-    }
+    use UsesFakeResultsPath;
 
     public function test_yabs_results_returns_no_results_when_no_run_has_happened(): void
     {

@@ -2,38 +2,13 @@
 
 namespace Tests\Feature\Runs;
 
-use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
+use Tests\Concerns\SeedsRunSnapshots;
 use Tests\TestCase;
 
 class RunPagesTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Storage::fake('runs');
-    }
-
-    protected function seedRun(string $id, array $overrides = []): string
-    {
-        Storage::disk('runs')->put("{$id}.json", json_encode(array_merge([
-            'schema_version' => 1,
-            'type' => 'benchkit-run',
-            'id' => $id,
-            'created_at' => '2026-07-08T16:52:31+00:00',
-            'meta' => ['label' => "Run {$id}", 'provider' => null, 'provider_source' => null, 'plan_notes' => null],
-            'settings' => ['php_mode' => 'full'],
-            'stages_completed' => ['http'],
-            'environment' => [],
-            'benchmarks' => ['yabs' => null, 'cfspeedtest' => null, 'http' => ['routes' => []], 'php' => null],
-            'extras' => ['geekbench_url' => null],
-            'summary' => ['http_rps' => 34.1],
-            'logs' => ['http' => ['a log line']],
-        ], $overrides)));
-
-        return $id;
-    }
+    use SeedsRunSnapshots;
 
     public function test_runs_index_lists_runs_newest_first_without_heavy_payloads(): void
     {

@@ -25,11 +25,9 @@
                         <DialogPanel class="w-full max-w-2xl rounded-xl border border-[#22262F] bg-[#0C0E12] p-5 sm:p-8">
                             <div class="flex items-start justify-between">
                                 <DialogTitle class="text-lg text-[#F7F7F7] font-mono">Test from your own machine</DialogTitle>
-                                <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="close">
+                                <button class="p-2 cursor-pointer -mt-2 -mr-2 text-[#61656C]" @click="close">
                                     <span class="sr-only">Close</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                        <path d="M15 5L5 15M5 5L15 15" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
+                                    <IconClose />
                                 </button>
                             </div>
 
@@ -52,17 +50,7 @@
                                         <code class="flex-1 text-xs sm:text-[13px] font-mono break-all">
                                             <span class="text-[#61656C] select-none">$ </span><span class="text-[#CECFD2]">{{ command(endpoint) }}</span>
                                         </code>
-                                        <button @click="copyCommand(endpoint)" class="shrink-0 p-1.5 rounded-md cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75"
-                                            :class="copiedPath === endpoint.path ? 'text-[#CECFD2]' : 'text-[#61656C] hover:text-[#CECFD2] hover:bg-[rgba(255,255,255,0.06)]'">
-                                            <span class="sr-only">{{ copiedPath === endpoint.path ? 'Copied' : `Copy command for ${endpoint.path}` }}</span>
-                                            <svg v-if="copiedPath === endpoint.path" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none">
-                                                <path d="M4 10.5L8.5 15L16 5.5" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                                            </svg>
-                                            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none">
-                                                <rect x="7.5" y="7.5" width="8.5" height="8.5" rx="1.5" stroke="currentColor" stroke-width="1.66667"/>
-                                                <path d="M12.5 7.5V5.5C12.5 4.67157 11.8284 4 11 4H5.5C4.67157 4 4 4.67157 4 5.5V11C4 11.8284 4.67157 12.5 5.5 12.5H7.5" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round"/>
-                                            </svg>
-                                        </button>
+                                        <CopyButton :text="command(endpoint)" :label="`Copy command for ${endpoint.path}`" />
                                     </div>
                                 </div>
                             </div>
@@ -80,9 +68,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
-import { writeTextToClipboard } from '@/Composables/useClipboard'
+import CopyButton from '@/Components/CopyButton.vue'
+import IconClose from '@/Components/Icons/IconClose.vue'
 
 defineProps({
     open: {
@@ -99,26 +87,11 @@ const endpoints = [
     { path: '/bench/db-read', description: 'Database read — 20 rows queried per request' },
 ]
 
-const copiedPath = ref(null)
 const origin = window.location.origin
 
 const command = (endpoint) => `oha -z 10s -c 50 ${origin}${endpoint.path}`
 
 const close = () => {
     emit('close');
-}
-
-const copyCommand = async (endpoint) => {
-    try {
-        await writeTextToClipboard(command(endpoint))
-        copiedPath.value = endpoint.path
-        setTimeout(() => {
-            if (copiedPath.value === endpoint.path) {
-                copiedPath.value = null
-            }
-        }, 2000)
-    } catch (error) {
-        console.error(error)
-    }
 }
 </script>

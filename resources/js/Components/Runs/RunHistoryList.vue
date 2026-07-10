@@ -62,8 +62,9 @@ import { Link } from '@inertiajs/vue3';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import Status from '@/Pages/Partials/Status.vue';
 import Tooltip from '@/Components/Tooltip.vue';
-import { formatUTCTimestamp, formatMs } from '@/Composables/useRunSummary';
+import { formatUTCTimestamp, formatMs, hostDetailsLine } from '@/Composables/useRunSummary';
 import { deleteRunAndRefresh } from '@/Composables/useRunActions';
+import { STAGES } from '@/stages';
 
 const props = defineProps({
     runs: {
@@ -86,16 +87,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:selected']);
 
-const STAGES = [
-    { key: 'yabs', label: 'Hardware' },
-    { key: 'cfspeedtest', label: 'Network' },
-    { key: 'http', label: 'Web server load' },
-    { key: 'php', label: 'PHP' },
-];
-
 const isSelected = (id) => props.selected.includes(id);
 
-const hostDetails = (meta) => [meta.plan ?? meta.plan_notes, meta.datacenter, meta.cost].filter(Boolean).join(' · ');
+const hostDetails = (meta) => hostDetailsLine(meta, ['plan', 'datacenter', 'cost']);
 
 const toggleSelection = (id) => {
     const next = isSelected(id)

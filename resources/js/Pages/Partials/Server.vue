@@ -3,57 +3,19 @@
         <div class="flex font-bold font-mono text-sm text-white h-5">
             🤖 Server
         </div>
-        <div class="flex font-mono mt-1 text-xs text-white h-5">
-            <label>CPU Model</label>
-            <div class="flex-1 truncate text-clip mx-2.5">
-                {{ ".".repeat(200) }}
-            </div>
-            <div class="">
-                {{ server.cpu_model }}
-            </div>
-        </div>
-        <div class="flex font-mono mt-1 text-xs text-white h-5">
-            <label>CPU Cores</label>
-            <div class="flex-1 truncate text-clip mx-2.5">
-                {{ ".".repeat(200) }}
-            </div>
-            <div class="">
-                {{ server.cpu_cores }}
-            </div>
-        </div>
-        <div class="flex font-mono mt-1 text-xs text-white h-5">
-            <label>CPU Frequency</label>
-            <div class="flex-1 truncate text-clip mx-2.5">
-                {{ ".".repeat(200) }}
-            </div>
-            <div class="">
-                {{ server.cpu_frequency }}
-            </div>
-        </div>
-        <div class="flex font-mono mt-1 text-xs text-white h-5">
-            <label>RAM</label>
-            <div class="flex-1 truncate text-clip mx-2.5">
-                {{ ".".repeat(200) }}
-            </div>
-            <div class="">
-                {{ server.ram }}
-            </div>
-        </div>
-        <div class="flex font-mono mt-1 text-xs text-white h-5">
-            <label>Operating System</label>
-            <div class="flex-1 truncate text-clip mx-2.5">
-                {{ ".".repeat(200) }}
-            </div>
-            <div class="">
-                {{ server.os }}
-            </div>
-        </div>
+
+        <FactRow label="CPU Model">{{ server.cpu_model }}</FactRow>
+        <FactRow label="CPU Cores">{{ server.cpu_cores }}</FactRow>
+        <FactRow label="CPU Frequency">{{ server.cpu_frequency }}</FactRow>
+        <FactRow label="RAM">{{ server.ram }}</FactRow>
+        <FactRow label="Operating System">{{ server.os }}</FactRow>
     </div>
 </template>
 
 <script setup>
 import { usePage } from '@inertiajs/vue3'
 import { computed } from 'vue'
+import FactRow from '@/Components/FactRow.vue'
 
 const server = computed(() => usePage().props.server);
 </script>

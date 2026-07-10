@@ -38,7 +38,7 @@ import { headlineMilliseconds } from '@/Composables/useRunSummary';
 // The full phpbench suite runs the same subjects every time, so the total
 // mean is comparable between runs. Null in quick mode (headline-only) —
 // null values are dropped from the delta table automatically.
-const suiteTotalMs = (php) => {
+export const suiteTotalMs = (php) => {
     const subjects = php?.subjects ?? [];
 
     if( subjects.length <= 4 ) {
@@ -78,13 +78,6 @@ export const METRICS = {
         { path: 'geekbench.0.single', label: 'Geekbench single-core', unit: '', betterWhen: 'higher' },
         { path: 'geekbench.0.multi', label: 'Geekbench multi-core', unit: '', betterWhen: 'higher' },
     ],
-};
-
-export const STAGE_LABELS = {
-    yabs: 'Hardware',
-    cfspeedtest: 'Network speed test',
-    http: 'Web server load test',
-    php: 'Laravel database performance',
 };
 
 const get = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);

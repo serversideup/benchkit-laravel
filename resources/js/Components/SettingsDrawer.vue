@@ -29,10 +29,9 @@
                             <p class="text-sm text-[#94979C] font-mono">Choose test behavior.</p>
                         </div>
                     </div>
-                    <button class="p-2 cursor-pointer -mt-2 -mr-2" @click="attemptClose">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                            <path d="M15 5L5 15M5 5L15 15" stroke="#61656C" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
+                    <button class="p-2 cursor-pointer -mt-2 -mr-2 text-[#61656C]" @click="attemptClose">
+                        <span class="sr-only">Close</span>
+                        <IconClose />
                     </button>
                 </div>
 
@@ -48,25 +47,9 @@
 
                 <div class="flex flex-col flex-1 overflow-y-auto">
                     <div class="flex flex-col pb-6 border-b border-[#22262F]">
-                        <div class="flex flex-col mt-6">
-                            <div class="flex items-center">
-                                <Switch
-                                    v-model="form.hardware"
-                                    :class="form.hardware ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
-                                    class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
-                                    <span class="sr-only">Enable Hardware Test</span>
-                                    <span
-                                        aria-hidden="true"
-                                        :class="form.hardware ? 'translate-x-[15px]' : 'translate-x-0'"
-                                        class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                                    />
-                                </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Hardware Test</label>
-                            </div>
-                            <p class="mt-2 text-sm text-[#94979C] font-mono">
-                                Use <a href="https://github.com/masonr/yet-another-bench-script" target="_blank" class="underline font-mono">yet-another-benchmark-script</a> to perform hardware tests with fio, Geekbench, and iperf.
-                            </p>
-                        </div>
+                        <ToggleRow v-model="form.hardware" label="Hardware Test" class="mt-6">
+                            Use <a href="https://github.com/masonr/yet-another-bench-script" target="_blank" class="underline font-mono">yet-another-benchmark-script</a> to perform hardware tests with fio, Geekbench, and iperf.
+                        </ToggleRow>
 
                         <div class="flex items-center mt-2" v-show="form.hardware">
                             <input type="checkbox" id="disk" v-model="form.disk" class="w-5 h-5 appearance-none border border-[#373A41] bg-transparent checked:bg-[#E62E05] checked:text-white rounded-md ring-0 outline-none focus:ring-0 focus:ring-offset-0" />
@@ -97,25 +80,9 @@
                     </div>
 
                     <div class="flex flex-col py-6 border-b border-[#22262F]">
-                        <div class="flex flex-col">
-                            <div class="flex items-center">
-                                <Switch
-                                    v-model="form.network"
-                                    :class="form.network ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
-                                    class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
-                                    <span class="sr-only">Enable Network Test</span>
-                                    <span
-                                        aria-hidden="true"
-                                        :class="form.network ? 'translate-x-[15px]' : 'translate-x-0'"
-                                        class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                                    />
-                                </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Network Test</label>
-                            </div>
-                            <p class="mt-2 text-sm text-[#94979C] font-mono">
-                                Use <a href="https://github.com/code-inflation/cfspeedtest" target="_blank" class="underline font-mono">cfspeedtest</a> to perform a network test against CloudFlare's network.
-                            </p>
-                        </div>
+                        <ToggleRow v-model="form.network" label="Network Test">
+                            Use <a href="https://github.com/code-inflation/cfspeedtest" target="_blank" class="underline font-mono">cfspeedtest</a> to perform a network test against CloudFlare's network.
+                        </ToggleRow>
 
                         <div class="flex flex-col mt-4" v-show="form.network">
                             <label for="network-test-type" class="text-[#CECFD2] font-mono font-medium">Test type <span class="text-[#94979C] font-mono font-medium">*</span></label>
@@ -128,25 +95,9 @@
                     </div>
 
                     <div class="flex flex-col py-6 border-b border-[#22262F]">
-                        <div class="flex flex-col">
-                            <div class="flex items-center">
-                                <Switch
-                                    v-model="form.http"
-                                    :class="form.http ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
-                                    class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
-                                    <span class="sr-only">Enable Web Server Load Test</span>
-                                    <span
-                                        aria-hidden="true"
-                                        :class="form.http ? 'translate-x-[15px]' : 'translate-x-0'"
-                                        class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                                    />
-                                </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">Web Server Load Test</label>
-                            </div>
-                            <p class="mt-2 text-sm text-[#94979C] font-mono">
-                                Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.
-                            </p>
-                        </div>
+                        <ToggleRow v-model="form.http" label="Web Server Load Test">
+                            Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.
+                        </ToggleRow>
 
                         <div class="grid grid-cols-2 gap-3 mt-4" v-show="form.http">
                             <div class="flex flex-col">
@@ -168,25 +119,9 @@
                     </div>
 
                     <div class="flex flex-col py-6 border-b border-[#22262F]">
-                        <div class="flex flex-col">
-                            <div class="flex items-center">
-                                <Switch
-                                    v-model="form.php_database"
-                                    :class="form.php_database ? 'bg-[#E62E05]' : 'bg-transparent border border-[#373A41]'"
-                                    class="relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer rounded-full border-2 border-[#373A41] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">
-                                    <span class="sr-only">Enable PHP Database Test</span>
-                                    <span
-                                        aria-hidden="true"
-                                        :class="form.php_database ? 'translate-x-[15px]' : 'translate-x-0'"
-                                        class="pointer-events-none inline-block mt-px h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                                    />
-                                </Switch>
-                                <label class="ml-2.5 text-sm text-[#F7F7F7] font-mono">PHP Database Test</label>
-                            </div>
-                            <p class="mt-2 text-sm text-[#94979C] font-mono">
-                                Perform a series of "CRUD" tests against a database.
-                            </p>
-                        </div>
+                        <ToggleRow v-model="form.php_database" label="PHP Database Test">
+                            Perform a series of "CRUD" tests against a database.
+                        </ToggleRow>
 
                         <div class="flex flex-col mt-4" v-show="form.php_database">
                             <label for="php-mode" class="text-[#CECFD2] font-mono font-medium">Test scope <span class="text-[#94979C] font-mono font-medium">*</span></label>
@@ -207,57 +142,19 @@
         </div>
     </TransitionRoot>
 
-    <TransitionRoot as="template" :show="confirmingClose">
-        <Dialog class="relative z-[100000]" :initial-focus="keepEditingButton" @close="confirmingClose = false">
-            <TransitionChild
-                as="template"
-                enter="ease-out duration-300"
-                enter-from="opacity-0"
-                enter-to="opacity-100"
-                leave="ease-in duration-200"
-                leave-from="opacity-100"
-                leave-to="opacity-0">
-                <div class="fixed inset-0 bg-black/70" aria-hidden="true" />
-            </TransitionChild>
-
-            <div class="fixed inset-0 overflow-y-auto">
-                <div class="flex min-h-full items-center justify-center p-4">
-                    <TransitionChild
-                        as="template"
-                        enter="ease-out duration-300"
-                        enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                        enter-to="opacity-100 translate-y-0 sm:scale-100"
-                        leave="ease-in duration-200"
-                        leave-from="opacity-100 translate-y-0 sm:scale-100"
-                        leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-                        <DialogPanel class="w-full max-w-md rounded-xl border border-[#22262F] bg-[#0C0E12] p-6 sm:p-8">
-                            <div class="flex items-start">
-                                <img src="/images/icons/warning.svg" alt="Warning" class="h-10 w-10 shrink-0" />
-                                <div class="flex flex-col ml-4">
-                                    <DialogTitle class="text-lg text-[#F7F7F7] font-mono">Unsaved changes</DialogTitle>
-                                    <p class="mt-1.5 text-sm text-[#94979C] font-mono leading-relaxed">
-                                        You changed some test settings but haven't saved them.
-                                        Close now and your setup reverts to the last saved settings.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="mt-6 flex items-center justify-end">
-                                <button @click="discard()" class="px-4 py-2.5 rounded-lg border border-[#373A41] bg-transparent hover:bg-[rgba(255,255,255,0.12)] cursor-pointer transition-colors duration-200 ease-in-out text-sm text-[#CECFD2] font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 mr-3">Discard changes</button>
-                                <button ref="keepEditingButton" @click="confirmingClose = false" class="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.12)] bg-[#E62E05] hover:bg-[#E62E05]/80 cursor-pointer transition-colors duration-200 ease-in-out text-sm text-white font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75">Keep editing</button>
-                            </div>
-                        </DialogPanel>
-                    </TransitionChild>
-                </div>
-            </div>
-        </Dialog>
-    </TransitionRoot>
+    <ConfirmModal :open="confirmingClose"
+        title="Unsaved changes"
+        message="You changed some test settings but haven't saved them. Close now and your setup reverts to the last saved settings."
+        confirm-label="Discard changes"
+        @confirm="discard()" @close="confirmingClose = false" />
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
-import { Switch } from '@headlessui/vue'
+import { TransitionChild, TransitionRoot } from '@headlessui/vue'
+import ConfirmModal from '@/Components/ConfirmModal.vue'
+import IconClose from '@/Components/Icons/IconClose.vue'
+import ToggleRow from '@/Components/ToggleRow.vue'
 import { useSettings } from '@/Composables/useSettings'
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue'
 
@@ -285,7 +182,6 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const confirmingClose = ref(false);
-const keepEditingButton = ref(null);
 
 // Fields are live-bound to the shared form, so leaving without saving
 // must revert to the last saved values — warn before discarding a draft
@@ -300,6 +196,7 @@ const attemptClose = () => {
 
 const discard = () => {
     form.reset();
+    confirmingClose.value = false;
     close();
 }
 

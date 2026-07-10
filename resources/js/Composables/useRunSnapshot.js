@@ -2,6 +2,7 @@ import { ref, watch } from 'vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
 import { useSettings } from '@/Composables/useSettings';
 import { loadHostDetails } from '@/Composables/useHostDetails';
+import { jsonHeaders } from '@/http';
 
 const { queue, results, state } = useBenchmarkQueue();
 const { form, activePreset } = useSettings();
@@ -9,12 +10,6 @@ const { form, activePreset } = useSettings();
 const saveState = ref('idle');
 const lastRunId = ref(null);
 const lastRun = ref(null);
-
-const xsrfToken = () => {
-    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-};
 
 const completedStages = () => queue.filter((benchmark) => results[benchmark].status === 'completed');
 
@@ -66,11 +61,7 @@ const save = async () => {
     try {
         const response = await fetch('/runs', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-XSRF-TOKEN': xsrfToken(),
-            },
+            headers: jsonHeaders(),
             body: JSON.stringify({
                 stages_completed: stages,
                 settings: form.data(),

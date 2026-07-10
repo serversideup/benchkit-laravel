@@ -1,15 +1,10 @@
 import { ref } from 'vue';
 import { useEventBus } from '@vueuse/core';
+import { xsrfToken } from '@/http';
 
 const abortController = ref(null);
 
 const streamEventBus = useEventBus('stream-event-bus');
-
-const xsrfToken = () => {
-    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-};
 
 export const useStream = () => {
 

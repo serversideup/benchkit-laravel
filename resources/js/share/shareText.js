@@ -1,6 +1,6 @@
-import { serverLabelFor } from '@/Composables/useRunSummary';
+import { hostDetailsLine, serverLabelFor } from '@/Composables/useRunSummary';
 
-export const REPO_URL = 'https://github.com/serversideup/benchkit-laravel';
+const REPO_URL = 'https://github.com/serversideup/benchkit-laravel';
 
 // Same route priority as the share card's hero: DB read is the closest
 // thing to a real Laravel page
@@ -53,7 +53,7 @@ const hostLineFor = (run) => {
         return null;
     }
 
-    return [meta.provider, meta.plan ?? meta.plan_notes, meta.cost].filter(Boolean).join(' · ');
+    return hostDetailsLine(meta, ['provider', 'plan', 'cost']);
 };
 
 export const buildRunShareText = (run) => {

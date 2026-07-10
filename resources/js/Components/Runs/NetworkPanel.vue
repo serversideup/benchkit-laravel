@@ -1,14 +1,11 @@
 <template>
-    <section class="py-9">
-        <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h2 class="text-base font-semibold text-[#F7F7F7]">Network speed test</h2>
+    <PanelSection title="Network speed test">
+        <template #aside>
             <span class="flex items-center gap-2">
-                <span class="rounded-full border border-[#373A41] px-2.5 py-1 text-xs font-mono text-[#CECFD2]">
-                    <template v-if="provider">{{ provider }} &rarr; </template>Cloudflare [{{ network.colo }}]
-                </span>
-                <span v-if="network.asn" class="rounded-full border border-[#373A41] px-2.5 py-1 text-xs font-mono text-[#CECFD2]">AS{{ network.asn }}</span>
+                <Chip><template v-if="provider">{{ provider }} &rarr; </template>Cloudflare [{{ network.colo }}]</Chip>
+                <Chip v-if="network.asn">AS{{ network.asn }}</Chip>
             </span>
-        </div>
+        </template>
 
         <p class="mt-2 text-sm text-[#94979C]">Measured from your server to Cloudflare's nearest edge &mdash; this latency rides on every external request your app makes.</p>
 
@@ -23,11 +20,13 @@
                 </p>
             </div>
         </div>
-    </section>
+    </PanelSection>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import Chip from '@/Components/Chip.vue';
+import PanelSection from '@/Components/PanelSection.vue';
 
 const props = defineProps({
     network: {

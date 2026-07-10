@@ -1,13 +1,12 @@
 <template>
-    <section class="py-9">
-        <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h2 class="text-base font-semibold text-[#F7F7F7]">Web server load test</h2>
+    <PanelSection title="Web server load test">
+        <template #aside>
             <span class="flex items-center gap-2">
-                <span class="rounded-full border border-[#373A41] px-2.5 py-1 text-xs font-mono text-[#CECFD2]">{{ http.mode === 'octane' ? 'worker mode' : 'standard mode' }}</span>
-                <span v-if="http.duration_seconds" class="rounded-full border border-[#373A41] px-2.5 py-1 text-xs font-mono text-[#CECFD2]">{{ http.duration_seconds }}s</span>
-                <span v-if="http.connections" class="rounded-full border border-[#373A41] px-2.5 py-1 text-xs font-mono text-[#CECFD2]">{{ http.connections }} connections</span>
+                <Chip>{{ http.mode === 'octane' ? 'worker mode' : 'standard mode' }}</Chip>
+                <Chip v-if="http.duration_seconds">{{ http.duration_seconds }}s</Chip>
+                <Chip v-if="http.connections">{{ http.connections }} connections</Chip>
             </span>
-        </div>
+        </template>
 
         <div class="mt-7 grid gap-x-8 gap-y-3 items-center" :style="`grid-template-columns: 96px repeat(${routes.length}, minmax(0, 1fr))`">
             <div class="self-end"></div>
@@ -24,10 +23,7 @@
                 <span class="text-xs text-[#94979C]">{{ percentile.human }} <span class="text-[#61656C]">{{ percentile.key }}</span></span>
                 <div v-for="route in routes" :key="`${route.key}-${percentile.key}`" class="flex items-center gap-3"
                     :title="`${route.label} ${percentile.key}: ${route.values[percentile.key] ?? '—'}ms`">
-                    <span class="flex-1 h-2 rounded-sm bg-[#22262F] overflow-hidden">
-                        <span v-if="route.values[percentile.key] != null" class="block h-full rounded-r-[4px]"
-                            :style="`width: ${route.widths[percentile.key]}%; background-color: ${percentile.color};`"></span>
-                    </span>
+                    <BarMeter class="flex-1 h-2" :percent="route.values[percentile.key] != null ? route.widths[percentile.key] : null" :color="percentile.color" />
                     <span class="w-[64px] shrink-0 text-right text-xs text-[#CECFD2] font-mono">
                         {{ route.values[percentile.key] != null ? `${route.values[percentile.key].toLocaleString()}ms` : '—' }}
                     </span>
@@ -43,11 +39,14 @@
                 </div>
             </template>
         </div>
-    </section>
+    </PanelSection>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import BarMeter from '@/Components/BarMeter.vue';
+import Chip from '@/Components/Chip.vue';
+import PanelSection from '@/Components/PanelSection.vue';
 
 const props = defineProps({
     http: {

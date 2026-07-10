@@ -89,6 +89,9 @@ spin up --build
 
 You should now be able to access the development environment at [https://benchkit.dev.test](https://benchkit.dev.test).
 
+> [!TIP]
+> Only one benchmark can run at a time (a cache lock enforces this). If a run dies mid-benchmark and the app still thinks one is running, clear it with `spin exec php php artisan benchmark:clear-lock`.
+
 ## Changing the PHP server
 This project is very unique in where there are plenty of use cases where we want to test different PHP servers. Thankfully we're using Docker and [serversideup/php](https://serversideup.net/open-source/php/), so this actually makes it very easy to change.
 

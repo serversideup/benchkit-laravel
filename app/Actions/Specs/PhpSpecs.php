@@ -4,57 +4,30 @@ namespace App\Actions\Specs;
 
 class PhpSpecs
 {
-    public function execute()
+    /**
+     * @return array<string, mixed>
+     */
+    public function execute(): array
     {
         return [
-            'php_version' => $this->getPhpVersion(),
-            'php_server_api' => $this->getPhpServerApi(),
-            'php_variation' => $this->getPhpVariation(),
+            'php_version' => PHP_VERSION,
+            'php_server_api' => php_sapi_name(),
+            'php_variation' => config('benchmark.php_variation'),
             'octane' => $this->isRunningOctane(),
-            'memory_limit' => $this->getMemoryLimit(),
-            'op_cache' => $this->getOpCache(),
-            'op_cache_jit' => $this->getOpCacheJit(),
-            'op_cache_jit_buffer_size' => $this->getOpCacheJitBufferSize(),
+            'memory_limit' => ini_get('memory_limit'),
+            'op_cache' => ini_get('opcache.enable'),
+            'op_cache_jit' => ini_get('opcache.jit'),
+            'op_cache_jit_buffer_size' => ini_get('opcache.jit_buffer_size'),
         ];
     }
 
-    public function getPhpVariation(): ?string
-    {
-        return config('benchmark.php_variation');
-    }
-
-    public function isRunningOctane(): bool
+    /**
+     * Octane sets LARAVEL_OCTANE in the worker environment at runtime — after
+     * config may already have been cached (e.g. during a Docker image build) —
+     * so it must be read directly rather than through config.
+     */
+    protected function isRunningOctane(): bool
     {
         return isset($_SERVER['LARAVEL_OCTANE']) || getenv('LARAVEL_OCTANE') !== false;
-    }
-
-    public function getPhpVersion(): string
-    {
-        return PHP_VERSION;
-    }
-
-    public function getPhpServerApi()
-    {
-        return php_sapi_name();
-    }
-
-    public function getMemoryLimit()
-    {
-        return ini_get('memory_limit');
-    }
-
-    public function getOpCache()
-    {
-        return ini_get('opcache.enable');
-    }
-
-    public function getOpCacheJit(): string|false
-    {
-        return ini_get('opcache.jit');
-    }
-
-    public function getOpCacheJitBufferSize(): string|false
-    {
-        return ini_get('opcache.jit_buffer_size');
     }
 }

@@ -1,17 +1,6 @@
 import JSZip from 'jszip';
 import { router } from '@inertiajs/vue3';
-
-const xsrfToken = () => {
-    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-};
-
-const jsonHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'X-XSRF-TOKEN': xsrfToken(),
-});
+import { jsonHeaders } from '@/http';
 
 export const updateRunMeta = async (id, attributes) => {
     const response = await fetch(`/runs/${id}`, {

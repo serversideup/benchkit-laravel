@@ -5,7 +5,7 @@ namespace App\Actions\Results;
 use League\Csv\Exception;
 use League\Csv\Reader;
 
-class PhpBenchmarkResults
+class PhpBenchmarkResults extends BenchmarkResults
 {
     /**
      * The phpbench subjects surfaced as headline CRUD metrics. Every subject
@@ -50,7 +50,7 @@ class PhpBenchmarkResults
 
     public function path(): string
     {
-        return config('benchmark.results_path').'/phpbench_results.csv';
+        return $this->resultsPath('phpbench_results.csv');
     }
 
     /**

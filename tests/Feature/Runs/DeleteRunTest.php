@@ -3,21 +3,16 @@
 namespace Tests\Feature\Runs;
 
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\SeedsRunSnapshots;
 use Tests\TestCase;
 
 class DeleteRunTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Storage::fake('runs');
-    }
+    use SeedsRunSnapshots;
 
     public function test_a_run_can_be_deleted(): void
     {
-        $id = '20260708-165231-k3f9';
-        Storage::disk('runs')->put("{$id}.json", json_encode(['type' => 'benchkit-run', 'id' => $id]));
+        $id = $this->seedRun('20260708-165231-k3f9');
 
         $this->deleteJson("/runs/{$id}")->assertNoContent();
 
