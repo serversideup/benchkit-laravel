@@ -5,8 +5,11 @@ import { useForm } from '@inertiajs/vue3'
 // database is not guaranteed to survive between runs. Bump SETTINGS_VERSION
 // whenever the shape changes — old payloads are discarded, not migrated.
 const STORAGE_KEY = 'benchkit-settings'
-const SETTINGS_VERSION = 1
+const SETTINGS_VERSION = 2
 
+// http_duration/http_connections are the "standard BenchKit load" — every
+// run sharing them is what keeps results comparable across hosts, so both
+// presets pin them and custom values always read as a custom run
 const defaults = {
     hardware: true,
     disk: true,
@@ -16,15 +19,21 @@ const defaults = {
     network: true,
     network_test_type: 'ipv4',
     http: true,
+    http_duration: 10,
+    http_connections: 50,
     php_database: true,
     php_mode: 'full',
 }
+
+const numericKeys = ['geekbench_version', 'http_duration', 'http_connections']
 
 const presets = {
     quick: {
         hardware: false,
         network: true,
         http: true,
+        http_duration: defaults.http_duration,
+        http_connections: defaults.http_connections,
         php_database: true,
         php_mode: 'quick',
     },
@@ -45,8 +54,8 @@ const loadSavedSettings = () => {
 
         Object.keys(defaults).forEach((key) => {
             if (key in saved) {
-                // The version <select> yields strings; keep the stored value numeric
-                known[key] = key === 'geekbench_version' ? Number(saved[key]) || defaults[key] : saved[key]
+                // Selects and number inputs yield strings; keep stored values numeric
+                known[key] = numericKeys.includes(key) ? Number(saved[key]) || defaults[key] : saved[key]
             }
         })
 
@@ -86,17 +95,20 @@ const activePreset = computed(() => {
     return match ?? 'custom'
 })
 
-// Rough per-test durations in minutes, for the run estimate on the home screen
+// Rough per-test durations in minutes, for the run estimate on the home
+// screen. The http stage is computed from its settings: three routes, each
+// load tested for the configured duration.
 const durations = {
     hardware_base: 1,
     disk: 3,
     geekbench: 12,
     iperf: 1,
     network: 0.5,
-    http: 0.5,
     php_quick: 1,
     php_full: 30,
 }
+
+const httpMinutes = () => (3 * (Number(form.http_duration) || defaults.http_duration)) / 60
 
 const estimatedMinutes = computed(() => {
     let minutes = 0
@@ -109,7 +121,7 @@ const estimatedMinutes = computed(() => {
     }
 
     minutes += form.network ? durations.network : 0
-    minutes += form.http ? durations.http : 0
+    minutes += form.http ? httpMinutes() : 0
 
     if (form.php_database) {
         minutes += form.php_mode === 'quick' ? durations.php_quick : durations.php_full

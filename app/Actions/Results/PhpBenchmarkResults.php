@@ -88,7 +88,7 @@ class PhpBenchmarkResults
 
                 foreach (self::HEADLINE_SUBJECTS as $key => $spec) {
                     if ($record['benchmark'] === $spec['benchmark'] && $record['subject'] === $spec['subject']) {
-                        $headline[$key]['milliseconds'] = round($record['mean'] / 1000, 1);
+                        $headline[$key]['milliseconds'] = round($record['mean'] / 1000, 3);
                     }
                 }
             }

@@ -64,7 +64,7 @@ class BenchmarkResultsTest extends TestCase
         $response = $this->getJson('/php/results')->assertOk();
 
         $response->assertJsonPath('phpbench_results.create.milliseconds', 95.5);
-        $response->assertJsonPath('phpbench_results.read.milliseconds', 1.3);
+        $response->assertJsonPath('phpbench_results.read.milliseconds', 1.25);
         $response->assertJsonPath('phpbench_results.update.milliseconds', 84.2);
         $response->assertJsonPath('phpbench_results.delete.milliseconds', 233.4);
         $response->assertJsonPath('phpbench_results.create.records', 100);

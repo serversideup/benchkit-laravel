@@ -34,9 +34,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Load generator configuration for the HTTP benchmark stage (oha). The
-    | duration and connection count are intentionally fixed — consistent
-    | loadgen settings across runs matter more than the specific values,
-    | so results stay comparable between hosts and image variations.
+    | duration and connection count below define the "standard BenchKit
+    | load" — the default every run shares so results stay comparable
+    | between hosts and image variations. Users may override them per run
+    | from the settings drawer (validated to 5-60s / 1-500 connections);
+    | non-standard values are always disclosed alongside the results.
     |
     | The target URL is normally auto-detected (loopback first, APP_URL as
     | a fallback). Set BENCHMARK_HTTP_URL only when the app can't reach

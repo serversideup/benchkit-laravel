@@ -43,6 +43,45 @@ class HttpBenchmarkTest extends TestCase
         $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
     }
 
+    public function test_http_benchmark_uses_requested_load_settings(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->post('/http', ['duration' => 30, 'connections' => 100])->assertOk();
+
+        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $this->assertSame(30, $meta['duration_seconds']);
+        $this->assertSame(100, $meta['connections']);
+    }
+
+    public function test_http_benchmark_falls_back_to_the_standard_load(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->post('/http')->assertOk();
+
+        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $this->assertSame(config('benchmark.http.duration_seconds'), $meta['duration_seconds']);
+        $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
+    }
+
+    public function test_http_benchmark_rejects_out_of_bounds_load_settings(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->postJson('/http', ['duration' => 2])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('duration');
+
+        $this->postJson('/http', ['duration' => 61])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('duration');
+
+        $this->postJson('/http', ['connections' => 501])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('connections');
+    }
+
     public function test_http_benchmark_rejects_redirecting_targets(): void
     {
         Http::fake(['*' => Http::response('', 301, ['Location' => 'https://localhost:8443'])]);

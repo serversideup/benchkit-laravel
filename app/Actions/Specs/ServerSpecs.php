@@ -17,11 +17,12 @@ class ServerSpecs
 
     public function getCpuModel()
     {
-        // Run multi-line command and capture output
+        // POSIX sh only — shell_exec runs via /bin/sh (dash on Debian),
+        // where bash-isms like [[ ]] or $OSTYPE fail
         $command = <<<'CMD'
         if cpu_info=$(grep -m1 "model name" /proc/cpuinfo 2>/dev/null); then
             echo "$cpu_info" | cut -d':' -f2- | sed 's/^ *//'
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
+        elif [ "$(uname)" = "Darwin" ]; then
             sysctl -n machdep.cpu.brand_string 2>/dev/null
         else
             echo "Unknown Processor Model"
