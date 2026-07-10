@@ -41,7 +41,7 @@ ENV APP_NAME=BenchKit \
     # DB_USERNAME=root \
     # DB_PASSWORD= \
     \
-    SESSION_DRIVER=database \
+    SESSION_DRIVER=file \
     SESSION_LIFETIME=120 \
     SESSION_ENCRYPT=false \
     SESSION_PATH=/ \
@@ -49,9 +49,9 @@ ENV APP_NAME=BenchKit \
     \
     BROADCAST_CONNECTION=log \
     FILESYSTEM_DISK=local \
-    QUEUE_CONNECTION=database \
+    QUEUE_CONNECTION=sync \
     \
-    CACHE_STORE=database \
+    CACHE_STORE=file \
     # CACHE_PREFIX= \
     \
     MEMCACHED_HOST=127.0.0.1 \
