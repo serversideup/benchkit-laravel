@@ -1,10 +1,10 @@
 <template>
-    <div class="flex-1 min-h-0 w-full overflow-y-auto">
+    <div class="w-full">
         <div class="w-full flex flex-col items-center py-16">
         <div class="w-full flex flex-col items-center justify-center">
-            <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="font-mono text-lg px-7 py-3.5 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-lg text-white bg-[#E62E05] transition-all duration-300"
-                :class="runSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#E62E05]/80 cursor-pointer'">
-                <img src="/images/ui/lightning.svg" alt="Lightning" class="h-5 mr-2.5">
+            <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="text-xl font-semibold px-12 py-5 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-xl text-white bg-[#E62E05] shadow-lg shadow-[#E62E05]/25 transition-all duration-300"
+                :class="runSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F13D12] hover:shadow-[#E62E05]/40 cursor-pointer'">
+                <img src="/images/ui/lightning.svg" alt="Lightning" class="h-6 mr-3">
                 Start Benchmark
             </button>
 
@@ -35,6 +35,18 @@
             </button>
         </div>
 
+        <div v-if="recentRuns.length" class="mx-auto w-[700px] flex flex-col mt-12">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm text-[#61656C] font-mono uppercase tracking-wider">Recent runs</h2>
+                <Link href="/runs" class="text-xs text-[#94979C] font-mono hover:text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C]">
+                    View history &rarr;
+                </Link>
+            </div>
+            <div class="mt-3">
+                <RunHistoryList :runs="recentRuns" />
+            </div>
+        </div>
+
         <div class="mx-auto w-[700px] flex flex-col items-center justify-center mt-12">
             <div class="flex items-center justify-between w-full rounded-t-lg bg-[rgba(255,255,255,0.50)] py-2 px-3">
                 <div>
@@ -56,14 +68,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
 import Server from '@/Pages/Partials/Server.vue';
 import Php from '@/Pages/Partials/Php.vue';
 import Laravel from '@/Pages/Partials/Laravel.vue';
 import ExternalEndpointsModal from '@/Components/ExternalEndpointsModal.vue';
+import RunHistoryList from '@/Components/Runs/RunHistoryList.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
 import { useSettings } from '@/Composables/useSettings';
 import { useSettingsDrawer } from '@/Composables/useSettingsDrawer';
+
+const recentRuns = computed(() => usePage().props.recentRuns ?? []);
 
 const startBenchkit = () => {
     startQueue();

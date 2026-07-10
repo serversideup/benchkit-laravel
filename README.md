@@ -59,17 +59,22 @@ Here's common questions to help you understand how this application works.
   > Use the FrankenPHP variation of the BenchKit image — the same image runs both modes, so results are directly comparable. Standard mode:
   >
   > ```bash
-  > docker run -p 80:8080 serversideup/benchkit-laravel:frankenphp
+  > docker run -p 80:8080 -v benchkit-runs:/var/www/html/storage/app/runs serversideup/benchkit-laravel:frankenphp
   > ```
   >
   > Octane worker mode — same image, just swap the command:
   >
   > ```bash
-  > docker run -p 80:8080 serversideup/benchkit-laravel:frankenphp \
+  > docker run -p 80:8080 -v benchkit-runs:/var/www/html/storage/app/runs serversideup/benchkit-laravel:frankenphp \
   >   php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080
   > ```
   >
   > The results output and share image are labeled with the mode that produced them (look for the "OCTANE / worker mode" badge), so shared results always say which mode was benchmarked.
+</details>
+<details>
+  <summary>Does my run history survive rebuilding the container?</summary>
+
+  > Every completed run is saved as a snapshot in `storage/app/runs`. Mount a volume there (the `-v benchkit-runs:/var/www/html/storage/app/runs` flag in the examples above) and your history survives destroying and rebuilding the container — which is exactly what you need to compare `PHP_VARIATION` builds (e.g. `fpm-nginx` vs `frankenphp`) against each other. Without the volume, history lasts only as long as the container does. (In the development stack the repo itself is bind-mounted, so run history persists on your machine automatically — no volume needed.)
 </details>
 <details>
   <summary>How can I share my results with the community?</summary>

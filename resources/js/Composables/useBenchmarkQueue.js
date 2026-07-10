@@ -1,4 +1,5 @@
 import { ref, reactive } from 'vue';
+import { useEventBus } from '@vueuse/core';
 import { useStream } from '@/Composables/useStream';
 import { useSettings } from '@/Composables/useSettings';
 
@@ -36,7 +37,10 @@ const stages = {
     },
     http: {
         enabled: () => form.http,
-        options: () => ({}),
+        options: () => ({
+            duration: form.http_duration,
+            connections: form.http_connections,
+        }),
     },
     php: {
         enabled: () => form.php_database,
@@ -221,3 +225,37 @@ export const useBenchmarkQueue = () => {
         cancelQueue
     }
 };
+
+// Stream events drive the queue from module scope, not from a component:
+// tying this listener to a component lifecycle would hang the run if the
+// user navigated to another page (e.g. run history) mid-benchmark
+const streamEventBus = useEventBus('stream-event-bus');
+
+streamEventBus.on((message, data) => {
+    if( message !== 'benchmark:output' ) {
+        return;
+    }
+
+    const { appendOutput, setStatus, nextBenchmark } = useBenchmarkQueue();
+    const event = JSON.parse(data);
+
+    if( event.type === 'out' || event.type === 'err' ) {
+        appendOutput(activeBenchmark.value, event.output);
+    }
+
+    // Long-running subjects can go a minute or more between output lines —
+    // surface the server heartbeat so the run never looks hung
+    if( event.type === 'heartbeat' ) {
+        appendOutput(activeBenchmark.value, `... still running (${event.timestamp} UTC)`);
+    }
+
+    if( event.status === 'completed' ) {
+        setStatus(activeBenchmark.value, 'completed');
+        nextBenchmark();
+    }
+
+    if( event.status === 'error' ) {
+        setStatus(activeBenchmark.value, 'error');
+        nextBenchmark();
+    }
+});
