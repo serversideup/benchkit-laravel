@@ -1,7 +1,5 @@
 <template>
-    <section class="py-9">
-        <h2 class="text-base font-semibold text-[#F7F7F7]">Environment</h2>
-
+    <PanelSection title="Environment">
         <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm">
             <div class="flex flex-col gap-3">
                 <div v-for="fact in stackFacts" :key="fact.label" class="grid grid-cols-[110px_1fr] gap-3">
@@ -16,11 +14,12 @@
                 </div>
             </div>
         </div>
-    </section>
+    </PanelSection>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import PanelSection from '@/Components/PanelSection.vue';
 import { formatCapacity } from '@/Composables/useRunSummary';
 
 const props = defineProps({

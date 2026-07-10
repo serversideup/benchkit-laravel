@@ -3,24 +3,16 @@
 namespace Tests\Feature\Runs;
 
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\SeedsRunSnapshots;
 use Tests\TestCase;
 
 class UpdateRunTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
+    use SeedsRunSnapshots;
 
-        Storage::fake('runs');
-    }
-
-    protected function seedRun(string $id = '20260708-165231-k3f9'): string
+    protected function seedRunWithHostMeta(string $id = '20260708-165231-k3f9'): string
     {
-        Storage::disk('runs')->put("{$id}.json", json_encode([
-            'schema_version' => 1,
-            'type' => 'benchkit-run',
-            'id' => $id,
-            'created_at' => '2026-07-08T16:52:31+00:00',
+        return $this->seedRun($id, [
             'meta' => [
                 'label' => 'fpm-nginx · full · 2026-07-08 16:52',
                 'provider' => 'DIGITALOCEAN-ASN',
@@ -29,21 +21,12 @@ class UpdateRunTest extends TestCase
                 'datacenter' => null,
                 'cost' => null,
             ],
-            'settings' => [],
-            'stages_completed' => ['http'],
-            'environment' => [],
-            'benchmarks' => ['yabs' => null, 'cfspeedtest' => null, 'http' => [], 'php' => null],
-            'extras' => ['geekbench_url' => null],
-            'summary' => [],
-            'logs' => [],
-        ]));
-
-        return $id;
+        ]);
     }
 
     public function test_label_and_hosting_details_can_be_updated(): void
     {
-        $id = $this->seedRun();
+        $id = $this->seedRunWithHostMeta();
 
         $this->patchJson("/runs/{$id}", [
             'label' => 'FrankenPHP test',
@@ -67,7 +50,7 @@ class UpdateRunTest extends TestCase
 
     public function test_partial_update_leaves_other_meta_untouched(): void
     {
-        $id = $this->seedRun();
+        $id = $this->seedRunWithHostMeta();
 
         $this->patchJson("/runs/{$id}", ['label' => 'Renamed'])->assertOk();
 
@@ -84,7 +67,7 @@ class UpdateRunTest extends TestCase
 
     public function test_overlong_hosting_details_are_rejected(): void
     {
-        $id = $this->seedRun();
+        $id = $this->seedRunWithHostMeta();
 
         $this->patchJson("/runs/{$id}", ['plan' => str_repeat('a', 121)])
             ->assertUnprocessable()

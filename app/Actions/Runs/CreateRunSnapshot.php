@@ -40,17 +40,38 @@ class CreateRunSnapshot
             array_intersect_key($payload['logs'] ?? [], array_flip($stagesCompleted)),
         );
 
+        $snapshot = $this->buildSnapshot($payload, $document['environment'], $benchmarks, $stagesCompleted, $logs);
+
+        $written = Storage::disk('runs')->put("{$snapshot['id']}.json", json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        if (! $written) {
+            throw new \RuntimeException('Could not write the run snapshot to storage/app/runs — check that the directory exists and is writable by the application user.');
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $environment
+     * @param  array<string, ?array>  $benchmarks
+     * @param  array<int, string>  $stagesCompleted
+     * @param  array<string, array<int, string>>  $logs
+     * @return array<string, mixed>
+     */
+    protected function buildSnapshot(array $payload, array $environment, array $benchmarks, array $stagesCompleted, array $logs): array
+    {
         $provider = $payload['provider'] ?? null;
         $createdAt = now()->utc();
         $id = $createdAt->format('Ymd-His').'-'.Str::lower(Str::random(4));
 
-        $snapshot = [
+        return [
             'schema_version' => 1,
             'type' => 'benchkit-run',
             'id' => $id,
             'created_at' => $createdAt->toIso8601String(),
             'meta' => [
-                'label' => $this->autoLabel($document['environment'], $payload, $stagesCompleted),
+                'label' => $this->autoLabel($environment, $payload, $stagesCompleted),
                 'provider' => $provider,
                 'provider_source' => $provider !== null ? ($payload['provider_source'] ?? 'ripe') : null,
                 'plan' => $payload['plan'] ?? null,
@@ -60,22 +81,14 @@ class CreateRunSnapshot
             'settings' => $payload['settings'],
             'settings_preset' => $payload['preset'] ?? null,
             'stages_completed' => $stagesCompleted,
-            'environment' => $document['environment'],
+            'environment' => $environment,
             'benchmarks' => $benchmarks,
             'extras' => [
                 'geekbench_url' => $benchmarks['yabs']['geekbench'][0]['url'] ?? null,
             ],
-            'summary' => $this->summarize($benchmarks, $document['environment']),
+            'summary' => $this->summarize($benchmarks, $environment),
             'logs' => $logs,
         ];
-
-        $written = Storage::disk('runs')->put("{$id}.json", json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-
-        if (! $written) {
-            throw new \RuntimeException('Could not write the run snapshot to storage/app/runs — check that the directory exists and is writable by the application user.');
-        }
-
-        return $snapshot;
     }
 
     /**

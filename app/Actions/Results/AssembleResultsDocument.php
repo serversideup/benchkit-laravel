@@ -16,7 +16,7 @@ class AssembleResultsDocument
      * @return array{
      *     schema_version: int,
      *     generated_at: string,
-     *     environment: array{server: array, php: array, laravel: ?array, php_variation: ?string, build_version: ?string},
+     *     environment: array{server: array, php: array, laravel: array, php_variation: ?string, build_version: ?string},
      *     benchmarks: array{yabs: ?array, cfspeedtest: ?array, http: ?array, php: ?array}
      * }
      */
@@ -28,7 +28,7 @@ class AssembleResultsDocument
             'environment' => [
                 'server' => (new ServerSpecs)->execute(),
                 'php' => (new PhpSpecs)->execute(),
-                'laravel' => json_decode((new LaravelSpecs)->execute(), true),
+                'laravel' => (new LaravelSpecs)->execute(),
                 'php_variation' => config('benchmark.php_variation'),
                 'build_version' => $this->buildVersion(),
             ],
@@ -41,6 +41,10 @@ class AssembleResultsDocument
         ];
     }
 
+    /**
+     * The Docker build writes the image tag to .build-version (see the
+     * Dockerfile); the file does not exist on non-Docker installs.
+     */
     protected function buildVersion(): ?string
     {
         $path = base_path('.build-version');

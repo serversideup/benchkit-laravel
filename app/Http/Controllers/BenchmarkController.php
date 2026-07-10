@@ -6,12 +6,12 @@ use App\Actions\Runs\ListRuns;
 use App\Actions\Specs\LaravelSpecs;
 use App\Actions\Specs\PhpSpecs;
 use App\Actions\Specs\ServerSpecs;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class BenchmarkController extends Controller
 {
-    public function index(Request $request)
+    public function index(): Response
     {
         return Inertia::render('Index', [
             'server' => (new ServerSpecs)->execute(),

@@ -110,23 +110,25 @@ const renderTerminalLine = (text) => {
     return buffer.join('');
 }
 
+// Only the module-scope stream handler below writes output/status — these
+// are not part of the composable's public API
+const appendOutput = (benchmark, output) => {
+    const line = renderTerminalLine(output).trim();
+
+    if( line !== '' ) {
+        results[benchmark].output.push(line);
+    }
+}
+
+const setStatus = (benchmark, status) => {
+    results[benchmark].status = status;
+
+    if( status === 'completed' || status === 'error' ) {
+        results[benchmark].endedAt = Date.now();
+    }
+}
+
 export const useBenchmarkQueue = () => {
-    const appendOutput = (benchmark, output) => {
-        const line = renderTerminalLine(output).trim();
-
-        if( line !== '' ) {
-            results[benchmark].output.push(line);
-        }
-    }
-
-    const setStatus = (benchmark, status) => {
-        results[benchmark].status = status;
-
-        if( status === 'completed' || status === 'error' ) {
-            results[benchmark].endedAt = Date.now();
-        }
-    }
-
     const startBenchmark = (benchmark) => {
         state.value = 'running';
         results[benchmark].status = 'running';
@@ -215,8 +217,6 @@ export const useBenchmarkQueue = () => {
         viewingBenchmark,
         state,
 
-        appendOutput,
-        setStatus,
         resetResults,
         previewStatuses,
         nextBenchmark,
@@ -236,7 +236,7 @@ streamEventBus.on((message, data) => {
         return;
     }
 
-    const { appendOutput, setStatus, nextBenchmark } = useBenchmarkQueue();
+    const { nextBenchmark } = useBenchmarkQueue();
     const event = JSON.parse(data);
 
     if( event.type === 'out' || event.type === 'err' ) {

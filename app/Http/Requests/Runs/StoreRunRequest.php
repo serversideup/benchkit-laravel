@@ -3,24 +3,13 @@
 namespace App\Http\Requests\Runs;
 
 use App\Actions\Runs\CreateRunSnapshot;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreRunRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * @return array<string, array<mixed>>
      */
     public function rules(): array
     {
@@ -41,8 +30,6 @@ class StoreRunRequest extends FormRequest
     }
 
     /**
-     * Get custom messages for validator errors.
-     *
      * @return array<string, string>
      */
     public function messages(): array

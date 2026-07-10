@@ -12,8 +12,9 @@ BenchKit for Laravel is an ephemeral benchmarking application by Server Side Up.
 ### Domain Vocabulary
 
 - A "benchmark" is a runnable test stage, NOT a database entity. There is no `Benchmark` model or table.
-- Three stages run in a client-side queue (defined in `resources/js/Composables/useBenchmarkQueue.js`):
+- Four stages run in a client-side queue (defined in `resources/js/Composables/useBenchmarkQueue.js`):
   1. `yabs` — hardware benchmark (CPU, disk/fio, Geekbench, iperf) via serversideup/yabs
   2. `cfspeedtest` — network speed test to Cloudflare via serversideup/cfspeedtest
-  3. `php` — Laravel CRUD and PHP performance benchmarks via phpbench
-- No authentication and no domain persistence: benchmark results are written to files in `results/` and root-level logs, never to the database.
+  3. `http` — web server load test (oha) against the app's own `/bench/*` routes
+  4. `php` — Laravel CRUD and PHP performance benchmarks via phpbench
+- No authentication and no database persistence: raw stage output is written to files under the results path, and completed runs are frozen as JSON snapshots on the `runs` disk (`storage/app/runs`) — never to the database.

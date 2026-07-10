@@ -2,11 +2,13 @@
 
 namespace App\Actions\Results;
 
+use Illuminate\Support\Facades\File;
+
 /**
  * Parses the per-route oha JSON files written by the HTTP self-test.
  * oha reports latencies in seconds; they are converted to milliseconds.
  */
-class HttpBenchmarkResults
+class HttpBenchmarkResults extends BenchmarkResults
 {
     /**
      * @var array<string, string>
@@ -19,12 +21,29 @@ class HttpBenchmarkResults
 
     public function metaPath(): string
     {
-        return config('benchmark.results_path').'/http-meta.json';
+        return $this->resultsPath('http-meta.json');
     }
 
     public function routePath(string $key): string
     {
-        return config('benchmark.results_path').'/http-'.str_replace('_', '-', $key).'.json';
+        return $this->resultsPath('http-'.str_replace('_', '-', $key).'.json');
+    }
+
+    /**
+     * Persist the load settings the run actually used so execute() can
+     * report them alongside the per-route results.
+     *
+     * @param  array{url: string, mode: string}  $target
+     */
+    public function writeMeta(array $target, int $duration, int $connections): void
+    {
+        File::ensureDirectoryExists(dirname($this->metaPath()));
+        File::put($this->metaPath(), json_encode([
+            'target' => $target['url'],
+            'mode' => $target['mode'],
+            'duration_seconds' => $duration,
+            'connections' => $connections,
+        ]));
     }
 
     /**
@@ -35,15 +54,9 @@ class HttpBenchmarkResults
         $routes = [];
 
         foreach (self::ROUTES as $key => $path) {
-            $file = $this->routePath($key);
+            $data = $this->readJson($this->routePath($key));
 
-            if (! file_exists($file)) {
-                continue;
-            }
-
-            $data = json_decode(file_get_contents($file), true);
-
-            if (! is_array($data)) {
+            if ($data === null) {
                 continue;
             }
 
@@ -62,9 +75,7 @@ class HttpBenchmarkResults
             return null;
         }
 
-        $meta = file_exists($this->metaPath())
-            ? (json_decode(file_get_contents($this->metaPath()), true) ?: [])
-            : [];
+        $meta = $this->readJson($this->metaPath()) ?? [];
 
         return [
             'mode' => $meta['mode'] ?? null,
@@ -98,15 +109,9 @@ class HttpBenchmarkResults
      */
     public function detail(string $key): ?array
     {
-        $file = $this->routePath($key);
+        $data = $this->readJson($this->routePath($key));
 
-        if (! file_exists($file)) {
-            return null;
-        }
-
-        $data = json_decode(file_get_contents($file), true);
-
-        if (! is_array($data)) {
+        if ($data === null) {
             return null;
         }
 

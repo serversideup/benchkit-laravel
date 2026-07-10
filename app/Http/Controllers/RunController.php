@@ -12,17 +12,18 @@ use App\Http\Requests\Runs\UpdateRunRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 class RunController extends Controller
 {
-    public function index(): \Inertia\Response
+    public function index(): InertiaResponse
     {
         return Inertia::render('Runs/Index', [
             'runs' => (new ListRuns)->execute(),
         ]);
     }
 
-    public function show(string $id): \Inertia\Response
+    public function show(string $id): InertiaResponse
     {
         $run = (new FindRun)->execute($id);
 
@@ -33,7 +34,7 @@ class RunController extends Controller
         ]);
     }
 
-    public function compare(string $a, string $b): \Inertia\Response
+    public function compare(string $a, string $b): InertiaResponse
     {
         $runA = (new FindRun)->execute($a);
         $runB = (new FindRun)->execute($b);

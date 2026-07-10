@@ -9,9 +9,7 @@
                 <div class="flex items-center gap-3 shrink-0">
                     <div class="flex items-center gap-1">
                         <IconButton label="Download results (zip)" @click="download()">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="17" viewBox="0 0 19 17" fill="none">
-                                <path d="M2.50016 11.8685C1.49517 11.1958 0.833496 10.0502 0.833496 8.75C0.833496 6.79702 2.32642 5.19274 4.23328 5.01614C4.62334 2.64344 6.6837 0.833332 9.16683 0.833332C11.65 0.833332 13.7103 2.64344 14.1004 5.01614C16.0072 5.19274 17.5002 6.79702 17.5002 8.75C17.5002 10.0502 16.8385 11.1958 15.8335 11.8685M5.8335 12.5L9.16683 15.8333M9.16683 15.8333L12.5002 12.5M9.16683 15.8333V8.33333" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                            <IconDownloadCloud />
                         </IconButton>
                         <IconButton label="Run the benchmark again" @click="runAgain()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -21,9 +19,7 @@
                     </div>
                     <button @click="shareOpen = true" type="button" class="px-4 py-2.5 rounded-lg flex items-center text-sm font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] transition-colors duration-200 cursor-pointer">
                         Share on
-                        <svg class="ml-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 18 18" fill="none">
-                            <path d="M10.1909 7.41006L16.5656 0H15.055L9.51988 6.43405L5.09898 0H0L6.68527 9.72942L0 17.5H1.51068L7.35593 10.7054L12.0247 17.5H17.1237L10.1906 7.41006H10.1909ZM8.12184 9.81514L7.44449 8.84631L2.055 1.13722H4.37532L8.7247 7.3587L9.40206 8.32753L15.0557 16.4145H12.7354L8.12184 9.81551V9.81514Z" fill="white"/>
-                        </svg>
+                        <IconXLogo class="ml-2" />
                     </button>
                 </div>
             </div>
@@ -59,6 +55,8 @@ import { computed, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/App.vue';
 import IconButton from '@/Components/IconButton.vue';
+import IconDownloadCloud from '@/Components/Icons/IconDownloadCloud.vue';
+import IconXLogo from '@/Components/Icons/IconXLogo.vue';
 import RunMetaEditor from '@/Components/Runs/RunMetaEditor.vue';
 import HostDetailsPanel from '@/Components/Runs/HostDetailsPanel.vue';
 import HttpPanel from '@/Components/Runs/HttpPanel.vue';
@@ -68,7 +66,7 @@ import HardwarePanel from '@/Components/Runs/HardwarePanel.vue';
 import EnvironmentPanel from '@/Components/Runs/EnvironmentPanel.vue';
 import RunLogs from '@/Components/Runs/RunLogs.vue';
 import ShareModal from '@/Components/Share/ShareModal.vue';
-import { runDisplay } from '@/Composables/useRunSummary';
+import { hostDetailsLine, runDisplay } from '@/Composables/useRunSummary';
 import { downloadRunResults } from '@/Composables/useRunActions';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
 import { useDocumentTitle } from '@/Composables/useDocumentTitle';
@@ -89,12 +87,7 @@ useDocumentTitle();
 const meta = ref({ ...props.run.meta });
 const display = computed(() => runDisplay(props.run));
 
-const hostSummary = computed(() => [
-    meta.value.provider,
-    meta.value.plan ?? meta.value.plan_notes,
-    meta.value.datacenter,
-    meta.value.cost,
-].filter(Boolean).join(' · '));
+const hostSummary = computed(() => hostDetailsLine(meta.value));
 const runWithMeta = computed(() => ({ ...props.run, meta: meta.value }));
 const shareOpen = ref(false);
 const detailsOpen = ref(false);

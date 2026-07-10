@@ -4,6 +4,12 @@ import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 
+// The Spin dev environment serves HMR over https via Traefik's local
+// certificates; environments without them (CI, plain `npm run build`)
+// fall back to Vite's defaults.
+const certificatePath = '.infrastructure/conf/traefik/dev/certificates';
+const hasLocalCertificates = fs.existsSync(`${certificatePath}/local-dev.pem`);
+
 export default defineConfig({
     server: {
         host: '0.0.0.0',
@@ -11,10 +17,10 @@ export default defineConfig({
             host: 'vite.dev.test',
             clientPort: 443,
         },
-        https: {
-            key: fs.readFileSync('.infrastructure/conf/traefik/dev/certificates/local-dev-key.pem'),
-            cert: fs.readFileSync('.infrastructure/conf/traefik/dev/certificates/local-dev.pem'),
-        },
+        https: hasLocalCertificates ? {
+            key: fs.readFileSync(`${certificatePath}/local-dev-key.pem`),
+            cert: fs.readFileSync(`${certificatePath}/local-dev.pem`),
+        } : undefined,
     },
     plugins: [
         laravel({
