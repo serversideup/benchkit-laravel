@@ -31,14 +31,17 @@
     animation: ember-float 8s linear infinite;
 }
 
+/* Negative delays (like the flame orbs above) start every ember mid-flight —
+   a positive delay leaves the dot statically visible at the viewport top
+   until its animation begins */
 .ember:nth-child(1) { animation-delay: 0s; left: 10%; }
-.ember:nth-child(2) { animation-delay: 2s; left: 20%; }
-.ember:nth-child(3) { animation-delay: 4s; left: 80%; }
-.ember:nth-child(4) { animation-delay: 6s; left: 70%; }
-.ember:nth-child(5) { animation-delay: 1s; left: 50%; }
-.ember:nth-child(6) { animation-delay: 3s; left: 30%; }
-.ember:nth-child(7) { animation-delay: 5s; left: 90%; }
-.ember:nth-child(8) { animation-delay: 7s; left: 60%; }
+.ember:nth-child(2) { animation-delay: -2s; left: 20%; }
+.ember:nth-child(3) { animation-delay: -4s; left: 80%; }
+.ember:nth-child(4) { animation-delay: -6s; left: 70%; }
+.ember:nth-child(5) { animation-delay: -1s; left: 50%; }
+.ember:nth-child(6) { animation-delay: -3s; left: 30%; }
+.ember:nth-child(7) { animation-delay: -5s; left: 90%; }
+.ember:nth-child(8) { animation-delay: -7s; left: 60%; }
 
 .animated-gradient {
     background: linear-gradient(-45deg, #1a0f0f, #2d1b15, #3d1a0f, #4a1810, #2d1b15);
