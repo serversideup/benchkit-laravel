@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Benchmarks;
 
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Benchmarks\HttpBenchmarkRequest;
 use App\Support\BenchmarkHttpItems;
 use App\Support\HttpBenchmarkTarget;
 use App\Support\StreamedProcess;
@@ -13,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class HttpBenchmarkController extends Controller
 {
-    public function index(): Response
+    public function index(HttpBenchmarkRequest $request): Response
     {
         $target = (new HttpBenchmarkTarget)->resolve();
 
@@ -24,11 +25,14 @@ class HttpBenchmarkController extends Controller
             ], 503);
         }
 
+        $duration = (int) ($request->validated('duration') ?? config('benchmark.http.duration_seconds'));
+        $connections = (int) ($request->validated('connections') ?? config('benchmark.http.connections'));
+
         BenchmarkHttpItems::ensure();
 
-        $this->writeMeta($target);
+        $this->writeMeta($target, $duration, $connections);
 
-        return (new StreamedProcess($this->buildCommand($target)))->response();
+        return (new StreamedProcess($this->buildCommand($target, $duration, $connections)))->response();
     }
 
     public function results(): JsonResponse
@@ -47,11 +51,9 @@ class HttpBenchmarkController extends Controller
     /**
      * @param  array{url: string, mode: string}  $target
      */
-    protected function buildCommand(array $target): string
+    protected function buildCommand(array $target, int $duration, int $connections): string
     {
         $bin = base_path('vendor/bin/oha');
-        $duration = (int) config('benchmark.http.duration_seconds');
-        $connections = (int) config('benchmark.http.connections');
         $results = new HttpBenchmarkResults;
 
         $steps = [];
@@ -85,7 +87,7 @@ class HttpBenchmarkController extends Controller
     /**
      * @param  array{url: string, mode: string}  $target
      */
-    protected function writeMeta(array $target): void
+    protected function writeMeta(array $target, int $duration, int $connections): void
     {
         $results = new HttpBenchmarkResults;
 
@@ -93,8 +95,8 @@ class HttpBenchmarkController extends Controller
         File::put($results->metaPath(), json_encode([
             'target' => $target['url'],
             'mode' => $target['mode'],
-            'duration_seconds' => (int) config('benchmark.http.duration_seconds'),
-            'connections' => (int) config('benchmark.http.connections'),
+            'duration_seconds' => $duration,
+            'connections' => $connections,
         ]));
     }
 }

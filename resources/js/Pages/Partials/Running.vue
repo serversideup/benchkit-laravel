@@ -1,5 +1,7 @@
 <template>
-    <div class="flex-1 min-h-0 w-full flex flex-col">
+    <!-- The CI console is the one view that fills the viewport and scrolls
+         internally — bounded by the fixed 72px header height -->
+    <div class="h-[calc(100dvh-72px)] min-h-0 w-full flex flex-col">
         <BenchmarkResults />
     </div>
 </template>

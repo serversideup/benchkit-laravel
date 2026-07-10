@@ -82,6 +82,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
+import { writeTextToClipboard } from '@/Composables/useClipboard'
 
 defineProps({
     open: {
@@ -107,29 +108,9 @@ const close = () => {
     emit('close');
 }
 
-// The clipboard API only exists in secure contexts (https or localhost) —
-// plain-http homelab setups fall back to a hidden textarea + execCommand
-const writeToClipboard = (text) => {
-    if (navigator.clipboard) {
-        return navigator.clipboard.writeText(text)
-    }
-
-    return new Promise((resolve, reject) => {
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        const succeeded = document.execCommand('copy')
-        document.body.removeChild(textarea)
-        succeeded ? resolve() : reject(new Error('Clipboard unavailable'))
-    })
-}
-
 const copyCommand = async (endpoint) => {
     try {
-        await writeToClipboard(command(endpoint))
+        await writeTextToClipboard(command(endpoint))
         copiedPath.value = endpoint.path
         setTimeout(() => {
             if (copiedPath.value === endpoint.path) {

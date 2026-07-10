@@ -147,6 +147,24 @@
                                 Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.
                             </p>
                         </div>
+
+                        <div class="grid grid-cols-2 gap-3 mt-4" v-show="form.http">
+                            <div class="flex flex-col">
+                                <label for="http-duration" class="text-sm text-[#CECFD2] font-mono font-medium">Duration (seconds)</label>
+                                <input type="number" id="http-duration" v-model.number="form.http_duration" min="5" max="60" step="1"
+                                    class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
+                            </div>
+                            <div class="flex flex-col">
+                                <label for="http-connections" class="text-sm text-[#CECFD2] font-mono font-medium">Connections</label>
+                                <input type="number" id="http-connections" v-model.number="form.http_connections" min="1" max="500" step="1"
+                                    class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
+                            </div>
+                        </div>
+
+                        <p v-show="form.http && !standardHttpLoad" class="mt-2.5 text-xs text-[#94979C] font-mono">
+                            Custom load — results won't be directly comparable with standard BenchKit runs.
+                            <button @click="resetHttpLoad()" type="button" class="text-[#CECFD2] underline underline-offset-2 hover:text-white cursor-pointer">Reset to 10s &times; 50</button>
+                        </p>
                     </div>
 
                     <div class="flex flex-col py-6 border-b border-[#22262F]">
@@ -237,7 +255,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { Switch } from '@headlessui/vue'
 import { useSettings } from '@/Composables/useSettings'
@@ -247,6 +265,15 @@ const { form, saveSettings, fillPreset, activePreset } = useSettings()
 const {
     previewStatuses
 } = useBenchmarkQueue()
+
+// The standard BenchKit load — deviating is allowed but always called out,
+// since custom loadgen settings make results incomparable with other runs
+const standardHttpLoad = computed(() => Number(form.http_duration) === 10 && Number(form.http_connections) === 50)
+
+const resetHttpLoad = () => {
+    form.http_duration = 10
+    form.http_connections = 50
+}
 
 const props = defineProps({
     open: {
@@ -276,7 +303,17 @@ const discard = () => {
     close();
 }
 
+// Clamp to the backend's validation bounds so a stray or emptied input can
+// never fail the stage mid-run; empty falls back to the standard load
+const clampHttpLoad = () => {
+    const clamp = (value, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(value)) || fallback));
+
+    form.http_duration = clamp(form.http_duration, 10, 5, 60);
+    form.http_connections = clamp(form.http_connections, 50, 1, 500);
+}
+
 const save = () => {
+    clampHttpLoad();
     saveSettings();
     close();
 }
