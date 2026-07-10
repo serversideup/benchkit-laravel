@@ -2,32 +2,36 @@
 
 namespace Tests\Feature\Benchmarks;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PhpBenchmarkModeTest extends TestCase
 {
-    public function test_php_benchmark_accepts_quick_mode(): void
+    /**
+     * The mode-to-command mapping itself is covered by PhpBenchCommandTest;
+     * this verifies the endpoint accepts every valid payload and streams.
+     *
+     * @param  array<string, string>  $payload
+     */
+    #[DataProvider('modes')]
+    public function test_php_benchmark_streams_for_each_mode(array $payload): void
     {
-        $response = $this->post('/php', ['mode' => 'quick']);
+        $response = $this->post('/php', $payload);
 
         $response->assertOk();
         $this->assertStringStartsWith('text/event-stream', $response->headers->get('Content-Type'));
     }
 
-    public function test_php_benchmark_accepts_full_mode(): void
+    /**
+     * @return array<string, array{0: array<string, string>}>
+     */
+    public static function modes(): array
     {
-        $response = $this->post('/php', ['mode' => 'full']);
-
-        $response->assertOk();
-        $this->assertStringStartsWith('text/event-stream', $response->headers->get('Content-Type'));
-    }
-
-    public function test_php_benchmark_defaults_to_full_mode_when_mode_is_omitted(): void
-    {
-        $response = $this->post('/php');
-
-        $response->assertOk();
-        $this->assertStringStartsWith('text/event-stream', $response->headers->get('Content-Type'));
+        return [
+            'quick' => [['mode' => 'quick']],
+            'full' => [['mode' => 'full']],
+            'omitted (defaults to full)' => [[]],
+        ];
     }
 
     public function test_php_benchmark_mode_is_validated(): void

@@ -1,14 +1,9 @@
 import { watch, onUnmounted } from 'vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
+import { formatClock } from '@/Composables/useRunSummary';
+import { STAGE_LABELS } from '@/stages';
 
 const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-const STAGE_LABELS = {
-    yabs: 'Hardware',
-    cfspeedtest: 'Network',
-    http: 'Web Server Load',
-    php: 'PHP',
-};
 
 // Drives the browser tab title from the benchmark state: a tagline while
 // idle, an animated spinner with the active stage and elapsed time while
@@ -27,14 +22,7 @@ export const useDocumentTitle = () => {
     const elapsed = () => {
         const startedAt = results[activeBenchmark.value].startedAt;
 
-        if( !startedAt ) {
-            return '';
-        }
-
-        const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-        const pad = (n) => String(n).padStart(2, '0');
-
-        return ` · ${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`;
+        return startedAt ? ` · ${formatClock(Date.now() - startedAt)}` : '';
     };
 
     const apply = () => {

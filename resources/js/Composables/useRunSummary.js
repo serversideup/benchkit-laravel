@@ -28,6 +28,14 @@ export const formatMs = (ms) => {
     return parts ? `${parts.value}${parts.unit}` : 'N/A';
 };
 
+// Elapsed milliseconds as a mm:ss clock
+export const formatClock = (milliseconds) => {
+    const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const pad = (n) => String(n).padStart(2, '0');
+
+    return `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`;
+};
+
 // yabs reports capacities as raw values with units like "KB"/"KiB"/"MB"
 export const formatCapacity = (value, units = 'KB') => {
     const number = parseFloat(value);
@@ -62,6 +70,15 @@ export const formatThroughput = (megabytesPerSecond) => {
     }
 
     return `${Math.round(megabytesPerSecond).toLocaleString()} MB/s`;
+};
+
+// Hosting meta as a single display line, e.g. "Premium AMD 2GB · NYC3 ·
+// $24/mo". `plan_notes` is the pre-split legacy field on older snapshots,
+// so it stands in when `plan` is absent.
+export const hostDetailsLine = (meta = {}, fields = ['provider', 'plan', 'datacenter', 'cost']) => {
+    const values = { ...meta, plan: meta.plan ?? meta.plan_notes };
+
+    return fields.map((field) => values[field]).filter(Boolean).join(' · ');
 };
 
 export const serverLabelFor = (run) => {

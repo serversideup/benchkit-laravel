@@ -3,17 +3,13 @@
         <td class="px-4 py-3 text-[#94979C]">{{ delta.label }}</td>
         <td class="px-4 py-3">
             <div class="flex items-center justify-end gap-3">
-                <span class="hidden sm:block w-24 h-1.5 rounded-sm bg-[#22262F] overflow-hidden">
-                    <span class="block h-full rounded-r-[3px] bg-[#61656C]" :style="`width: ${barA}%;`"></span>
-                </span>
+                <BarMeter class="hidden sm:block w-24 h-1.5" :percent="barA" color="#61656C" />
                 <span class="text-[#94979C] font-mono whitespace-nowrap">{{ formatValue(delta.a) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
             </div>
         </td>
         <td class="px-4 py-3">
             <div class="flex items-center justify-end gap-3">
-                <span class="hidden sm:block w-24 h-1.5 rounded-sm bg-[#22262F] overflow-hidden">
-                    <span class="block h-full rounded-r-[3px]" :class="barColorB" :style="`width: ${barB}%;`"></span>
-                </span>
+                <BarMeter class="hidden sm:block w-24 h-1.5" :percent="barB" :color="barColorB" />
                 <span class="text-[#F7F7F7] font-mono whitespace-nowrap">{{ formatValue(delta.b) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
             </div>
         </td>
@@ -25,6 +21,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import BarMeter from '@/Components/BarMeter.vue';
 
 const props = defineProps({
     delta: {
@@ -46,10 +43,10 @@ const barB = computed(() => Math.max(2, (Math.abs(props.delta.b) / max.value) * 
 
 const barColorB = computed(() => {
     if( props.delta.improved === null ) {
-        return 'bg-[#94979C]';
+        return '#94979C';
     }
 
-    return props.delta.improved ? 'bg-[#47CD89]' : 'bg-[#F97066]';
+    return props.delta.improved ? '#47CD89' : '#F97066';
 });
 
 const deltaColor = computed(() => {

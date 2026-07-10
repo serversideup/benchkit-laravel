@@ -7,9 +7,7 @@
                 <h1 class="text-2xl sm:text-3xl font-semibold text-[#F7F7F7]">Compare runs</h1>
                 <button @click="shareOpen = true" type="button" class="px-4 py-2.5 rounded-lg flex items-center text-sm font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] transition-colors duration-200 cursor-pointer shrink-0">
                     Share on
-                    <svg class="ml-2" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 18 18" fill="none">
-                        <path d="M10.1909 7.41006L16.5656 0H15.055L9.51988 6.43405L5.09898 0H0L6.68527 9.72942L0 17.5H1.51068L7.35593 10.7054L12.0247 17.5H17.1237L10.1906 7.41006H10.1909ZM8.12184 9.81514L7.44449 8.84631L2.055 1.13722H4.37532L8.7247 7.3587L9.40206 8.32753L15.0557 16.4145H12.7354L8.12184 9.81551V9.81514Z" fill="white"/>
-                    </svg>
+                    <IconXLogo class="ml-2" />
                 </button>
             </div>
 
@@ -62,7 +60,7 @@
                 </section>
 
                 <section v-for="stage in Object.keys(comparison.metricDeltas)" :key="stage" class="py-9">
-                    <h2 class="text-base font-semibold text-[#F7F7F7]">{{ STAGE_LABELS[stage] }}</h2>
+                    <h2 class="text-base font-semibold text-[#F7F7F7]">{{ STAGE_HEADINGS[stage] }}</h2>
                     <p v-if="stage === 'http' && httpLoadMismatch" class="mt-1.5 text-sm text-[#F79009]">
                         Different load settings &mdash; Run A: <span class="font-mono">{{ httpLoadMismatch.a }}</span> &middot; Run B: <span class="font-mono">{{ httpLoadMismatch.b }}</span>.
                     </p>
@@ -110,11 +108,13 @@
 import { computed, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/App.vue';
+import IconXLogo from '@/Components/Icons/IconXLogo.vue';
 import DeltaRow from '@/Components/Runs/DeltaRow.vue';
 import DiffList from '@/Components/Runs/DiffList.vue';
 import ShareModal from '@/Components/Share/ShareModal.vue';
-import { compareRuns, headlineDelta, STAGE_LABELS } from '@/Composables/useRunComparison';
-import { formatUTCTimestamp } from '@/Composables/useRunSummary';
+import { compareRuns, headlineDelta } from '@/Composables/useRunComparison';
+import { STAGE_HEADINGS } from '@/stages';
+import { formatUTCTimestamp, hostDetailsLine } from '@/Composables/useRunSummary';
 import { useDocumentTitle } from '@/Composables/useDocumentTitle';
 
 defineOptions({
@@ -139,10 +139,7 @@ const props = defineProps({
 useDocumentTitle();
 
 const comparison = computed(() => compareRuns(props.runA, props.runB));
-const hostLine = (run) => [
-    run.meta.provider,
-    run.meta.plan ?? run.meta.plan_notes,
-].filter(Boolean).join(' · ');
+const hostLine = (run) => hostDetailsLine(run.meta, ['provider', 'plan']);
 
 const headline = computed(() => headlineDelta(comparison.value.metricDeltas));
 

@@ -4,28 +4,18 @@ namespace Tests\Feature\Runs;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
 class StoreRunTest extends TestCase
 {
-    protected string $resultsPath;
+    use UsesFakeResultsPath;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         Storage::fake('runs');
-
-        $this->resultsPath = sys_get_temp_dir().'/benchkit-results-'.uniqid();
-        File::ensureDirectoryExists($this->resultsPath);
-        config(['benchmark.results_path' => $this->resultsPath]);
-    }
-
-    protected function tearDown(): void
-    {
-        File::deleteDirectory($this->resultsPath);
-
-        parent::tearDown();
     }
 
     protected function defaultSettings(): array

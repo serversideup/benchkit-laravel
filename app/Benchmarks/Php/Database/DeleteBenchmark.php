@@ -3,6 +3,7 @@
 namespace App\Benchmarks\Php\Database;
 
 use App\Benchmarks\Php\BaseBenchmark;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpBench\Attributes as Bench;
 
@@ -71,7 +72,7 @@ class DeleteBenchmark extends BaseBenchmark
      * Build a deterministic record for the given seed index. Explicit ids
      * keep the dataset identical across revolutions and runs.
      *
-     * @return array{id: int, name: string, price: int, stock: int, is_active: bool, created_at: \Illuminate\Support\Carbon, updated_at: \Illuminate\Support\Carbon}
+     * @return array{id: int, name: string, price: int, stock: int, is_active: bool, created_at: Carbon, updated_at: Carbon}
      */
     private function makeRecord(int $index): array
     {

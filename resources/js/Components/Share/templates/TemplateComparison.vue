@@ -1,82 +1,64 @@
 <template>
-    <!-- Inline styles only: this node is rasterized by html-to-image.
-         Same visual language as the results card: accent bar, brand row,
+    <!-- Same visual language as the results card: accent bar, brand row,
          glow, sans labels / mono data, quiet footer. -->
-    <div :style="`display: flex; flex-direction: column; width: 1200px; height: 675px; background-color: #0C0E12; background-image: radial-gradient(ellipse 760px 460px at 50% 30%, rgba(230, 46, 5, 0.12), transparent 62%);`">
-        <div style="height: 5px; flex-shrink: 0; background: linear-gradient(90deg, #E62E05, #F79009);"></div>
-
-        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 36px 64px 0;">
-            <!-- Brand row: shared hosting details earn the corner; otherwise the timestamp keeps it -->
-            <div style="display: flex; align-items: flex-start; justify-content: space-between;">
-                <img src="/images/results/title.png" style="height: 36px; display: block;"/>
-                <div v-if="sharedHost" style="display: flex; flex-direction: column; align-items: flex-end; text-align: right;">
-                    <span v-if="sharedHost.provider" :style="`font-size: 22px; color: #F7F7F7; font-family: ${MONO}; font-weight: 600; line-height: 1.2;`">{{ sharedHost.provider }}</span>
-                    <span v-if="sharedHost.details" :style="`font-size: 17px; color: #94979C; font-family: ${MONO}; margin-top: 2px;`">{{ sharedHost.details }}</span>
+    <TemplateFrame :host="sharedHost" :timestamp="display.timestamp"
+        glow="radial-gradient(ellipse 760px 460px at 50% 30%, rgba(230, 46, 5, 0.12), transparent 62%)">
+        <!-- Hero: A vs B with the headline delta between them -->
+        <div style="flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; min-height: 0;">
+            <div style="display: flex; flex-direction: column; min-width: 0;">
+                <span :style="`font-size: 24px; color: #94979C; font-family: ${MONO}; font-weight: 500;`">{{ sideLabels.a }}</span>
+                <div v-if="headline" style="display: flex; align-items: baseline; margin-top: 4px;">
+                    <span :style="`color: #94979C; font-size: 118px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.formatA }}</span>
+                    <span v-if="headline.unit" :style="`color: #61656C; font-size: 30px; font-family: ${MONO}; margin-left: 14px;`">{{ headline.unit }}</span>
                 </div>
-                <span v-else :style="`font-size: 18px; color: #61656C; font-family: ${MONO};`">{{ display.timestamp }}</span>
+                <span v-if="sideDiffs.a" :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 10px;`">{{ sideDiffs.a }}</span>
             </div>
 
-            <!-- Hero: A vs B with the headline delta between them -->
-            <div style="flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; min-height: 0;">
-                <div style="display: flex; flex-direction: column; min-width: 0;">
-                    <span :style="`font-size: 24px; color: #94979C; font-family: ${MONO}; font-weight: 500;`">{{ sideLabels.a }}</span>
-                    <div v-if="headline" style="display: flex; align-items: baseline; margin-top: 4px;">
-                        <span :style="`color: #94979C; font-size: 118px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.formatA }}</span>
-                        <span v-if="headline.unit" :style="`color: #61656C; font-size: 30px; font-family: ${MONO}; margin-left: 14px;`">{{ headline.unit }}</span>
-                    </div>
-                    <span v-if="sideDiffs.a" :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 10px;`">{{ sideDiffs.a }}</span>
-                </div>
-
-                <div v-if="headline" style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
-                    <span v-if="headline.percentLabel" :style="`color: ${headline.improved ? '#47CD89' : '#F97066'}; font-size: 72px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.percentLabel }}</span>
-                    <span v-else :style="`color: #94979C; font-size: 40px; font-family: ${MONO}; font-weight: 700;`">vs</span>
-                    <span :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 12px;`">{{ headline.label }}<template v-if="headline.unit"> ({{ headline.unit }})</template></span>
-                </div>
-
-                <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 0;">
-                    <span :style="`font-size: 24px; color: #CECFD2; font-family: ${MONO}; font-weight: 500;`">{{ sideLabels.b }}</span>
-                    <div v-if="headline" style="display: flex; align-items: baseline; margin-top: 4px;">
-                        <span :style="`color: #FFF; font-size: 118px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.formatB }}</span>
-                        <span v-if="headline.unit" :style="`color: #94979C; font-size: 30px; font-family: ${MONO}; margin-left: 14px;`">{{ headline.unit }}</span>
-                    </div>
-                    <span v-if="sideDiffs.b" :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 10px;`">{{ sideDiffs.b }}</span>
-                </div>
+            <div v-if="headline" style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0;">
+                <span v-if="headline.percentLabel" :style="`color: ${headline.improved ? '#47CD89' : '#F97066'}; font-size: 72px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.percentLabel }}</span>
+                <span v-else :style="`color: #94979C; font-size: 40px; font-family: ${MONO}; font-weight: 700;`">vs</span>
+                <span :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 12px;`">{{ headline.label }}<template v-if="headline.unit"> ({{ headline.unit }})</template></span>
             </div>
 
-            <!-- Shared context: facts true of BOTH runs live here exactly once -->
-            <div v-if="sharedChips.length" style="display: flex; flex-wrap: wrap; gap: 12px; padding-bottom: 26px;">
-                <span v-for="chip in sharedChips" :key="chip"
-                    :style="`display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 9999px; font-size: 19px; font-weight: 500; font-family: ${MONO}; border: 1px solid #262B35; background-color: #12151B; color: #CECFD2;`">
-                    {{ chip }}
+            <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 0;">
+                <span :style="`font-size: 24px; color: #CECFD2; font-family: ${MONO}; font-weight: 500;`">{{ sideLabels.b }}</span>
+                <div v-if="headline" style="display: flex; align-items: baseline; margin-top: 4px;">
+                    <span :style="`color: #FFF; font-size: 118px; font-family: ${MONO}; font-weight: 800; line-height: 1;`">{{ headline.formatB }}</span>
+                    <span v-if="headline.unit" :style="`color: #94979C; font-size: 30px; font-family: ${MONO}; margin-left: 14px;`">{{ headline.unit }}</span>
+                </div>
+                <span v-if="sideDiffs.b" :style="`font-size: 19px; color: #94979C; font-family: ${SANS}; font-weight: 500; margin-top: 10px;`">{{ sideDiffs.b }}</span>
+            </div>
+        </div>
+
+        <!-- Shared context: facts true of BOTH runs live here exactly once -->
+        <div v-if="sharedChips.length" style="display: flex; flex-wrap: wrap; gap: 12px; padding-bottom: 26px;">
+            <span v-for="chip in sharedChips" :key="chip"
+                :style="`display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 9999px; font-size: 19px; font-weight: 500; font-family: ${MONO}; border: 1px solid #262B35; background-color: #12151B; color: #CECFD2;`">
+                {{ chip }}
+            </span>
+        </div>
+
+        <!-- Secondary deltas -->
+        <div v-if="secondaryDeltas.length" style="border-top: 1px solid #1D222B; padding: 20px 0 24px; display: flex; flex-direction: column; gap: 12px;">
+            <div v-for="delta in secondaryDeltas" :key="delta.path" style="display: flex; align-items: baseline; justify-content: space-between;">
+                <span :style="`font-size: 20px; color: #A9AEB8; font-family: ${SANS}; font-weight: 500;`">{{ delta.label }} <span style="color: #61656C;" v-if="delta.unit">({{ delta.unit }})</span></span>
+                <span :style="`font-size: 22px; font-family: ${MONO}; font-weight: 500;`">
+                    <span style="color: #94979C;">{{ formatNumber(delta.a) }}</span>
+                    <span style="color: #61656C;"> &rarr; </span>
+                    <span style="color: #F7F7F7;">{{ formatNumber(delta.b) }}</span>
+                    <span :style="`color: ${delta.improved === null ? '#61656C' : delta.improved ? '#47CD89' : '#F97066'}; margin-left: 18px;`">{{ percentLabel(delta) }}</span>
                 </span>
             </div>
-
-            <!-- Secondary deltas -->
-            <div v-if="secondaryDeltas.length" style="border-top: 1px solid #1D222B; padding: 20px 0 24px; display: flex; flex-direction: column; gap: 12px;">
-                <div v-for="delta in secondaryDeltas" :key="delta.path" style="display: flex; align-items: baseline; justify-content: space-between;">
-                    <span :style="`font-size: 20px; color: #A9AEB8; font-family: ${SANS}; font-weight: 500;`">{{ delta.label }} <span style="color: #61656C;" v-if="delta.unit">({{ delta.unit }})</span></span>
-                    <span :style="`font-size: 22px; font-family: ${MONO}; font-weight: 500;`">
-                        <span style="color: #94979C;">{{ formatNumber(delta.a) }}</span>
-                        <span style="color: #61656C;"> &rarr; </span>
-                        <span style="color: #F7F7F7;">{{ formatNumber(delta.b) }}</span>
-                        <span :style="`color: ${delta.improved === null ? '#61656C' : delta.improved ? '#47CD89' : '#F97066'}; margin-left: 18px;`">{{ percentLabel(delta) }}</span>
-                    </span>
-                </div>
-            </div>
         </div>
-
-        <!-- Footer -->
-        <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #1D222B; padding: 16px 64px 20px;">
-            <img src="/images/results/benchkit-by-server-side-up.png" style="height: 28px; display: block;"/>
-            <span :style="`font-size: 17px; color: #61656C; font-family: ${MONO};`"><template v-if="sharedHost">{{ display.timestamp }} &middot; </template>#BenchKit</span>
-        </div>
-    </div>
+    </TemplateFrame>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import TemplateFrame from '@/Components/Share/templates/TemplateFrame.vue';
 import { runDisplay, serverLabelFor } from '@/Composables/useRunSummary';
-import { compareRuns } from '@/Composables/useRunComparison';
+import { compareRuns, headlineDelta } from '@/Composables/useRunComparison';
+import { MONO, SANS } from '@/share/templateStyles';
 
 const props = defineProps({
     run: {
@@ -89,13 +71,8 @@ const props = defineProps({
     },
 });
 
-const MONO = "'JetBrains Mono', monospace";
-const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-
 const display = computed(() => runDisplay(props.runB));
 const comparison = computed(() => compareRuns(props.run, props.runB));
-
-const allDeltas = computed(() => Object.values(comparison.value.metricDeltas).flat());
 
 // Poster numbers: whole above 10, one decimal of precision below
 const formatNumber = (value) => {
@@ -114,34 +91,22 @@ const percentLabel = (delta) => {
     return `${delta.percent > 0 ? '+' : ''}${delta.percent.toFixed(0)}%`;
 };
 
-// The single number the card leads with — DB read throughput when both runs
-// have it (the realest metric), otherwise CRUD create time, then Geekbench
 const headline = computed(() => {
-    const candidates = [
-        'routes.db_read.requests_per_second',
-        'routes.json.requests_per_second',
-        'routes.static.requests_per_second',
-        'headline.create.milliseconds',
-        'geekbench.0.multi',
-    ];
+    const delta = headlineDelta(comparison.value.metricDeltas);
 
-    for (const path of candidates) {
-        const delta = allDeltas.value.find((candidate) => candidate.path === path);
-
-        if( delta ) {
-            return {
-                ...delta,
-                formatA: formatNumber(delta.a),
-                formatB: formatNumber(delta.b),
-                percentLabel: delta.improved === null ? null : percentLabel(delta),
-            };
-        }
+    if( !delta ) {
+        return null;
     }
 
-    return null;
+    return {
+        ...delta,
+        formatA: formatNumber(delta.a),
+        formatB: formatNumber(delta.b),
+        percentLabel: delta.improved === null ? null : percentLabel(delta),
+    };
 });
 
-const secondaryDeltas = computed(() => allDeltas.value
+const secondaryDeltas = computed(() => Object.values(comparison.value.metricDeltas).flat()
     .filter((delta) => delta.path !== headline.value?.path)
     .sort((a, b) => Math.abs(b.percent ?? 0) - Math.abs(a.percent ?? 0))
     .slice(0, 4));

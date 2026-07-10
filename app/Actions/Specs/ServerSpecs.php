@@ -4,18 +4,21 @@ namespace App\Actions\Specs;
 
 class ServerSpecs
 {
-    public function execute()
+    /**
+     * @return array<string, string>
+     */
+    public function execute(): array
     {
         return [
-            'cpu_model' => $this->getCpuModel(),
-            'cpu_cores' => $this->getCpuCores(),
-            'cpu_frequency' => $this->getCpuFrequency(),
-            'os' => $this->getOs(),
-            'ram' => $this->getRam(),
+            'cpu_model' => $this->cpuModel(),
+            'cpu_cores' => $this->cpuCores(),
+            'cpu_frequency' => $this->cpuFrequency(),
+            'os' => $this->os(),
+            'ram' => $this->ram(),
         ];
     }
 
-    public function getCpuModel()
+    protected function cpuModel(): string
     {
         // POSIX sh only — shell_exec runs via /bin/sh (dash on Debian),
         // where bash-isms like [[ ]] or $OSTYPE fail
@@ -29,19 +32,19 @@ class ServerSpecs
         fi
         CMD;
 
-        return trim(shell_exec($command));
+        return $this->shell($command);
     }
 
-    public function getCpuCores()
+    protected function cpuCores(): string
     {
         $command = <<<'CMD'
         [ -f /proc/cpuinfo ] && grep -c "^processor" /proc/cpuinfo || sysctl -n hw.ncpu 2>/dev/null
         CMD;
 
-        return trim(shell_exec($command));
+        return $this->shell($command);
     }
 
-    public function getCpuFrequency()
+    protected function cpuFrequency(): string
     {
         $command = <<<'CMD'
         if cpu_info=$(grep -m1 "cpu MHz" /proc/cpuinfo 2>/dev/null); then
@@ -51,18 +54,27 @@ class ServerSpecs
         fi
         CMD;
 
-        return trim(shell_exec($command));
+        return $this->shell($command);
     }
 
-    public function getOs()
+    protected function os(): string
     {
-        return trim(shell_exec('grep "^PRETTY_NAME=" /etc/os-release | cut -d\'"\' -f2'));
+        return $this->shell('grep "^PRETTY_NAME=" /etc/os-release | cut -d\'"\' -f2');
     }
 
-    public function getRam()
+    protected function ram(): string
     {
-        $ram = (int) trim(shell_exec('awk \'/MemTotal/ {print $2}\' /proc/meminfo'));
+        $ram = (int) $this->shell('awk \'/MemTotal/ {print $2}\' /proc/meminfo');
 
         return round($ram / 1024, 3).' MB';
+    }
+
+    /**
+     * shell_exec returns null when the command cannot run (restricted hosts,
+     * missing binaries) — normalize to an empty string.
+     */
+    protected function shell(string $command): string
+    {
+        return trim((string) shell_exec($command));
     }
 }
