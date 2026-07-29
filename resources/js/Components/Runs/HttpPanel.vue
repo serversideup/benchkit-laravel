@@ -2,11 +2,16 @@
     <PanelSection title="Web server load test">
         <template #aside>
             <span class="flex items-center gap-2">
-                <Chip>{{ http.mode === 'octane' ? 'worker mode' : 'standard mode' }}</Chip>
+                <Chip>{{ http.octane ? 'worker mode' : 'classic mode' }}</Chip>
                 <Chip v-if="http.duration_seconds">{{ http.duration_seconds }}s</Chip>
                 <Chip v-if="http.connections">{{ http.connections }} connections</Chip>
+                <Chip v-if="targetLabel">{{ targetLabel }}</Chip>
             </span>
         </template>
+
+        <p v-if="http.mode === 'app-url'" class="mt-2 text-sm text-[#94979C]">
+            Measured through APP_URL &mdash; includes proxy and network overhead, so results aren't directly comparable with loopback runs.
+        </p>
 
         <div class="mt-7 grid gap-x-8 gap-y-3 items-center" :style="`grid-template-columns: 96px repeat(${routes.length}, minmax(0, 1fr))`">
             <div class="self-end"></div>
@@ -47,6 +52,7 @@ import { computed } from 'vue';
 import BarMeter from '@/Components/BarMeter.vue';
 import Chip from '@/Components/Chip.vue';
 import PanelSection from '@/Components/PanelSection.vue';
+import { httpTargetLabel } from '@/Composables/useRunSummary';
 
 const props = defineProps({
     http: {
@@ -54,6 +60,8 @@ const props = defineProps({
         required: true,
     },
 });
+
+const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 
 // Ordered by real-world representativeness: DB read is the closest thing
 // to an actual Laravel page; static is the framework ceiling
