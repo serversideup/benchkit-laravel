@@ -76,6 +76,29 @@ class HttpBenchmarkTest extends TestCase
             ->assertJson(['status' => 'unreachable']);
     }
 
+    public function test_http_benchmark_skips_targets_that_answer_200_without_the_sentinel_body(): void
+    {
+        Http::fake([
+            'http://localhost:8080/*' => Http::response('', 200),
+            'https://localhost:8443/*' => Http::response('BenchKit OK', 200),
+        ]);
+
+        $this->post('/http')->assertOk();
+
+        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $this->assertSame('https://localhost:8443', $meta['target']);
+        $this->assertSame('loopback', $meta['mode']);
+    }
+
+    public function test_http_benchmark_is_unreachable_when_no_target_serves_the_sentinel_body(): void
+    {
+        Http::fake(['*' => Http::response('', 200)]);
+
+        $this->post('/http')
+            ->assertStatus(503)
+            ->assertJson(['status' => 'unreachable']);
+    }
+
     public function test_http_benchmark_respects_the_run_lock(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
@@ -125,6 +148,24 @@ class HttpBenchmarkTest extends TestCase
             ->expectsOutputToContain('No results were captured for static.');
     }
 
+    public function test_http_summary_command_discards_runs_that_transferred_zero_bytes(): void
+    {
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => [
+                'successRate' => 1.0,
+                'requestsPerSec' => 175807.1,
+                'total' => 10.0,
+                'totalData' => 0,
+            ],
+            'latencyPercentiles' => ['p50' => 0.0001],
+            'statusCodeDistribution' => ['200' => 1758717],
+        ]));
+
+        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+            ->assertExitCode(0)
+            ->expectsOutputToContain('No results were captured for static.');
+    }
+
     public function test_http_results_parses_oha_output_per_route(): void
     {
         File::put($this->resultsPath.'/http-meta.json', json_encode([
@@ -153,6 +194,26 @@ class HttpBenchmarkTest extends TestCase
         $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
         $response->assertJsonPath('http_results.routes.static.p95_ms', 25);
         $response->assertJsonPath('http_results.routes.db_read.p99_ms', 300);
+        $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
+    }
+
+    public function test_http_results_excludes_routes_that_transferred_zero_bytes(): void
+    {
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 1234.56, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.010],
+            'statusCodeDistribution' => ['200' => 12345],
+        ]));
+
+        File::put($this->resultsPath.'/http-json.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 155257.6, 'totalData' => 0],
+            'latencyPercentiles' => ['p50' => 0.0001],
+            'statusCodeDistribution' => ['200' => 1553175],
+        ]));
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
         $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
     }
 }
