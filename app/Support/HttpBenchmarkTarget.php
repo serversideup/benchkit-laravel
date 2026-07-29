@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Http\Controllers\Benchmarks\BenchTargetController;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -50,18 +51,23 @@ class HttpBenchmarkTarget
     }
 
     /**
-     * A candidate only qualifies when it answers the benchmark route
-     * directly — redirects are rejected so the load test never measures a
-     * redirect chain instead of the application.
+     * A candidate only qualifies when Laravel itself answers the benchmark
+     * route: the response must be a 200 carrying the exact sentinel body.
+     * Redirects are rejected so the load test never measures a redirect
+     * chain, and the body check rejects web servers that answer 200 without
+     * invoking PHP (e.g. the FrankenPHP image's healthcheck-only site on
+     * http://localhost:8080 returns Caddy's empty default response).
      */
     protected function responds(string $baseUrl): bool
     {
         try {
-            return Http::withoutRedirecting()
+            $response = Http::withoutRedirecting()
                 ->withOptions(['verify' => false])
                 ->timeout(3)
-                ->get($baseUrl.'/bench/static')
-                ->status() === 200;
+                ->get($baseUrl.'/bench/static');
+
+            return $response->status() === 200
+                && $response->body() === BenchTargetController::STATIC_BODY;
         } catch (Throwable) {
             return false;
         }
