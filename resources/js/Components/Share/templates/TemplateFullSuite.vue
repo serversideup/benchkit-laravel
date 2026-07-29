@@ -83,7 +83,7 @@
 <script setup>
 import { computed } from 'vue';
 import TemplateFrame from '@/Components/Share/templates/TemplateFrame.vue';
-import { runDisplay, formatMsParts, hostDetailsLine } from '@/Composables/useRunSummary';
+import { runDisplay, formatMsParts, hostDetailsLine, httpTargetLabel } from '@/Composables/useRunSummary';
 import { MONO, SANS } from '@/share/templateStyles';
 
 const props = defineProps({
@@ -172,6 +172,7 @@ const chips = computed(() => {
         environment.laravelVersion ? { text: `Laravel ${environment.laravelVersion}` } : null,
         environment.database ? { text: environment.database } : null,
         http?.connections && http?.duration_seconds ? { text: `${http.connections} connections · ${http.duration_seconds}s` } : null,
+        http?.mode && http.mode !== 'loopback' ? { text: httpTargetLabel(http.mode) } : null,
     ].filter(Boolean);
 });
 

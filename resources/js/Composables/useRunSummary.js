@@ -105,6 +105,15 @@ const HEADLINE_SUBJECTS = {
 
 export const headlineMilliseconds = (php, key) => headlineOperation(php ?? {}, key).milliseconds ?? null;
 
+// How the load test reached the app (recorded in http-meta.json). Loopback
+// is the standard, comparable path; the other modes are disclosed so a
+// shared result always states what was actually measured.
+export const httpTargetLabel = (mode) => ({
+    'loopback': 'loopback',
+    'app-url': 'via APP_URL',
+    'custom': 'custom URL',
+}[mode] ?? null);
+
 const headlineOperation = (php, key) => {
     const headline = php.headline?.[key] ?? {};
     const [benchmark, subject] = HEADLINE_SUBJECTS[key];
@@ -134,6 +143,7 @@ export const runDisplay = (run) => {
             json_rps: http.routes?.json?.requests_per_second ?? null,
             db_rps: http.routes?.db_read?.requests_per_second ?? null,
             mode: http.mode ?? null,
+            octane: run.environment?.php?.octane ?? false,
             duration_seconds: http.duration_seconds ?? null,
             connections: http.connections ?? null,
             routes: http.routes ?? {},
