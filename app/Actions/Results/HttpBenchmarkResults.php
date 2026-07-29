@@ -56,7 +56,7 @@ class HttpBenchmarkResults extends BenchmarkResults
         foreach (self::ROUTES as $key => $path) {
             $data = $this->readJson($this->routePath($key));
 
-            if ($data === null) {
+            if ($data === null || ! $this->hasMeasuredTraffic($data)) {
                 continue;
             }
 
@@ -111,7 +111,7 @@ class HttpBenchmarkResults extends BenchmarkResults
     {
         $data = $this->readJson($this->routePath($key));
 
-        if ($data === null) {
+        if ($data === null || ! $this->hasMeasuredTraffic($data)) {
             return null;
         }
 
@@ -144,5 +144,21 @@ class HttpBenchmarkResults extends BenchmarkResults
     protected function toMilliseconds(?float $seconds): ?float
     {
         return $seconds === null ? null : round($seconds * 1000, 2);
+    }
+
+    /**
+     * Every bench route returns a non-empty body, so an oha run reporting
+     * zero bytes transferred never reached the application (e.g. a web
+     * server answering empty 200s without invoking PHP) and its throughput
+     * numbers are meaningless. Older result files without totalData are
+     * accepted as-is.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function hasMeasuredTraffic(array $data): bool
+    {
+        $totalData = $data['summary']['totalData'] ?? null;
+
+        return $totalData === null || $totalData > 0;
     }
 }

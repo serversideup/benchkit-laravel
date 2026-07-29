@@ -18,9 +18,16 @@ use Illuminate\Support\Facades\DB;
  */
 class BenchTargetController extends Controller
 {
+    /**
+     * Sentinel body for the static target. HttpBenchmarkTarget verifies this
+     * exact body when resolving a target, so a web server answering 200 with
+     * the wrong content (e.g. Caddy's empty default response) is rejected.
+     */
+    public const STATIC_BODY = 'BenchKit OK';
+
     public function staticResponse(): Response
     {
-        return response('BenchKit OK');
+        return response(self::STATIC_BODY);
     }
 
     public function json(): JsonResponse
