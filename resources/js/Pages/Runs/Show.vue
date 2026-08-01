@@ -96,8 +96,11 @@ const download = () => downloadRunResults(runWithMeta.value);
 
 const { startQueue } = useBenchmarkQueue();
 
-const runAgain = () => {
-    startQueue();
+// Start first, then navigate: the home page renders whatever run the
+// server reports, so visiting before the run exists would land on the
+// start screen until the next poll picked it up.
+const runAgain = async () => {
+    await startQueue();
     router.visit('/');
 };
 </script>

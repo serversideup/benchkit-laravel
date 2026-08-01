@@ -17,6 +17,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Run Session Path
+    |--------------------------------------------------------------------------
+    |
+    | Directory holding the state of the run currently in progress: the run
+    | record (run.json), its live console log (run.log), and the cancel
+    | flag. A run is owned by a detached subprocess rather than by the
+    | browser that started it, so this directory is how every tab — in any
+    | browser, on any device — finds the live run, watches its output, and
+    | cancels it. Overridable so tests can point at a temporary directory.
+    |
+    */
+
+    'run_path' => env('BENCHMARK_RUN_PATH', storage_path('app/benchkit')),
+
+    /*
+    |--------------------------------------------------------------------------
+    | PHP CLI Binary
+    |--------------------------------------------------------------------------
+    |
+    | Used to spawn the detached benchmark process. PHP_BINARY is unusable
+    | here because under FPM it points at the FPM binary and under FrankenPHP
+    | at the FrankenPHP binary; neither runs Artisan. The container images
+    | all ship a CLI `php` on PATH — set this only if yours does not.
+    |
+    */
+
+    'php_binary' => env('BENCHMARK_PHP_BINARY', 'php'),
+
+    /*
+    |--------------------------------------------------------------------------
     | PHP Variation
     |--------------------------------------------------------------------------
     |
