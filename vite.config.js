@@ -14,7 +14,7 @@ export default defineConfig({
     server: {
         host: '0.0.0.0',
         hmr: {
-            host: 'vite.dev.test',
+            host: process.env.VITE_DOMAIN || 'vite.dev.test',
             clientPort: 443,
         },
         https: hasLocalCertificates ? {

@@ -73,6 +73,24 @@ Copy the .env.example file to .env.
 cp .env.example .env
 ```
 
+## Install dependencies
+Run the following command to install the dependencies.
+
+```bash
+## PHP
+spin run -e AUTORUN_ENABLED=false php composer install
+
+## Node
+spin run -e AUTORUN_ENABLED=false node yarn install
+```
+
+## Generate the application key
+Run the following command to generate the application key.
+
+```bash
+spin run -e AUTORUN_ENABLED=false php artisan key:generate
+```
+
 ## Run migrations
 Run the following command to run the migrations.
 
