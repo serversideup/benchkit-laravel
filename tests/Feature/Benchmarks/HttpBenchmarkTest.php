@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Benchmarks;
 
-use App\Support\StreamedProcess;
-use Illuminate\Support\Facades\Cache;
+use App\Support\BenchmarkStages;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
@@ -13,99 +13,92 @@ class HttpBenchmarkTest extends TestCase
 {
     use UsesFakeResultsPath;
 
-    public function test_http_benchmark_streams_and_records_the_resolved_target(): void
+    /**
+     * Resolving the stage is what picks a reachable target and records the
+     * load it will be tested with; the run process does this immediately
+     * before launching the load generator.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array{command: string, collect: ?string}
+     */
+    protected function resolveHttpStage(array $settings = []): array
+    {
+        return (new BenchmarkStages)->resolve('http', $settings);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function meta(): array
+    {
+        return json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+    }
+
+    public function test_the_http_stage_records_the_resolved_target(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
 
-        $response = $this->post('/http');
+        $this->resolveHttpStage();
 
-        $response->assertOk();
-        $this->assertStringStartsWith('text/event-stream', $response->headers->get('Content-Type'));
-
-        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $meta = $this->meta();
         $this->assertSame('http://localhost:8080', $meta['target']);
         $this->assertSame('loopback', $meta['mode']);
         $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
     }
 
-    public function test_http_benchmark_uses_requested_load_settings(): void
+    public function test_the_http_stage_uses_requested_load_settings(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
 
-        $this->post('/http', ['duration' => 30, 'connections' => 100])->assertOk();
+        $this->resolveHttpStage(['http_duration' => 30, 'http_connections' => 100]);
 
-        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $meta = $this->meta();
         $this->assertSame(30, $meta['duration_seconds']);
         $this->assertSame(100, $meta['connections']);
     }
 
-    public function test_http_benchmark_falls_back_to_the_standard_load(): void
+    public function test_the_http_stage_falls_back_to_the_standard_load(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
 
-        $this->post('/http')->assertOk();
+        $this->resolveHttpStage();
 
-        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $meta = $this->meta();
         $this->assertSame(config('benchmark.http.duration_seconds'), $meta['duration_seconds']);
         $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
     }
 
-    public function test_http_benchmark_rejects_out_of_bounds_load_settings(): void
-    {
-        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
-
-        $this->postJson('/http', ['duration' => 2])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('duration');
-
-        $this->postJson('/http', ['duration' => 61])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('duration');
-
-        $this->postJson('/http', ['connections' => 501])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('connections');
-    }
-
-    public function test_http_benchmark_rejects_redirecting_targets(): void
+    public function test_the_http_stage_rejects_redirecting_targets(): void
     {
         Http::fake(['*' => Http::response('', 301, ['Location' => 'https://localhost:8443'])]);
 
-        $this->post('/http')
-            ->assertStatus(503)
-            ->assertJson(['status' => 'unreachable']);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('could not reach itself over HTTP');
+
+        $this->resolveHttpStage();
     }
 
-    public function test_http_benchmark_skips_targets_that_answer_200_without_the_sentinel_body(): void
+    public function test_the_http_stage_skips_targets_that_answer_200_without_the_sentinel_body(): void
     {
         Http::fake([
             'http://localhost:8080/*' => Http::response('', 200),
             'https://localhost:8443/*' => Http::response('BenchKit OK', 200),
         ]);
 
-        $this->post('/http')->assertOk();
+        $this->resolveHttpStage();
 
-        $meta = json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+        $meta = $this->meta();
         $this->assertSame('https://localhost:8443', $meta['target']);
         $this->assertSame('loopback', $meta['mode']);
     }
 
-    public function test_http_benchmark_is_unreachable_when_no_target_serves_the_sentinel_body(): void
+    public function test_the_http_stage_fails_when_no_target_serves_the_sentinel_body(): void
     {
         Http::fake(['*' => Http::response('', 200)]);
 
-        $this->post('/http')
-            ->assertStatus(503)
-            ->assertJson(['status' => 'unreachable']);
-    }
+        $this->expectException(RuntimeException::class);
 
-    public function test_http_benchmark_respects_the_run_lock(): void
-    {
-        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
-        Cache::lock(StreamedProcess::LOCK_KEY, 60)->get();
-        Cache::put(StreamedProcess::HEARTBEAT_KEY, time(), 90);
-
-        $this->post('/http')->assertStatus(409);
+        $this->resolveHttpStage();
     }
 
     public function test_http_results_returns_no_results_when_no_run_has_happened(): void

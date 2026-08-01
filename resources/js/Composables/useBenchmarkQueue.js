@@ -1,88 +1,44 @@
 import { ref, reactive } from 'vue';
-import { useEventBus } from '@vueuse/core';
-import { useStream } from '@/Composables/useStream';
 import { useSettings } from '@/Composables/useSettings';
+import { loadHostDetails } from '@/Composables/useHostDetails';
+import { startRun, fetchRunLog, cancelRun, saveRun, dismissRun } from '@/Composables/useRunSession';
+import { STAGES } from '@/stages';
 
 const {
-    form
+    form,
+    activePreset,
 } = useSettings();
 
-const {
-    startStream,
-    stopStream,
-} = useStream();
+const queue = STAGES.map(({ key }) => key);
 
-const queue = [
-    'yabs',
-    'cfspeedtest',
-    'http',
-    'php'
-];
-
-const stages = {
-    yabs: {
-        enabled: () => form.hardware,
-        options: () => ({
-            disk: form.disk,
-            geekbench: form.geekbench,
-            geekbench_version: form.geekbench_version,
-            iperf: form.iperf,
-        }),
-    },
-    cfspeedtest: {
-        enabled: () => form.network,
-        options: () => ({
-            network_test_type: form.network_test_type,
-        }),
-    },
-    http: {
-        enabled: () => form.http,
-        options: () => ({
-            duration: form.http_duration,
-            connections: form.http_connections,
-        }),
-    },
-    php: {
-        enabled: () => form.php_database,
-        options: () => ({ mode: form.php_mode }),
-    },
+// Which settings key enables which stage. The server holds the same map in
+// app/Support/BenchmarkStages.php and is the one that acts on it — this
+// copy exists only to preview what a run would include before it starts.
+const enabledBy = {
+    yabs: () => form.hardware,
+    cfspeedtest: () => form.network,
+    http: () => form.http,
+    php: () => form.php_database,
 };
 
-const results = reactive({
-    'yabs': {
-        output: [],
-        status: 'pending',
-        url: '/yabs',
-        startedAt: null,
-        endedAt: null
-    },
-    'cfspeedtest': {
-        output: [],
-        status: 'pending',
-        url: '/cfspeedtest',
-        startedAt: null,
-        endedAt: null
-    },
-    'http': {
-        output: [],
-        status: 'pending',
-        url: '/http',
-        startedAt: null,
-        endedAt: null
-    },
-    'php': {
-        output: [],
-        status: 'pending',
-        url: '/php',
-        startedAt: null,
-        endedAt: null
-    }
+const blankStage = () => ({
+    output: [],
+    status: 'pending',
+    startedAt: null,
+    endedAt: null,
 });
+
+const results = reactive(Object.fromEntries(queue.map((benchmark) => [benchmark, blankStage()])));
 
 const activeBenchmark = ref('yabs');
 const userViewingBenchmark = ref(null);
 const viewingBenchmark = ref('yabs');
+
+// idle · running · completed · interrupted — mirrors the server's run
+// status rather than anything this tab decides for itself
 const state = ref('idle');
+const run = ref(null);
+const startError = ref(null);
 
 // Progress bars (cfspeedtest, fio) repaint a line in place with carriage
 // returns rather than printing a new line each frame. In a terminal each
@@ -110,50 +66,244 @@ const renderTerminalLine = (text) => {
     return buffer.join('');
 }
 
-// Only the module-scope stream handler below writes output/status — these
-// are not part of the composable's public API
 const appendOutput = (benchmark, output) => {
     const line = renderTerminalLine(output).trim();
 
-    if( line !== '' ) {
+    if( benchmark && results[benchmark] && line !== '' ) {
         results[benchmark].output.push(line);
     }
 }
 
-const setStatus = (benchmark, status) => {
-    results[benchmark].status = status;
+const timestamp = (value) => value ? Date.parse(value) : null;
 
-    if( status === 'completed' || status === 'error' ) {
-        results[benchmark].endedAt = Date.now();
-    }
-}
+// The console log is replayed from the beginning whenever this tab starts
+// following a run it has not been watching — a fresh page load, a tab
+// opened mid-run, a reload — so the scrollback is never lost.
+let offset = 0;
+let timer = null;
+let polling = false;
 
-export const useBenchmarkQueue = () => {
-    const startBenchmark = (benchmark) => {
-        state.value = 'running';
-        results[benchmark].status = 'running';
-        results[benchmark].output = [];
-        results[benchmark].startedAt = Date.now();
-        results[benchmark].endedAt = null;
-        activeBenchmark.value = benchmark;
-        // If we are not viewing a benchmark, set the viewing benchmark to the active benchmark
-        if( !userViewingBenchmark.value ) {
-            viewingBenchmark.value = benchmark;
+// Whether this tab has adopted the run it is reading. An idle tab polls so
+// it notices a run starting elsewhere, and without this it would also
+// adopt the *previous* run — a finished record lingers on the server until
+// the next run replaces it, and treating that as this tab's own run would
+// send someone who just opened the start screen to an old result page.
+let watching = false;
+
+const clearOutput = () => {
+    queue.forEach((benchmark) => Object.assign(results[benchmark], blankStage()));
+};
+
+const applyEvents = (events) => {
+    events.forEach((event) => {
+        if( event.type === 'out' || event.type === 'err' ) {
+            appendOutput(event.stage, event.output);
         }
 
-        startStream(results[benchmark].url, stages[benchmark].options());
+        // Long-running subjects can go a minute or more between output
+        // lines — surface the heartbeat so the run never looks hung
+        if( event.type === 'heartbeat' ) {
+            appendOutput(event.stage, `... still running (${event.timestamp} UTC)`);
+        }
+    });
+};
+
+/**
+ * Mirror the server's view of the run onto this tab. Stage status and
+ * timing come from the run record rather than from the console events, so
+ * a tab that joins late is in exactly the same state as one that watched
+ * from the start.
+ */
+const applyRun = (payload) => {
+    // A run already over before this tab started reading belongs to
+    // whoever was watching it, not to us.
+    if( !watching && payload?.status !== 'running' ) {
+        run.value = null;
+        state.value = 'idle';
+
+        return;
     }
 
-    // Disabled stages are marked skipped up front so they never show the
-    // amber "pending" icon while the queue runs
-    const resetResults = () => {
-        queue.forEach((benchmark) => {
-            results[benchmark].output = [];
-            results[benchmark].status = stages[benchmark].enabled() ? 'pending' : 'skipped';
-            results[benchmark].startedAt = null;
-            results[benchmark].endedAt = null;
-        });
+    run.value = payload;
+
+    if( payload === null ) {
+        watching = false;
+        state.value = 'idle';
+
+        return;
     }
+
+    watching = true;
+
+    queue.forEach((benchmark) => {
+        const stage = payload.stages?.[benchmark];
+
+        if( !stage ) {
+            return;
+        }
+
+        results[benchmark].status = stage.status;
+        results[benchmark].startedAt = timestamp(stage.started_at);
+        results[benchmark].endedAt = timestamp(stage.ended_at);
+    });
+
+    const current = payload.current_stage ?? lastStageWithOutput() ?? queue[0];
+
+    activeBenchmark.value = current;
+
+    if( !userViewingBenchmark.value ) {
+        viewingBenchmark.value = current;
+    }
+
+    state.value = {
+        running: 'running',
+        completed: 'completed',
+        interrupted: 'interrupted',
+        cancelled: 'idle',
+    }[payload.status] ?? 'idle';
+
+    // A cancelled run has nothing to show and nothing to save — drop it so
+    // the app returns to its idle state in every tab watching.
+    if( payload.status === 'cancelled' ) {
+        forget();
+    }
+};
+
+const lastStageWithOutput = () => [...queue].reverse().find((benchmark) => results[benchmark].output.length > 0) ?? null;
+
+/**
+ * Follow the run. Polling rather than an open stream: a run can be watched
+ * from several places at once, and the web server load stage benchmarks
+ * this very application — a held-open connection per viewer would be load
+ * the measurement could not see.
+ */
+const poll = async () => {
+    if( polling ) {
+        return;
+    }
+
+    polling = true;
+
+    try {
+        const data = await fetchRunLog(offset);
+
+        offset = data.offset;
+        applyEvents(data.events);
+        applyRun(data.run);
+    } catch (error) {
+        console.error(error);
+    } finally {
+        polling = false;
+        schedule();
+    }
+};
+
+// A live run is followed closely; an idle tab still checks in, so a run
+// started somewhere else takes over this tab rather than leaving it
+// offering a Start button that would be refused.
+const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(poll, state.value === 'running' ? 1000 : 5000);
+};
+
+const follow = ({ replay = false } = {}) => {
+    if( replay ) {
+        offset = 0;
+        clearOutput();
+    }
+
+    clearTimeout(timer);
+    poll();
+};
+
+const unfollow = () => {
+    clearTimeout(timer);
+    timer = null;
+};
+
+const forget = async () => {
+    watching = false;
+
+    try {
+        await dismissRun();
+    } catch (error) {
+        console.error(error);
+    }
+
+    run.value = null;
+    state.value = 'idle';
+    offset = 0;
+    clearOutput();
+    activeBenchmark.value = queue[0];
+    userViewingBenchmark.value = null;
+    viewingBenchmark.value = queue[0];
+};
+
+export const useBenchmarkQueue = () => {
+    /**
+     * Ask the server to start a run. If one is already going — started in
+     * another tab, or on another machine — this tab joins it instead of
+     * reporting a collision.
+     */
+    const startQueue = async () => {
+        startError.value = null;
+        offset = 0;
+        clearOutput();
+
+        try {
+            const { run: payload } = await startRun(form.data(), activePreset.value, loadHostDetails());
+
+            applyRun(payload);
+        } catch (error) {
+            if( error.data?.run ) {
+                applyRun(error.data.run);
+                follow({ replay: true });
+
+                return;
+            }
+
+            startError.value = error.message;
+
+            return;
+        }
+
+        follow();
+    };
+
+    const cancelQueue = async () => {
+        try {
+            applyRun((await cancelRun()).run);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const retrySave = async () => {
+        try {
+            applyRun((await saveRun()).run);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    /**
+     * Adopt the run the page was rendered with, then keep following it.
+     * This is what puts a freshly loaded tab — in any browser — straight
+     * into the live console instead of on the start screen.
+     */
+    const hydrate = (payload) => {
+        if( payload ) {
+            // The page was rendered with this run, so it is ours to follow
+            // even if it has since stopped.
+            watching = true;
+            applyRun(payload);
+            follow({ replay: true });
+
+            return;
+        }
+
+        follow();
+    };
 
     // Preview pending/skipped statuses while the user edits settings,
     // without touching a run that is already in progress
@@ -163,99 +313,26 @@ export const useBenchmarkQueue = () => {
         }
 
         queue.forEach((benchmark) => {
-            results[benchmark].status = stages[benchmark].enabled() ? 'pending' : 'skipped';
+            results[benchmark].status = enabledBy[benchmark]() ? 'pending' : 'skipped';
         });
-    }
-
-    // Start the queue from the first enabled stage
-    const startQueue = () => {
-        resetResults();
-
-        for (const benchmark of queue) {
-            if( stages[benchmark].enabled() ) {
-                startBenchmark(benchmark);
-                return;
-            }
-        }
-
-        state.value = 'completed';
-    }
-
-    const nextBenchmark = () => {
-        stopStream();
-
-        const activeIndex = queue.indexOf(activeBenchmark.value);
-
-        for (let i = activeIndex + 1; i < queue.length; i++) {
-            const benchmark = queue[i];
-
-            if( stages[benchmark].enabled() ) {
-                startBenchmark(benchmark);
-                return;
-            }
-        }
-
-        state.value = 'completed';
-    }
-
-    // Aborting the stream disconnects the SSE request, which the server
-    // detects within a second and kills the running benchmark subprocess
-    const cancelQueue = () => {
-        stopStream();
-        resetResults();
-        state.value = 'idle';
-        activeBenchmark.value = 'yabs';
-        userViewingBenchmark.value = null;
-        viewingBenchmark.value = 'yabs';
     }
 
     return {
         queue,
         results,
+        run,
+        state,
+        startError,
         activeBenchmark,
         userViewingBenchmark,
         viewingBenchmark,
-        state,
 
-        resetResults,
+        hydrate,
+        unfollow,
         previewStatuses,
-        nextBenchmark,
-        startBenchmark,
         startQueue,
-        cancelQueue
-    }
+        cancelQueue,
+        retrySave,
+        dismiss: forget,
+    };
 };
-
-// Stream events drive the queue from module scope, not from a component:
-// tying this listener to a component lifecycle would hang the run if the
-// user navigated to another page (e.g. run history) mid-benchmark
-const streamEventBus = useEventBus('stream-event-bus');
-
-streamEventBus.on((message, data) => {
-    if( message !== 'benchmark:output' ) {
-        return;
-    }
-
-    const { nextBenchmark } = useBenchmarkQueue();
-    const event = JSON.parse(data);
-
-    if( event.type === 'out' || event.type === 'err' ) {
-        appendOutput(activeBenchmark.value, event.output);
-    }
-
-    // Long-running subjects can go a minute or more between output lines —
-    // surface the server heartbeat so the run never looks hung
-    if( event.type === 'heartbeat' ) {
-        appendOutput(activeBenchmark.value, `... still running (${event.timestamp} UTC)`);
-    }
-
-    if( event.status === 'completed' ) {
-        setStatus(activeBenchmark.value, 'completed');
-        nextBenchmark();
-    }
-
-    if( event.status === 'error' ) {
-        setStatus(activeBenchmark.value, 'error');
-        nextBenchmark();
-    }
-});

@@ -23,7 +23,10 @@
                 </button>
             </div>
 
-            <p v-if="runSummary.length" class="mt-3 text-xs text-[#94979C] font-mono">
+            <p v-if="startError" class="mt-3 text-xs text-[#F97066] font-mono max-w-md text-center">
+                {{ startError }}
+            </p>
+            <p v-else-if="runSummary.length" class="mt-3 text-xs text-[#94979C] font-mono">
                 Running tests for: {{ runSummary.join(' · ') }}
             </p>
             <p v-else class="mt-3 text-xs text-[#94979C] font-mono">
@@ -87,6 +90,7 @@ const startBenchkit = () => {
 
 const {
     startQueue,
+    startError,
 } = useBenchmarkQueue();
 
 const {
