@@ -7,9 +7,9 @@ services:
     networks:
       development:
         aliases:
-          - benchkit.dev.test
-          - vite.dev.test
-          - mailpit.dev.test
+          - ${APP_DOMAIN:-benchkit.dev.test}
+          - ${VITE_DOMAIN:-vite.dev.test}
+          - ${MAILPIT_DOMAIN:-mailpit.dev.test}
           - reverb.dev.test
     volumes:
       # Mount the Docker socket as read-only so Traefik can listen to events
@@ -32,7 +32,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-local}
       - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_URL=${APP_URL:-https://benchkit.dev.test}
+      - APP_URL=${APP_URL:-https://${APP_DOMAIN:-benchkit.dev.test}}
       # Ephemeral database: the tmpfs mount below is wiped on every container
       # start, so the DB (and any benchmark run lock in it) can never go
       # stale. Nothing in the DB needs to survive — results are files.
@@ -59,7 +59,7 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.laravel-web.rule=Host(`benchkit.dev.test`)"
+      - "traefik.http.routers.laravel-web.rule=Host(`${APP_DOMAIN:-benchkit.dev.test}`)"
       - "traefik.http.routers.laravel-web.tls=true"
       - "traefik.http.routers.laravel-web.entrypoints=websecure"
       - "traefik.http.services.laravel-web.loadbalancer.server.port=8443"
@@ -75,12 +75,16 @@ services:
     volumes:
       - .:/usr/src/app/
     working_dir: /usr/src/app/
-    networks: 
+    environment:
+      # vite.config.js uses this for the HMR client host, so it must match the
+      # router rule below.
+      - VITE_DOMAIN=${VITE_DOMAIN:-vite.dev.test}
+    networks:
       - development
     command: ["yarn", "dev"]
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vite.rule=HostRegexp(`vite.dev.test`)"
+      - "traefik.http.routers.vite.rule=HostRegexp(`${VITE_DOMAIN:-vite.dev.test}`)"
       - "traefik.http.routers.vite.entrypoints=websecure"
       - "traefik.http.routers.vite.tls=true"
       - "traefik.http.services.vite.loadbalancer.server.port=5173"
@@ -92,7 +96,7 @@ services:
         - development
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.mailpit.rule=Host(`mailpit.dev.test`)"
+        - "traefik.http.routers.mailpit.rule=Host(`${MAILPIT_DOMAIN:-mailpit.dev.test}`)"
         - "traefik.http.routers.mailpit.entrypoints=websecure"
         - "traefik.http.routers.mailpit.tls=true"
         - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
