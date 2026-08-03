@@ -33,6 +33,11 @@ services:
       - APP_ENV=${APP_ENV:-local}
       - APP_DEBUG=${APP_DEBUG:-true}
       - APP_URL=${APP_URL:-https://${APP_DOMAIN:-benchkit.dev.test}}
+      # OPcache is enabled in the image (see Dockerfile) for production-like
+      # numbers. The image default freezes bytecode (validate_timestamps=0);
+      # here the source is bind-mounted and actively edited, so revalidate
+      # timestamps to keep OPcache on while still picking up live PHP edits.
+      - PHP_OPCACHE_VALIDATE_TIMESTAMPS=1
       # Ephemeral database: the tmpfs mount below is wiped on every container
       # start, so the DB (and any benchmark run lock in it) can never go
       # stale. Nothing in the DB needs to survive — results are files.

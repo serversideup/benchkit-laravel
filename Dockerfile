@@ -27,6 +27,13 @@ ENV APP_NAME=BenchKit \
     \
     PHP_CLI_SERVER_WORKERS=4 \
     \
+    # Turn on OPcache by default for performance
+    # but allow for development to override it
+    PHP_OPCACHE_ENABLE=1 \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0 \
+    PHP_OPCACHE_MEMORY_CONSUMPTION=256 \
+    PHP_OPCACHE_MAX_ACCELERATED_FILES=20000 \
+    \
     BCRYPT_ROUNDS=12 \
     \
     LOG_CHANNEL=stack \
