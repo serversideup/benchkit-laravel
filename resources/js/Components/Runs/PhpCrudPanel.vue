@@ -1,7 +1,7 @@
 <template>
     <PanelSection title="Laravel database performance">
         <template #aside>
-            <span class="flex items-center gap-2">
+            <span class="flex flex-wrap items-center gap-2">
                 <Chip v-if="mode">{{ mode }} suite</Chip>
                 <Chip>{{ records }} records per operation</Chip>
             </span>
@@ -9,7 +9,7 @@
 
         <p class="mt-2 text-xs text-[#94979C]">&darr; Lower is better &mdash; total time per operation</p>
 
-        <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-10 gap-y-6">
+        <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-10 gap-y-6">
             <div v-for="operation in operations" :key="operation.key" :title="`${operation.label}: ${formatMs(operation.data.milliseconds)} for ${operation.data.records ?? 100} records`">
                 <p class="flex items-center gap-1.5">
                     <img :src="`/images/results/${operation.key}.png`" :alt="operation.label" class="w-4 h-4">

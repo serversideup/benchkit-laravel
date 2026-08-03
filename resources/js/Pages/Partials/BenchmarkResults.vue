@@ -3,24 +3,24 @@
          screen after the last stage finishes, while the run snapshot saves
          and the run page loads — the header swaps the Cancel button for a
          quiet saving indicator instead of cutting to a separate screen. -->
-    <div class="flex-1 min-h-0 w-full flex flex-col px-8 pt-6 pb-8">
-        <div class="flex items-center justify-between mb-5 shrink-0">
-            <h2 v-if="state === 'running'" class="font-mono text-3xl text-white flex items-center">Turning up the heat... <img src="/images/icons/loading.svg" alt="Loading" class="h-8 w-8 ml-2"></h2>
-            <h2 v-else class="font-mono text-3xl text-white">🏁 All tests complete</h2>
+    <div class="flex-1 min-h-0 w-full flex flex-col px-4 sm:px-8 pt-5 sm:pt-6 pb-6 sm:pb-8">
+        <div class="flex items-start sm:items-center justify-between gap-3 mb-5 shrink-0">
+            <h2 v-if="state === 'running'" class="font-mono text-2xl sm:text-3xl text-white flex items-center min-w-0">Turning up the heat... <img src="/images/icons/loading.svg" alt="Loading" class="h-7 w-7 sm:h-8 sm:w-8 ml-2 shrink-0"></h2>
+            <h2 v-else class="font-mono text-2xl sm:text-3xl text-white">🏁 All tests complete</h2>
 
-            <span v-if="stopping" class="flex items-center gap-2.5 text-sm text-[#94979C]">
+            <span v-if="stopping" class="flex items-center gap-2.5 text-sm text-[#94979C] shrink-0">
                 <img src="/images/icons/statuses/running.svg" alt="" class="h-4 w-4 animate-spin">
                 Stopping the run&hellip;
             </span>
-            <button v-else-if="state === 'running'" @click="confirmingCancel = true" type="button" class="px-4 py-2.5 rounded-lg text-sm font-medium text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] hover:bg-[#13161B] hover:border-[#61656C] transition-colors duration-200 cursor-pointer">Cancel run</button>
-            <span v-else class="flex items-center gap-2.5 text-sm text-[#94979C]">
+            <button v-else-if="state === 'running'" @click="confirmingCancel = true" type="button" class="shrink-0 px-4 py-2.5 rounded-lg text-sm font-medium text-[#CECFD2] bg-[#0C0E12] border border-[#373A41] hover:bg-[#13161B] hover:border-[#61656C] transition-colors duration-200 cursor-pointer">Cancel run</button>
+            <span v-else class="flex items-center gap-2.5 text-sm text-[#94979C] shrink-0">
                 <img src="/images/icons/statuses/running.svg" alt="" class="h-4 w-4 animate-spin">
                 Saving your results&hellip;
             </span>
         </div>
 
-        <div class="flex-1 min-h-0 flex gap-6">
-            <aside class="w-[280px] shrink-0 overflow-y-auto">
+        <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-4 md:gap-6">
+            <aside class="w-full md:w-[280px] shrink-0 md:overflow-y-auto">
                 <BenchmarkJobList heading="👨‍🔬 Tests to run" />
             </aside>
 
@@ -68,6 +68,7 @@ const {
     run,
     state,
     activeBenchmark,
+    cancelRequested,
     cancelQueue,
 } = useBenchmarkQueue();
 
@@ -76,8 +77,11 @@ const {
 const settings = computed(() => run.value?.settings ?? form);
 
 // The run process stops at its next checkpoint rather than being killed
-// outright, so there is a moment between asking and stopping.
-const stopping = computed(() => state.value === 'running' && Boolean(run.value?.cancel_requested));
+// outright, so there is a moment between asking and stopping. Reflect it
+// the instant the user confirms (cancelRequested) as well as once the
+// server has acknowledged it (cancel_requested), so the header never sits
+// looking idle while the cancel request is in flight.
+const stopping = computed(() => state.value === 'running' && (cancelRequested.value || Boolean(run.value?.cancel_requested)));
 
 const confirmingCancel = ref(false);
 
