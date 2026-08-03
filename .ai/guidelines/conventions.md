@@ -2,6 +2,7 @@
 
 - The frontend is plain JavaScript (no TypeScript), Vue 3 `<script setup>` Composition API only.
 - The JavaScript package manager is **yarn** (`yarn.lock`), not npm.
+- The Vite dev server is normally already running during development — do **not** run `yarn build` / `npm run build` to verify frontend changes; HMR picks them up. Only build when explicitly asked (e.g. to check a production bundle).
 - The UI uses a fixed dark palette with hardcoded hex colors (e.g. `bg-[#13161B]`, brand red `#E62E05`). There is no light mode and no `dark:` variants — do not add them.
 - The Tailwind v4 theme lives in `resources/css/app.css` (`@theme` directive, JetBrains Mono font). There is no `tailwind.config.js`.
 - The dev URL is `https://benchkit.dev.test` (Traefik with local certificates); Vite HMR is served at `https://vite.dev.test`.

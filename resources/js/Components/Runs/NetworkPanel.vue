@@ -1,7 +1,7 @@
 <template>
     <PanelSection title="Network speed test">
         <template #aside>
-            <span class="flex items-center gap-2">
+            <span class="flex flex-wrap items-center gap-2">
                 <Chip><template v-if="provider">{{ provider }} &rarr; </template>Cloudflare [{{ network.colo }}]</Chip>
                 <Chip v-if="network.asn">AS{{ network.asn }}</Chip>
             </span>

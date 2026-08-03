@@ -3,11 +3,25 @@
         <div class="w-full max-w-4xl mx-auto flex flex-col py-12 px-4">
             <Link href="/runs" class="rise-in text-sm text-[#94979C] hover:text-[#CECFD2]">&larr; Run history</Link>
 
-            <div class="rise-in mt-6 flex flex-col sm:flex-row sm:items-start justify-between gap-5" style="animation-delay: 70ms;">
-                <RunMetaEditor class="flex-1 min-w-0" :run-id="run.id" :meta="meta" @updated="meta = $event" />
+            <div class="rise-in mt-5 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between" style="animation-delay: 70ms;">
+                <!-- Identity: the run's name and when/where it ran, kept as one
+                     group so nothing wedges between the title and its metadata -->
+                <div class="flex flex-col min-w-0 gap-2">
+                    <RunMetaEditor :run-id="run.id" :meta="meta" @updated="meta = $event" />
 
-                <div class="flex items-center gap-3 shrink-0">
-                    <div class="flex items-center gap-1">
+                    <p class="text-sm text-[#94979C] font-mono flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span class="whitespace-nowrap">{{ display.timestamp }}</span>
+                        <span class="text-[#61656C]">&middot;</span>
+                        <button v-if="hostSummary" @click="detailsOpen = !detailsOpen" type="button" class="hover:text-[#CECFD2] hover:underline underline-offset-4 decoration-[#373A41] cursor-pointer text-left" title="Edit hosting details">{{ hostSummary }}</button>
+                        <button v-else @click="detailsOpen = true" type="button" class="text-[#61656C] hover:text-[#CECFD2] cursor-pointer transition-colors duration-200">+ Add hosting details</button>
+                    </p>
+                </div>
+
+                <!-- Actions: two quiet utilities as one segmented group, then a
+                     single filled primary — a toolbar, not scattered buttons.
+                     Full-width split on mobile, compact cluster on desktop. -->
+                <div class="flex items-center gap-3 shrink-0 w-full justify-between sm:w-auto sm:justify-end">
+                    <div class="flex items-center rounded-lg border border-[#22262F] bg-[#0C0E12] p-0.5">
                         <IconButton label="Download results (zip)" @click="download()">
                             <IconDownloadCloud />
                         </IconButton>
@@ -23,15 +37,6 @@
                     </button>
                 </div>
             </div>
-
-            <p class="rise-in text-sm text-[#94979C] font-mono mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5" style="animation-delay: 120ms;">
-                <span class="whitespace-nowrap">{{ display.timestamp }}</span>
-                <span class="flex items-baseline gap-x-2 min-w-0">
-                    <span>&middot;</span>
-                    <button v-if="hostSummary" @click="detailsOpen = !detailsOpen" type="button" class="hover:text-[#CECFD2] hover:underline underline-offset-4 decoration-[#373A41] cursor-pointer text-left" title="Edit hosting details">{{ hostSummary }}</button>
-                    <button v-else @click="detailsOpen = true" type="button" class="text-[#61656C] hover:text-[#CECFD2] cursor-pointer transition-colors duration-200">+ Add hosting details</button>
-                </span>
-            </p>
 
             <HostDetailsPanel v-if="detailsOpen" class="mt-5" :run-id="run.id" :meta="meta"
                 @updated="meta = $event" @close="detailsOpen = false" />

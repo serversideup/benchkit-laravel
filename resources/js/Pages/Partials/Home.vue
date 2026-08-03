@@ -1,6 +1,6 @@
 <template>
     <div class="w-full">
-        <div class="w-full flex flex-col items-center py-16">
+        <div class="w-full flex flex-col items-center py-10 sm:py-16 px-4">
         <div class="w-full flex flex-col items-center justify-center">
             <button @click="startBenchkit()" :disabled="runSummary.length === 0" class="text-xl font-semibold px-12 py-5 inline-flex items-center border-2 border-[rgba(255,255,255,0.12)] rounded-xl text-white bg-[#E62E05] shadow-lg shadow-[#E62E05]/25 transition-all duration-300"
                 :class="runSummary.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#F13D12] hover:shadow-[#E62E05]/40 cursor-pointer'">
@@ -8,16 +8,16 @@
                 Start Benchmark
             </button>
 
-            <div class="inline-flex rounded-lg border border-[#373A41] bg-[#0C0E12] p-1 font-mono text-sm mt-5">
-                <button @click="applyPreset('quick')" class="px-4 py-1.5 rounded-md cursor-pointer transition-colors duration-200"
+            <div class="flex flex-col sm:flex-row w-full max-w-xs sm:max-w-full sm:w-auto gap-1 rounded-lg border border-[#373A41] bg-[#0C0E12] p-1 font-mono text-sm mt-5">
+                <button @click="applyPreset('quick')" class="px-4 py-1.5 rounded-md text-center cursor-pointer transition-colors duration-200"
                     :class="activePreset === 'quick' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">
                     Quick <span class="text-[#61656C]">&middot; ~2 min</span>
                 </button>
-                <button @click="applyPreset('full')" class="px-4 py-1.5 rounded-md cursor-pointer transition-colors duration-200"
+                <button @click="applyPreset('full')" class="px-4 py-1.5 rounded-md text-center cursor-pointer transition-colors duration-200"
                     :class="activePreset === 'full' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">
                     Full <span class="text-[#61656C]">&middot; ~30+ min</span>
                 </button>
-                <button @click="openDrawer()" class="px-4 py-1.5 rounded-md cursor-pointer transition-colors duration-200"
+                <button @click="openDrawer()" class="px-4 py-1.5 rounded-md text-center cursor-pointer transition-colors duration-200"
                     :class="activePreset === 'custom' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">
                     Custom <span v-if="activePreset === 'custom'" class="text-[#61656C]">&middot; {{ estimateLabel }}</span>
                 </button>
@@ -38,7 +38,7 @@
             </button>
         </div>
 
-        <div v-if="recentRuns.length" class="mx-auto w-[700px] flex flex-col mt-12">
+        <div v-if="recentRuns.length" class="mx-auto w-full max-w-[700px] flex flex-col mt-12">
             <div class="flex items-center justify-between">
                 <h2 class="text-sm text-[#61656C] font-mono uppercase tracking-wider">Recent runs</h2>
                 <Link href="/runs" class="text-xs text-[#94979C] font-mono hover:text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C]">
@@ -50,14 +50,14 @@
             </div>
         </div>
 
-        <div class="mx-auto w-[700px] flex flex-col items-center justify-center mt-12">
+        <div class="mx-auto w-full max-w-[700px] flex flex-col items-center justify-center mt-12">
             <div class="flex items-center justify-between w-full rounded-t-lg bg-[rgba(255,255,255,0.50)] py-2 px-3">
                 <div>
                     <img src="/images/ui/window-controls.svg" alt="Window Controls"/>
                 </div>
             </div>
             <div class="w-full py-2 px-4 bg-[#13161B] rounded-b-lg flex flex-col">
-                <img src="/images/ui/your-environment.svg" alt="Your Environment" class="py-4 w-80"/>
+                <img src="/images/ui/your-environment.svg" alt="Your Environment" class="py-4 w-80 max-w-full"/>
 
                 <Server />
                 <Php />

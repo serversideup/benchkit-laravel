@@ -24,7 +24,22 @@
         </div>
 
         <template v-if="fioRows.length">
-            <div class="mt-7 grid gap-x-8 gap-y-3 items-center" style="grid-template-columns: 56px repeat(3, minmax(0, 1fr))">
+            <!-- Mobile: group by block size, each read/write/mixed bar on its
+                 own row — the desktop 4-column matrix is too wide for a phone -->
+            <div class="mt-6 flex flex-col gap-5 md:hidden">
+                <div v-for="row in fioRows" :key="`m-${row.bs}`">
+                    <p class="text-xs text-[#CECFD2] font-mono mb-2">Disk I/O <span class="text-[#61656C]">&middot; {{ row.bs }}</span></p>
+                    <div class="flex flex-col gap-2.5">
+                        <div v-for="column in COLUMNS" :key="`m-${row.bs}-${column.key}`" class="flex items-center gap-3">
+                            <span class="w-16 shrink-0 text-xs text-[#94979C]">{{ column.label }}</span>
+                            <BarMeter class="flex-1 h-2" :percent="row.widths[column.key]" />
+                            <span class="w-[72px] shrink-0 text-right text-xs text-[#CECFD2] font-mono">{{ formatThroughput(row[column.key]) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-7 hidden md:grid gap-x-8 gap-y-3 items-center" style="grid-template-columns: 56px repeat(3, minmax(0, 1fr))">
             <span class="text-xs text-[#94979C]">Disk I/O</span>
             <span v-for="column in COLUMNS" :key="column.key" class="text-sm font-medium text-[#94979C]">{{ column.label }}</span>
 
