@@ -20,10 +20,10 @@
             <div v-for="route in routes" :key="`m-${route.key}`" class="py-5 first:pt-0 last:pb-0">
                 <p class="text-sm font-medium text-[#CECFD2]">{{ route.label }}</p>
                 <p class="text-xs text-[#94979C] mt-0.5">{{ route.description }}</p>
-                <p class="flex items-baseline gap-2 mt-2">
-                    <span class="text-5xl text-[#F7F7F7] font-mono font-medium leading-none">{{ Math.round(route.data.requests_per_second).toLocaleString() }}</span>
-                    <span class="text-base text-[#94979C] font-mono">req/s</span>
-                </p>
+                <div class="mt-2">
+                    <p class="text-5xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ Math.round(route.data.requests_per_second).toLocaleString() }}</p>
+                    <p class="mt-1.5 text-sm text-[#94979C] font-mono">req/s</p>
+                </div>
                 <div class="mt-4 flex flex-col gap-2.5">
                     <div v-for="percentile in PERCENTILES" :key="`m-${route.key}-${percentile.key}`" class="flex items-center gap-3">
                         <span class="w-24 shrink-0 text-xs text-[#94979C]">{{ percentile.human }} <span class="text-[#61656C]">{{ percentile.key }}</span></span>
@@ -45,10 +45,10 @@
             <div v-for="route in routes" :key="`head-${route.key}`" class="self-end pb-2">
                 <p class="text-sm font-medium text-[#CECFD2]">{{ route.label }}</p>
                 <p class="text-xs text-[#94979C] mt-0.5">{{ route.description }}</p>
-                <p class="flex items-baseline gap-2 mt-3">
-                    <span class="text-6xl text-[#F7F7F7] font-mono font-medium leading-none">{{ Math.round(route.data.requests_per_second).toLocaleString() }}</span>
-                    <span class="text-lg text-[#94979C] font-mono">req/s</span>
-                </p>
+                <div class="mt-3">
+                    <p class="text-5xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ Math.round(route.data.requests_per_second).toLocaleString() }}</p>
+                    <p class="mt-1.5 text-sm text-[#94979C] font-mono">req/s</p>
+                </div>
             </div>
 
             <template v-for="percentile in PERCENTILES" :key="percentile.key">
