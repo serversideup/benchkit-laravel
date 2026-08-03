@@ -40,6 +40,12 @@ const state = ref('idle');
 const run = ref(null);
 const startError = ref(null);
 
+// Set the instant the user confirms a cancel, so the UI can show it is
+// stopping without waiting for the request to land and the server's
+// cancel_requested flag to poll back — otherwise the button sits there
+// looking untouched for a second or two.
+const cancelRequested = ref(false);
+
 // Progress bars (cfspeedtest, fio) repaint a line in place with carriage
 // returns rather than printing a new line each frame. In a terminal each
 // \r returns the cursor to column 0 and following characters overwrite what
@@ -90,6 +96,38 @@ let polling = false;
 // send someone who just opened the start screen to an old result page.
 let watching = false;
 
+// The id of the run this browser committed to following, remembered across
+// page loads. `watching` lives only in memory, so a reload mid-run loses it
+// — and on mobile that reload is routine: iOS discards a backgrounded tab
+// while a multi-minute benchmark runs. Without this, a run that finished
+// while the tab was away comes back as a lingering finished run (activeRun
+// is null for completed runs) and gets dropped to the home screen instead
+// of showing its results. Keyed by run id so it only ever re-adopts the
+// exact run we started, never an unrelated one that finished elsewhere.
+const FOLLOW_KEY = 'benchkit:following-run';
+
+const readFollowedRunId = () => {
+    try {
+        return window.localStorage.getItem(FOLLOW_KEY);
+    } catch {
+        return null;
+    }
+};
+
+const rememberFollowing = (id) => {
+    try {
+        if( id ) {
+            window.localStorage.setItem(FOLLOW_KEY, id);
+        } else {
+            window.localStorage.removeItem(FOLLOW_KEY);
+        }
+    } catch {
+        // Private mode / storage disabled — degrade to in-memory only.
+    }
+};
+
+let followedRunId = readFollowedRunId();
+
 const clearOutput = () => {
     queue.forEach((benchmark) => Object.assign(results[benchmark], blankStage()));
 };
@@ -115,9 +153,13 @@ const applyEvents = (events) => {
  * from the start.
  */
 const applyRun = (payload) => {
-    // A run already over before this tab started reading belongs to
-    // whoever was watching it, not to us.
-    if( !watching && payload?.status !== 'running' ) {
+    // A run already over before this tab started reading belongs to whoever
+    // was watching it, not to us — UNLESS it is the very run this browser
+    // started and then reloaded away from (see followedRunId). That run is
+    // ours to finish following, all the way to its results page.
+    const ours = watching || (payload != null && payload.id === followedRunId);
+
+    if( !ours && payload?.status !== 'running' ) {
         run.value = null;
         state.value = 'idle';
 
@@ -128,12 +170,20 @@ const applyRun = (payload) => {
 
     if( payload === null ) {
         watching = false;
+        followedRunId = null;
+        rememberFollowing(null);
         state.value = 'idle';
 
         return;
     }
 
     watching = true;
+
+    // Persist which run we are following so a reload mid-run can re-adopt it.
+    if( payload.id !== followedRunId ) {
+        followedRunId = payload.id;
+        rememberFollowing(payload.id);
+    }
 
     queue.forEach((benchmark) => {
         const stage = payload.stages?.[benchmark];
@@ -223,6 +273,8 @@ const unfollow = () => {
 
 const forget = async () => {
     watching = false;
+    followedRunId = null;
+    rememberFollowing(null);
 
     try {
         await dismissRun();
@@ -232,6 +284,7 @@ const forget = async () => {
 
     run.value = null;
     state.value = 'idle';
+    cancelRequested.value = false;
     offset = 0;
     clearOutput();
     activeBenchmark.value = queue[0];
@@ -247,6 +300,7 @@ export const useBenchmarkQueue = () => {
      */
     const startQueue = async () => {
         startError.value = null;
+        cancelRequested.value = false;
         offset = 0;
         clearOutput();
 
@@ -271,9 +325,14 @@ export const useBenchmarkQueue = () => {
     };
 
     const cancelQueue = async () => {
+        cancelRequested.value = true;
+
         try {
             applyRun((await cancelRun()).run);
         } catch (error) {
+            // The stop never took — let the button come back so it can be
+            // retried rather than leaving a stuck "Stopping..." indicator.
+            cancelRequested.value = false;
             console.error(error);
         }
     };
@@ -323,6 +382,7 @@ export const useBenchmarkQueue = () => {
         run,
         state,
         startError,
+        cancelRequested,
         activeBenchmark,
         userViewingBenchmark,
         viewingBenchmark,
