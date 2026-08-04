@@ -31,24 +31,24 @@
                 <section v-if="headline" class="py-10">
                     <!-- Three identical column anatomies (caption, then value)
                          so every baseline aligns across the hero -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 items-end gap-8">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 items-end gap-6 sm:gap-8">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-[#94979C]">Run A</p>
                             <p class="mt-2 flex items-baseline gap-2.5">
-                                <span class="text-6xl font-mono font-medium text-[#94979C] leading-none">{{ heroNumber(headline.a) }}</span>
+                                <span class="text-5xl sm:text-6xl font-mono font-medium text-[#94979C] leading-none">{{ heroNumber(headline.a) }}</span>
                                 <span v-if="headline.unit" class="text-lg font-mono text-[#61656C]">{{ headline.unit }}</span>
                             </p>
                         </div>
-                        <div class="text-center min-w-0">
+                        <div class="min-w-0 sm:text-center">
                             <p class="text-sm font-medium text-[#94979C]">{{ headline.label }}<template v-if="headline.unit"> ({{ headline.unit }})</template></p>
                             <p class="mt-2">
-                                <span class="text-6xl font-mono font-medium leading-none" :class="headline.improved === null ? 'text-[#61656C]' : headline.improved ? 'text-[#47CD89]' : 'text-[#F97066]'">{{ heroPercent }}</span>
+                                <span class="text-5xl sm:text-6xl font-mono font-medium leading-none" :class="headline.improved === null ? 'text-[#61656C]' : headline.improved ? 'text-[#47CD89]' : 'text-[#F97066]'">{{ heroPercent }}</span>
                             </p>
                         </div>
-                        <div class="min-w-0 text-right">
+                        <div class="min-w-0 sm:text-right">
                             <p class="text-sm font-medium text-[#94979C]">Run B</p>
-                            <p class="mt-2 flex items-baseline justify-end gap-2.5">
-                                <span class="text-6xl font-mono font-medium text-[#F7F7F7] leading-none">{{ heroNumber(headline.b) }}</span>
+                            <p class="mt-2 flex items-baseline sm:justify-end gap-2.5">
+                                <span class="text-5xl sm:text-6xl font-mono font-medium text-[#F7F7F7] leading-none">{{ heroNumber(headline.b) }}</span>
                                 <span v-if="headline.unit" class="text-lg font-mono text-[#94979C]">{{ headline.unit }}</span>
                             </p>
                         </div>
