@@ -4,13 +4,13 @@
         <td class="px-4 py-3">
             <div class="flex items-center justify-end gap-3">
                 <BarMeter class="hidden sm:block w-24 h-1.5" :percent="barA" color="#61656C" />
-                <span class="text-[#94979C] font-mono whitespace-nowrap">{{ formatValue(delta.a) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
+                <span class="w-[92px] shrink-0 text-right text-[#94979C] font-mono whitespace-nowrap">{{ formatValue(delta.a) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
             </div>
         </td>
         <td class="px-4 py-3">
             <div class="flex items-center justify-end gap-3">
                 <BarMeter class="hidden sm:block w-24 h-1.5" :percent="barB" :color="barColorB" />
-                <span class="text-[#F7F7F7] font-mono whitespace-nowrap">{{ formatValue(delta.b) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
+                <span class="w-[92px] shrink-0 text-right text-[#F7F7F7] font-mono whitespace-nowrap">{{ formatValue(delta.b) }}<span v-if="delta.unit" class="text-[#61656C] ml-1">{{ delta.unit }}</span></span>
             </div>
         </td>
         <td class="px-4 py-3 text-right font-mono whitespace-nowrap" :class="deltaColor">
