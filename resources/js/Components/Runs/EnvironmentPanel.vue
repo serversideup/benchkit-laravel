@@ -14,6 +14,16 @@
                 </div>
             </div>
         </div>
+
+        <div v-if="tuningFacts.length" class="mt-6 pt-6 border-t border-[#22262F]">
+            <p class="text-xs text-[#61656C] font-mono uppercase tracking-wider mb-3">PHP configuration</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-2 text-sm">
+                <div v-for="fact in tuningFacts" :key="fact.label" class="grid grid-cols-[minmax(120px,auto)_1fr] gap-3">
+                    <span class="text-[#94979C] font-mono break-words">{{ fact.label }}</span>
+                    <span class="text-[#F7F7F7] font-mono break-words">{{ fact.value }}</span>
+                </div>
+            </div>
+        </div>
     </PanelSection>
 </template>
 
@@ -80,5 +90,32 @@ const machineFacts = computed(() => {
         { label: 'OS', value: environment.server?.os },
         { label: 'Build', value: environment.build_version },
     ]);
+});
+
+// The headline knobs (OPcache on/off, JIT, memory limit) already show in the
+// summary above; this is the fuller tuning record — the reproducibility
+// answer to "which settings produced these numbers".
+const SUMMARY_INI = ['opcache.enable', 'opcache.jit', 'memory_limit'];
+
+const tuningFacts = computed(() => {
+    const ini = props.environment?.php?.ini ?? {};
+    const serving = props.environment?.php?.serving ?? {};
+
+    const facts = Object.entries(ini)
+        .filter(([key]) => !SUMMARY_INI.includes(key))
+        .map(([key, value]) => ({
+            label: key,
+            value: value === false || value === '' ? 'off' : String(value),
+        }));
+
+    if (serving.fpm_pm) {
+        facts.push({ label: 'fpm pm', value: String(serving.fpm_pm) });
+    }
+
+    if (serving.fpm_max_children) {
+        facts.push({ label: 'fpm max_children', value: String(serving.fpm_max_children) });
+    }
+
+    return facts;
 });
 </script>

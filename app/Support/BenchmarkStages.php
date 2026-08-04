@@ -106,13 +106,14 @@ class BenchmarkStages
 
         $duration = (int) ($settings['http_duration'] ?? config('benchmark.http.duration_seconds'));
         $connections = (int) ($settings['http_connections'] ?? config('benchmark.http.connections'));
+        $ioMs = (int) ($settings['http_io_ms'] ?? config('benchmark.http.io_ms'));
 
         BenchmarkHttpItems::ensure();
 
-        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections);
+        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs);
 
         return [
-            'command' => (new HttpBenchCommand)->build($target, $duration, $connections),
+            'command' => (new HttpBenchCommand)->build($target, $duration, $connections, $ioMs),
             'collect' => null,
         ];
     }

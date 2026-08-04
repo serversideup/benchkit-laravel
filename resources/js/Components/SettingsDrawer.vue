@@ -110,11 +110,17 @@
                                 <input type="number" id="http-connections" v-model.number="form.http_connections" min="1" max="500" step="1"
                                     class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
                             </div>
+                            <div class="col-span-2 flex flex-col">
+                                <label for="http-io-ms" class="text-sm text-[#CECFD2] font-mono font-medium">Simulated I/O response (ms)</label>
+                                <input type="number" id="http-io-ms" v-model.number="form.http_io_ms" min="0" max="1000" step="10"
+                                    class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
+                                <p class="mt-1.5 text-xs text-[#94979C] font-mono">Adds a route that sleeps this long to mimic one outbound call (DB, cache, API) — the workload where PHP-FPM and worker mode converge. 0 = framework only.</p>
+                            </div>
                         </div>
 
                         <p v-show="form.http && !standardHttpLoad" class="mt-2.5 text-xs text-[#94979C] font-mono">
                             Custom load — results won't be directly comparable with standard BenchKit runs.
-                            <button @click="resetHttpLoad()" type="button" class="text-[#CECFD2] underline underline-offset-2 hover:text-white cursor-pointer">Reset to 10s &times; 50</button>
+                            <button @click="resetHttpLoad()" type="button" class="text-[#CECFD2] underline underline-offset-2 hover:text-white cursor-pointer">Reset to standard load</button>
                         </p>
                     </div>
 
@@ -164,12 +170,19 @@ const {
 } = useBenchmarkQueue()
 
 // The standard BenchKit load — deviating is allowed but always called out,
-// since custom loadgen settings make results incomparable with other runs
-const standardHttpLoad = computed(() => Number(form.http_duration) === 10 && Number(form.http_connections) === 50)
+// since custom loadgen settings make results incomparable with other runs.
+// Both preset windows (Quick 10s, Full 30s) count as standard; only the
+// connection count, I/O delay, and an off-preset duration read as custom.
+const standardHttpLoad = computed(() =>
+    Number(form.http_connections) === 50
+    && Number(form.http_io_ms) === 100
+    && [10, 30].includes(Number(form.http_duration))
+)
 
 const resetHttpLoad = () => {
-    form.http_duration = 10
+    form.http_duration = 30
     form.http_connections = 50
+    form.http_io_ms = 100
 }
 
 const props = defineProps({
@@ -205,8 +218,9 @@ const discard = () => {
 const clampHttpLoad = () => {
     const clamp = (value, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(value)) || fallback));
 
-    form.http_duration = clamp(form.http_duration, 10, 5, 60);
+    form.http_duration = clamp(form.http_duration, 30, 5, 60);
     form.http_connections = clamp(form.http_connections, 50, 1, 500);
+    form.http_io_ms = clamp(form.http_io_ms, 100, 0, 1000);
 }
 
 const save = () => {

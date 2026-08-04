@@ -68,6 +68,29 @@ class HttpBenchmarkTest extends TestCase
         $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
     }
 
+    public function test_the_http_stage_records_the_simulated_io_delay(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->resolveHttpStage();
+        $this->assertSame(config('benchmark.http.io_ms'), $this->meta()['io_ms']);
+
+        $this->resolveHttpStage(['http_io_ms' => 250]);
+        $this->assertSame(250, $this->meta()['io_ms']);
+    }
+
+    public function test_the_http_stage_command_warms_up_and_carries_the_io_delay(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $command = $this->resolveHttpStage(['http_io_ms' => 150])['command'];
+
+        // The io route carries the delay as a query param; the others do not.
+        $this->assertStringContainsString('/bench/io?ms=150', $command);
+        // Every route is warmed (discarded to /dev/null) before it is measured.
+        $this->assertStringContainsString('> /dev/null', $command);
+    }
+
     public function test_the_http_stage_rejects_redirecting_targets(): void
     {
         Http::fake(['*' => Http::response('', 301, ['Location' => 'https://localhost:8443'])]);
@@ -166,6 +189,7 @@ class HttpBenchmarkTest extends TestCase
             'mode' => 'loopback',
             'duration_seconds' => 10,
             'connections' => 50,
+            'io_ms' => 100,
         ]));
 
         File::put($this->resultsPath.'/http-static.json', json_encode([
@@ -184,9 +208,12 @@ class HttpBenchmarkTest extends TestCase
 
         $response->assertJsonPath('http_results.mode', 'loopback');
         $response->assertJsonPath('http_results.target', 'http://localhost:8080');
+        $response->assertJsonPath('http_results.io_ms', 100);
         $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
         $response->assertJsonPath('http_results.routes.static.p95_ms', 25);
+        $response->assertJsonPath('http_results.routes.static.total_requests', 12345);
         $response->assertJsonPath('http_results.routes.db_read.p99_ms', 300);
+        $response->assertJsonPath('http_results.routes.db_read.total_requests', 4545);
         $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
     }
 

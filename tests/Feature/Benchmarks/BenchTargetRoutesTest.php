@@ -33,6 +33,28 @@ class BenchTargetRoutesTest extends TestCase
         $response->assertJsonCount(20, 'items');
     }
 
+    public function test_io_target_defaults_to_100ms(): void
+    {
+        $response = $this->getJson('/bench/io');
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'ok');
+        $response->assertJsonPath('io_ms', 100);
+    }
+
+    public function test_io_target_respects_a_requested_delay(): void
+    {
+        $this->getJson('/bench/io?ms=0')->assertOk()->assertJsonPath('io_ms', 0);
+    }
+
+    public function test_io_target_clamps_the_delay_to_a_safe_band(): void
+    {
+        // A stray query string must never hang a worker; over/under the band
+        // is clamped rather than honoured.
+        $this->getJson('/bench/io?ms=5000')->assertJsonPath('io_ms', 1000);
+        $this->getJson('/bench/io?ms=-50')->assertJsonPath('io_ms', 0);
+    }
+
     public function test_targets_do_not_start_a_session(): void
     {
         $response = $this->get('/bench/static');
