@@ -64,11 +64,22 @@ return [
     |--------------------------------------------------------------------------
     |
     | Load generator configuration for the HTTP benchmark stage (oha). The
-    | duration and connection count below define the "standard BenchKit
-    | load" — the default every run shares so results stay comparable
-    | between hosts and image variations. Users may override them per run
-    | from the settings drawer (validated to 5-60s / 1-500 connections);
-    | non-standard values are always disclosed alongside the results.
+    | duration, connection count, and simulated I/O delay below define the
+    | "standard BenchKit load" — the default every run shares so results stay
+    | comparable between hosts and image variations. Users may override them
+    | per run from the settings drawer (validated to 5-60s / 1-500 conns /
+    | 0-1000ms); non-standard values are always disclosed alongside results.
+    |
+    | This run is a closed-loop *throughput* (saturation) test: it holds a
+    | fixed connection count open and measures max requests/sec. That is the
+    | right model for "how much can this box serve" and for ranking hardware.
+    | Its tail-latency percentiles are indicative only (a fixed-connection run
+    | is subject to coordinated omission); the external-testing modal offers a
+    | coordinated-omission-corrected latency command for honest p99s.
+    |
+    | io_ms is the delay the /bench/io route sleeps to model one outbound
+    | dependency call — the route where PHP-FPM and worker mode converge, so
+    | users can see worker mode's lead shrink as I/O grows.
     |
     | The target URL is normally auto-detected (loopback first, APP_URL as
     | a fallback). Set BENCHMARK_HTTP_URL only when the app can't reach
@@ -78,8 +89,9 @@ return [
 
     'http' => [
         'url' => env('BENCHMARK_HTTP_URL'),
-        'duration_seconds' => 10,
+        'duration_seconds' => 30,
         'connections' => 50,
+        'io_ms' => 100,
     ],
 
 ];

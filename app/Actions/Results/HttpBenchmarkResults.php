@@ -17,6 +17,7 @@ class HttpBenchmarkResults extends BenchmarkResults
         'static' => '/bench/static',
         'json' => '/bench/json',
         'db_read' => '/bench/db-read',
+        'io' => '/bench/io',
     ];
 
     public function metaPath(): string
@@ -35,7 +36,7 @@ class HttpBenchmarkResults extends BenchmarkResults
      *
      * @param  array{url: string, mode: string}  $target
      */
-    public function writeMeta(array $target, int $duration, int $connections): void
+    public function writeMeta(array $target, int $duration, int $connections, int $ioMs): void
     {
         File::ensureDirectoryExists(dirname($this->metaPath()));
         File::put($this->metaPath(), json_encode([
@@ -43,11 +44,12 @@ class HttpBenchmarkResults extends BenchmarkResults
             'mode' => $target['mode'],
             'duration_seconds' => $duration,
             'connections' => $connections,
+            'io_ms' => $ioMs,
         ]));
     }
 
     /**
-     * @return array{mode: string|null, target: string|null, duration_seconds: int|null, connections: int|null, routes: array<string, array<string, mixed>>}|null
+     * @return array{mode: string|null, target: string|null, duration_seconds: int|null, connections: int|null, io_ms: int|null, routes: array<string, array<string, mixed>>}|null
      */
     public function execute(): ?array
     {
@@ -67,6 +69,7 @@ class HttpBenchmarkResults extends BenchmarkResults
                 'p50_ms' => $this->toMilliseconds($data['latencyPercentiles']['p50'] ?? null),
                 'p95_ms' => $this->toMilliseconds($data['latencyPercentiles']['p95'] ?? null),
                 'p99_ms' => $this->toMilliseconds($data['latencyPercentiles']['p99'] ?? null),
+                'total_requests' => (int) array_sum($data['statusCodeDistribution'] ?? []),
                 'status_codes' => $data['statusCodeDistribution'] ?? [],
             ];
         }
@@ -82,6 +85,7 @@ class HttpBenchmarkResults extends BenchmarkResults
             'target' => $meta['target'] ?? null,
             'duration_seconds' => $meta['duration_seconds'] ?? null,
             'connections' => $meta['connections'] ?? null,
+            'io_ms' => $meta['io_ms'] ?? null,
             'routes' => $routes,
         ];
     }

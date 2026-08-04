@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\BenchmarkHttpItems;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +60,27 @@ class BenchTargetController extends Controller
         return response()->json([
             'status' => 'ok',
             'items' => $items,
+        ]);
+    }
+
+    /**
+     * Models a request whose time is dominated by one outbound dependency
+     * call — a database over a socket, a cache, an HTTP API — by sleeping a
+     * caller-supplied delay. This is the route where PHP-FPM and Octane
+     * worker mode converge: the per-request framework bootstrap that worker
+     * mode removes shrinks to noise once real I/O dominates the request. The
+     * delay is clamped to the same 0–1000ms band the settings enforce, so a
+     * stray query string can never hang a worker.
+     */
+    public function io(Request $request): JsonResponse
+    {
+        $ms = max(0, min(1000, $request->integer('ms', 100)));
+
+        usleep($ms * 1000);
+
+        return response()->json([
+            'status' => 'ok',
+            'io_ms' => $ms,
         ]);
     }
 
