@@ -55,6 +55,19 @@
                                 </div>
                             </div>
 
+                            <div class="mt-6 rounded-lg border border-[#22262F] bg-[rgba(255,255,255,0.02)] p-4 sm:p-5">
+                                <p class="text-sm text-[#F7F7F7] font-mono">Honest tail latency</p>
+                                <p class="mt-1.5 text-xs text-[#94979C] font-mono leading-relaxed">
+                                    A fixed-connection run reports throughput well but understates p99 (coordinated omission). For real tail latency, drive a constant request rate and let oha correct for it &mdash; run a command above to find the max req/s, then use about 70% of it as the rate:
+                                </p>
+                                <div class="mt-3 flex items-center justify-between gap-2 rounded-md bg-black px-3 py-2">
+                                    <code class="flex-1 text-xs sm:text-[13px] font-mono break-all">
+                                        <span class="text-[#61656C] select-none">$ </span><span class="text-[#CECFD2]">{{ latencyCommand }}</span>
+                                    </code>
+                                    <CopyButton :text="latencyCommand" label="Copy latency command" />
+                                </div>
+                            </div>
+
                             <p class="mt-4 text-xs text-[#61656C] font-mono leading-relaxed">
                                 External runs include network time and keep the load generator off this machine &mdash;
                                 expect different numbers than the built-in Web Server Load Test.
@@ -85,11 +98,19 @@ const endpoints = [
     { path: '/bench/static', description: 'Framework baseline — static response, no database' },
     { path: '/bench/json', description: 'API response — 25-item JSON payload' },
     { path: '/bench/db-read', description: 'Database read — 20 rows queried per request' },
+    { path: '/bench/io?ms=100', description: 'Simulated I/O — sleeps ~100ms to mimic one outbound call' },
 ]
 
 const origin = window.location.origin
 
-const command = (endpoint) => `oha -z 10s -c 50 ${origin}${endpoint.path}`
+// Closed-loop throughput (saturation): the max req/s a fixed connection
+// count can drive.
+const command = (endpoint) => `oha -z 30s -c 50 ${origin}${endpoint.path}`
+
+// Open-model + coordinated-omission correction for honest tail latency.
+// --latency-correction is a no-op without a target rate (-q); pick ~70% of
+// the throughput a command above reports.
+const latencyCommand = `oha -q <req_per_sec> -z 30s --latency-correction ${origin}/bench/db-read`
 
 const close = () => {
     emit('close');

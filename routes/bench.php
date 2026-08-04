@@ -17,3 +17,4 @@ use Illuminate\Support\Facades\Route;
 Route::get('/bench/static', [BenchTargetController::class, 'staticResponse']);
 Route::get('/bench/json', [BenchTargetController::class, 'json']);
 Route::get('/bench/db-read', [BenchTargetController::class, 'dbRead']);
+Route::get('/bench/io', [BenchTargetController::class, 'io']);

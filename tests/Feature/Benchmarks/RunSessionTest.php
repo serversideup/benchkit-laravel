@@ -219,8 +219,9 @@ class RunSessionTest extends TestCase
             'http' => true,
             'http_duration' => 600,
             'http_connections' => 5000,
+            'http_io_ms' => 9000,
         ])])->assertStatus(422)
-            ->assertJsonValidationErrors(['settings.http_duration', 'settings.http_connections']);
+            ->assertJsonValidationErrors(['settings.http_duration', 'settings.http_connections', 'settings.http_io_ms']);
     }
 
     public function test_a_failed_validation_does_not_claim_the_run_session(): void

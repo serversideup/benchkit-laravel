@@ -29,6 +29,7 @@ class StartRunRequest extends FormRequest
             'settings.http' => ['boolean'],
             'settings.http_duration' => ['integer', 'between:5,60'],
             'settings.http_connections' => ['integer', 'between:1,500'],
+            'settings.http_io_ms' => ['integer', 'between:0,1000'],
             'settings.php_database' => ['boolean'],
             'settings.php_mode' => [Rule::in(['full', 'quick'])],
 
@@ -53,6 +54,7 @@ class StartRunRequest extends FormRequest
             'settings.network_test_type.in' => 'The network test type must be ipv4 or ipv6.',
             'settings.http_duration.between' => 'The load test duration must be between 5 and 60 seconds.',
             'settings.http_connections.between' => 'The connection count must be between 1 and 500.',
+            'settings.http_io_ms.between' => 'The simulated I/O response must be between 0 and 1000 milliseconds.',
             'settings.php_mode.in' => 'The PHP mode must be full or quick.',
         ];
     }

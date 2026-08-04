@@ -146,6 +146,7 @@ export const runDisplay = (run) => {
             octane: run.environment?.php?.octane ?? false,
             duration_seconds: http.duration_seconds ?? null,
             connections: http.connections ?? null,
+            io_ms: http.io_ms ?? null,
             routes: http.routes ?? {},
         } : null,
         php: php ? {
