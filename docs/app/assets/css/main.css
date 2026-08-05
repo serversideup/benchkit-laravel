@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@source "../../../content/**/*";
+@source "../../../node_modules/@serversideup/project-switcher-bar/src";
+
+@theme {
+  --color-mode: 'dark';
+  --color-mode-fallback: 'dark';
+  --color-mode-preference: 'dark';
+}
+
+@theme static {
+  --ui-header-height: --spacing(24);
+  --container-8xl: 90rem;
+
+  /* Body prose in Inter; code + brand headings in JetBrains Mono (the
+     BenchKit app's signature). @nuxt/fonts (bundled with @nuxt/ui) provisions
+     both from these declarations — no manual @font-face needed. */
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* BenchKit "flame" red — brand primary #E62E05 sits at 500. */
+  --color-flame-50:  #FEF3F0;
+  --color-flame-100: #FEE2DA;
+  --color-flame-200: #FCC5B5;
+  --color-flame-300: #FA9E82;
+  --color-flame-400: #F5673F;
+  --color-flame-500: #E62E05;
+  --color-flame-600: #C42604;
+  --color-flame-700: #9E1F05;
+  --color-flame-800: #7C1A08;
+  --color-flame-900: #66190B;
+  --color-flame-950: #380A03;
+}
+
+:root {
+  --ui-container: var(--container-8xl);
+}
+
+/* BenchKit signature: mono headings echo the app's JetBrains Mono aesthetic. */
+h1, h2, h3, .font-brand {
+  font-family: var(--font-mono);
+}
+
+ul li a:after {
+  margin-left: 6px;
+}
+
+ul ul ul {
+  border: none !important;
+}

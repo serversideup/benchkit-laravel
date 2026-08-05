@@ -26,61 +26,30 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 		<a href="https://getspin.pro/?ref=benchkit-laravel"><img src="https://raw.githubusercontent.com/serversideup/benchkit-laravel/main/.github/img/spin-pro.png" width="720" alt="Powered by Spin Pro"></a>
 </p>
 
-## Usage
+## Documentation
 
-> [!WARNING]  
-> 👷‍♂️ **This project is actively under development.**
->
-> Please refrain from opening issues or PRs until we have a few things in order. 😃
+📚 **Full documentation lives at [serversideup.net/open-source/benchkit](https://serversideup.net/open-source/benchkit).**
 
-Usage instructions will be added soon.
+- [Quick start](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
+- [Deployment options](https://serversideup.net/open-source/benchkit/docs/getting-started/deployment-options) — Docker image vs. cloning the repo
+- [Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases) (MySQL / Postgres)
+- [Image variations](https://serversideup.net/open-source/benchkit/docs/image-variations) (`fpm-nginx`, `frankenphp`, …)
+- [Benchmarks & methodology](https://serversideup.net/open-source/benchkit/docs/benchmarks) — what each test measures, and what it doesn't
+- [FAQ](https://serversideup.net/open-source/benchkit/docs/faq)
 
-## FAQs
-Here's common questions to help you understand how this application works.
-<details>
-  <summary>How does this application work?</summary>
+> The documentation source lives in the [`docs/`](./docs) directory — a standalone Nuxt site deployed to Cloudflare Pages.
 
-  > This application is a dedicated Laravel application, built as "container first" so you can easily benchmark your VPS or hosting provider. We use [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) to test your hardware, [cfspeedtest](https://github.com/code-inflation/cfspeedtest) to test your network to CloudFlare, and then we run a series of CRUD tests to benchmark how your application performs.
+## Quick start
 
-</details>
-<details>
-  <summary>Do I install this as a Laravel package?</summary>
-  
-  > Nope! This is a standalone application that is intended to be run, then easily destroyed once you're done with it.
-</details>
-<details>
-  <summary>Can I run this application without Docker?</summary>
+BenchKit ships as a container image, so all you need is Docker:
 
-  > Yes! Although we do provide a Docker image, you can also clone this repository and run the application on your own PaaS (like Laravel Cloud or DigitalOcean Apps). There are dependencies that need to be installed (like [Yet Another Bench Script](https://github.com/masonr/yet-another-bench-script) and [cfspeedtest ](https://github.com/code-inflation/cfspeedtest)), but we will be sure to add more documentation once we get the Docker version up and running first.
-</details>
-<details>
-  <summary>How do I benchmark Laravel Octane?</summary>
+```bash
+docker run -p 80:8080 \
+  -v benchkit-runs:/var/www/html/storage/app/runs \
+  serversideup/benchkit-laravel
+```
 
-  > Use the FrankenPHP variation of the BenchKit image — the same image runs both modes, so results are directly comparable. Standard mode:
-  >
-  > ```bash
-  > docker run -p 80:8080 -v benchkit-runs:/var/www/html/storage/app/runs serversideup/benchkit-laravel:frankenphp
-  > ```
-  >
-  > Octane worker mode — same image, just swap the command:
-  >
-  > ```bash
-  > docker run -p 80:8080 -v benchkit-runs:/var/www/html/storage/app/runs serversideup/benchkit-laravel:frankenphp \
-  >   php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8080
-  > ```
-  >
-  > The results output and share image are labeled with the mode that produced them (look for the "OCTANE / worker mode" badge), so shared results always say which mode was benchmarked.
-</details>
-<details>
-  <summary>Does my run history survive rebuilding the container?</summary>
-
-  > Every completed run is saved as a snapshot in `storage/app/runs`. Mount a volume there (the `-v benchkit-runs:/var/www/html/storage/app/runs` flag in the examples above) and your history survives destroying and rebuilding the container — which is exactly what you need to compare `PHP_VARIATION` builds (e.g. `fpm-nginx` vs `frankenphp`) against each other. Without the volume, history lasts only as long as the container does. (In the development stack the repo itself is bind-mounted, so run history persists on your machine automatically — no volume needed.)
-</details>
-<details>
-  <summary>How can I share my results with the community?</summary>
-
-  > When you run the benchmark, you'll have an option to share your results on X (Twitter) with the hashtag of [#BenchKit and #Laravel](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live).
-</details>
+Then open the server in your browser and click **Start Benchmark**. To benchmark FrankenPHP (Octane worker mode), see the [FrankenPHP guide](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
 
 ## Resources
 - **[Discord](https://serversideup.net/discord)** for friendly support from the community and the team.
@@ -92,7 +61,7 @@ As an open-source project, we strive for transparency and collaboration in our d
 
 - **Bug Report**: If you're experiencing an issue while using these images, please [create an issue](https://github.com/serversideup/benchkit-laravel/issues/new/choose).
 - **Feature Request**: Make this project better by [submitting a feature request](https://github.com/serversideup/benchkit-laravel/discussions/2).
-- **Documentation**: Improve our documentation by [submitting a documentation change](./docs/README.md).
+- **Documentation**: Improve our documentation by editing the [`docs/content`](./docs/content) directory.
 - **Community Support**: Help others on [GitHub Discussions](https://github.com/serversideup/benchkit-laravel/discussions) or [Discord](https://serversideup.net/discord).
 - **Security Report**: Report critical security issues via [our responsible disclosure policy](https://www.notion.so/Responsible-Disclosure-Policy-421a6a3be1714d388ebbadba7eebbdc8).
 

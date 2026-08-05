@@ -20,7 +20,7 @@
                 <!-- Actions: two quiet utilities as one segmented group, then a
                      single filled primary — a toolbar, not scattered buttons.
                      Full-width split on mobile, compact cluster on desktop. -->
-                <div class="flex items-center gap-3 shrink-0 w-full justify-between sm:w-auto sm:justify-end">
+                <div class="flex flex-wrap items-center gap-3 shrink-0 w-full sm:w-auto sm:justify-end">
                     <div class="flex items-center rounded-lg border border-[#22262F] bg-[#0C0E12] p-0.5">
                         <IconButton label="Download results (zip)" @click="download()">
                             <IconDownloadCloud />
@@ -31,9 +31,14 @@
                             </svg>
                         </IconButton>
                     </div>
-                    <button @click="shareOpen = true" type="button" class="px-4 py-2.5 rounded-lg flex items-center text-sm font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] transition-colors duration-200 cursor-pointer">
+                    <!-- Submitting to the gallery is now the primary action; sharing on X is the quieter secondary -->
+                    <button @click="shareOpen = true" type="button" class="px-4 py-2.5 rounded-lg flex items-center text-sm font-medium text-[#CECFD2] bg-[#0C0E12] border border-[#22262F] hover:bg-[#13161B] hover:text-white transition-colors duration-200 cursor-pointer">
                         Share on
                         <IconXLogo class="ml-2" />
+                    </button>
+                    <button @click="submitOpen = true" type="button" class="grow sm:grow-0 justify-center px-4 py-2.5 rounded-lg flex items-center text-sm font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] transition-colors duration-200 cursor-pointer">
+                        Submit result
+                        <IconArrowUpRight class="ml-2" :size="18" />
                     </button>
                 </div>
             </div>
@@ -52,6 +57,7 @@
         </div>
 
         <ShareModal :open="shareOpen" :run="runWithMeta" @close="shareOpen = false" />
+        <SubmitModal :open="submitOpen" :run="runWithMeta" @close="submitOpen = false" @share="submitOpen = false; shareOpen = true" />
     </div>
 </template>
 
@@ -62,6 +68,7 @@ import AppLayout from '@/Layouts/App.vue';
 import IconButton from '@/Components/IconButton.vue';
 import IconDownloadCloud from '@/Components/Icons/IconDownloadCloud.vue';
 import IconXLogo from '@/Components/Icons/IconXLogo.vue';
+import IconArrowUpRight from '@/Components/Icons/IconArrowUpRight.vue';
 import RunMetaEditor from '@/Components/Runs/RunMetaEditor.vue';
 import HostDetailsPanel from '@/Components/Runs/HostDetailsPanel.vue';
 import HttpPanel from '@/Components/Runs/HttpPanel.vue';
@@ -71,6 +78,7 @@ import HardwarePanel from '@/Components/Runs/HardwarePanel.vue';
 import EnvironmentPanel from '@/Components/Runs/EnvironmentPanel.vue';
 import RunLogs from '@/Components/Runs/RunLogs.vue';
 import ShareModal from '@/Components/Share/ShareModal.vue';
+import SubmitModal from '@/Components/Submit/SubmitModal.vue';
 import { hostDetailsLine, runDisplay } from '@/Composables/useRunSummary';
 import { downloadRunResults } from '@/Composables/useRunActions';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
@@ -95,6 +103,7 @@ const display = computed(() => runDisplay(props.run));
 const hostSummary = computed(() => hostDetailsLine(meta.value));
 const runWithMeta = computed(() => ({ ...props.run, meta: meta.value }));
 const shareOpen = ref(false);
+const submitOpen = ref(false);
 const detailsOpen = ref(false);
 
 const download = () => downloadRunResults(runWithMeta.value);
