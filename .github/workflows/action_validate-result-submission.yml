@@ -1,0 +1,37 @@
+name: Validate result submission
+
+# Runs on PRs that add or change community result files. Read-only and
+# secret-free (plain `pull_request`, not `pull_request_target`), so a fork PR
+# can never run with write access — it only parses and checks the JSON.
+on:
+  pull_request:
+    paths:
+      - 'docs/content/runs/**.json'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Determine changed run files
+        id: changed
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          files=$(git diff --name-only --diff-filter=ACM "$base" "$head" -- 'docs/content/runs/*.json' | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "Changed run files: ${files:-<none>}"
+
+      - name: Validate submissions
+        if: steps.changed.outputs.files != ''
+        run: node .github/scripts/validate-run-submission.mjs ${{ steps.changed.outputs.files }}

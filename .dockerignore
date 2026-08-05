@@ -10,3 +10,7 @@ docker-*.yml
 .gitlab-ci.yml
 .spin*
 scripts/
+# The marketing/docs site is a standalone Nuxt project deployed to Cloudflare
+# Pages — it must never ship inside the BenchKit image (or bloat the node
+# build context). The final and node-build stages COPY the whole context.
+docs/
