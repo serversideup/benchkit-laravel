@@ -1,0 +1,73 @@
+name: Process result submission
+
+# Turns a result-submission issue into a validated PR, then closes the issue.
+# The app files these issues with a hidden marker in the body; real bug reports
+# never carry it, so they're ignored. Identity is the authenticated issue
+# author — nothing from the body is executed, only JSON-parsed.
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.body, '<!-- benchkit-result-submission -->')
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+      # Passed through env, never interpolated into a shell line — issue bodies
+      # are untrusted input.
+      ISSUE_BODY: ${{ github.event.issue.body }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ensure labels exist
+        run: |
+          gh label create result-submission --color 1f883d --description 'Community benchmark result' --force
+          gh label create invalid-submission --color d1242f --description 'Result submission failed validation' --force
+
+      - name: Build run file from the issue
+        id: build
+        run: node .github/scripts/build-run-from-issue.mjs
+
+      - name: File valid submission as a PR
+        if: steps.build.outputs.valid == 'true'
+        env:
+          ID: ${{ steps.build.outputs.id }}
+          RUN_PATH: ${{ steps.build.outputs.path }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "result/${ID}"
+          git add "$RUN_PATH"
+          git commit -m "Add community result: ${ID}"
+          git push --force-with-lease -u origin "result/${ID}"
+
+          pr_url=$(gh pr create \
+            --base main \
+            --head "result/${ID}" \
+            --title "Add community result: ${ID}" \
+            --body "Submitted via #${ISSUE_NUMBER} by @${ISSUE_AUTHOR}. Validated automatically — a maintainer just needs to merge.")
+
+          gh issue edit "$ISSUE_NUMBER" --add-label result-submission
+          gh issue comment "$ISSUE_NUMBER" --body "Thanks @${ISSUE_AUTHOR}! Your result is filed as ${pr_url} and will appear in the gallery once a maintainer merges it. Closing this issue."
+          gh issue close "$ISSUE_NUMBER" --reason completed
+
+      - name: Report invalid submission
+        if: steps.build.outputs.valid != 'true'
+        env:
+          ERRORS: ${{ steps.build.outputs.errors }}
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --add-label invalid-submission
+          gh issue comment "$ISSUE_NUMBER" --body "$(printf 'Sorry @%s — we could not add this automatically:\n\n%s\n\nRe-run the benchmark and use **Submit result** in the app to try again.' "$ISSUE_AUTHOR" "$ERRORS")"
+          gh issue close "$ISSUE_NUMBER" --reason "not planned"
