@@ -101,6 +101,35 @@ Both the month and the filename come from the run id, which starts with `YYYYMMD
 id is minted once per benchmark, so a file that already exists means the run was already
 submitted — the bot rejects the duplicate rather than overwriting it.
 
+## What is and isn't published
+
+A run comes off a machine the submitter controls — often their own hardware, at home. The
+app submits an **allow-list**, so a field only becomes public because someone chose to
+publish it.
+
+**Published**, because it explains the numbers: CPU model and core count, RAM, OS, PHP and
+Laravel versions, the image variation, SAPI, Octane, the performance-relevant `php.ini`
+values (JIT, OPcache sizing, realpath cache), FPM worker settings, which stages ran, the
+benchmark results, and the host/plan/cost the submitter typed in.
+
+**Never published**: console logs (they contain the submitter's public IP), `APP_URL` and
+any internal hostname, the raw `yabs` output (it carries an `ip_info` block with IP, ISP,
+and city), the network test's ASN and Cloudflare colo (on home hardware those are a
+residential ISP and a nearest city — the speeds are the part worth comparing), and
+`opcache.preload` — a filesystem path that would expose a directory layout and often a
+project or company name. Whether preloading is on is published as
+`opcache.preload_enabled` instead; where the file lives is not. `build_version` is only
+published when it's a plain tag, so a self-built image tagged
+`ghcr.io/your-company/benchkit` doesn't carry the company name into a public file.
+
+A second, independent check backs this up: the `validate-run-submission` action scans every
+string in the document for IP addresses, filesystem paths, email addresses, private
+hostnames, and links to anywhere other than Geekbench — and fails the PR if it finds one.
+That guard covers fields nobody has thought about yet, so adding data later can't quietly
+start publishing something it shouldn't.
+
+If you spot something in here that shouldn't be public, please open an issue.
+
 ## Currency
 
 Costs are stored exactly as the submitter is billed and are **never converted on the way

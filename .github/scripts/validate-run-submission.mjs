@@ -14,7 +14,7 @@
 
 import { readFileSync, readdirSync, existsSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CURRENCIES, indexFields, runsPathFor } from './run-document.mjs';
+import { CURRENCIES, findPrivacyLeaks, indexFields, runsPathFor } from './run-document.mjs';
 
 const RUNS_DIR = 'docs/data/runs';
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
@@ -140,6 +140,11 @@ export function validateSubmission(doc, filepath = null) {
 
     const cf = benchmarks.cfspeedtest;
     if (cf != null) {
+        // On home hardware these are the submitter's ISP and nearest city, and
+        // the speeds are what the community is actually comparing.
+        for (const key of ['asn', 'colo']) {
+            if (cf[key] != null) err(`cfspeedtest.${key} is not published — remove it`);
+        }
         for (const [k, bounds] of [['latency_ms', { min: 0, max: MAX_MS }], ['download_mbps', { min: 0, max: 1_000_000 }], ['upload_mbps', { min: 0, max: 1_000_000 }]]) {
             if (cf[k] != null) isNum(cf[k], `cfspeedtest.${k}`, { ...bounds, required: false });
         }
@@ -163,6 +168,63 @@ export function validateSubmission(doc, filepath = null) {
     }
 
     if (http == null && phpBench == null) warn('submission has neither HTTP nor PHP benchmarks — it will render nearly empty');
+
+    // ---- environment extras ----
+    // Configuration that explains the numbers. Each is bounded here as well as
+    // at submission time, because a PR can be hand-edited and this is the only
+    // check that runs on it.
+    if (php.php_server_api != null && !/^[A-Za-z0-9+-]{1,30}$/.test(String(php.php_server_api))) {
+        err('environment.php.php_server_api has an unexpected shape');
+    }
+
+    if (php.ini != null) {
+        if (typeof php.ini !== 'object' || Array.isArray(php.ini)) {
+            err('environment.php.ini must be an object of setting => value');
+        } else {
+            // opcache.preload is a filesystem path and must never appear; the
+            // app publishes opcache.preload_enabled instead.
+            if ('opcache.preload' in php.ini) err('environment.php.ini must not include opcache.preload — publish opcache.preload_enabled instead');
+            for (const [key, value] of Object.entries(php.ini)) {
+                if (!/^[a-z_]+(?:\.[a-z_]+)*$/.test(key)) err(`environment.php.ini key "${key}" has an unexpected shape`);
+                if (typeof value === 'string') isText(value, `environment.php.ini["${key}"]`, { max: 40, required: false });
+                else if (typeof value !== 'number' && typeof value !== 'boolean') err(`environment.php.ini["${key}"] must be a string, number, or boolean`);
+            }
+        }
+    }
+
+    if (php.serving != null) {
+        if (php.serving.fpm_pm != null && !['static', 'dynamic', 'ondemand'].includes(php.serving.fpm_pm)) {
+            err(`environment.php.serving.fpm_pm "${php.serving.fpm_pm}" is not a known FPM process manager`);
+        }
+        if (php.serving.fpm_max_children != null) isNum(php.serving.fpm_max_children, 'environment.php.serving.fpm_max_children', { min: 1, max: 100_000 });
+    }
+
+    // A registry-style tag would carry someone's org name into a public file.
+    if (env.build_version != null && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(String(env.build_version))) {
+        err('environment.build_version must be a plain version tag (no registry path)');
+    }
+
+    if (run.settings_preset != null && !['quick', 'full', 'custom'].includes(run.settings_preset)) {
+        warn(`unknown settings_preset "${run.settings_preset}"`);
+    }
+
+    if (run.stages_completed != null && !Array.isArray(run.stages_completed)) {
+        err('stages_completed must be an array');
+    }
+
+    if (phpBench?.subjects != null) {
+        if (!Array.isArray(phpBench.subjects)) err('php.subjects must be an array');
+        else for (const row of phpBench.subjects.slice(0, 100)) {
+            if (!/^[A-Za-z0-9_]{1,60}$/.test(row?.benchmark ?? '')) err('php.subjects[].benchmark has an unexpected shape');
+            if (!/^[A-Za-z0-9_]{1,60}$/.test(row?.subject ?? '')) err('php.subjects[].subject has an unexpected shape');
+            isNum(row?.mean_us, 'php.subjects[].mean_us', { min: 0, max: 1e12 });
+        }
+    }
+
+    // ---- privacy ----
+    // Last line of defence, and the only one that covers fields nobody has
+    // thought about yet.
+    for (const leak of findPrivacyLeaks(doc)) err(leak);
 
     // ---- index fields ----
     // The flat top-level fields are what the gallery filters and sorts on, and

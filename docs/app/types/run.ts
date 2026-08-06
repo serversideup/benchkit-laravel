@@ -8,6 +8,7 @@ export interface HttpRoute {
     p95_ms: number
     p99_ms: number
     total_requests?: number
+    status_codes?: Record<string, number>
 }
 
 export interface PhpHeadline {
@@ -75,7 +76,10 @@ export interface RunEntry extends RunIndex {
             datacenter?: string | null
             cost?: RunCost | null
         }
+        settings_preset?: string | null
+        stages_completed?: string[]
         environment: {
+            build_version?: string | null
             server: {
                 cpu_model: string
                 cpu_cores: string | number
@@ -86,9 +90,14 @@ export interface RunEntry extends RunIndex {
             php: {
                 php_version: string
                 php_variation: string
+                php_server_api?: string
                 octane?: boolean
                 op_cache?: string | boolean
                 memory_limit?: string
+                // Performance-relevant php.ini values only, and never a path —
+                // opcache.preload ships as opcache.preload_enabled.
+                ini?: Record<string, string | number | boolean>
+                serving?: { fpm_pm?: string, fpm_max_children?: number }
             }
             laravel: {
                 environment: { laravel_version: string }
@@ -115,9 +124,9 @@ export interface RunEntry extends RunIndex {
                     update?: PhpHeadline
                     delete?: PhpHeadline
                 }
+                subjects?: Array<{ benchmark: string, subject: string, mean_us: number }>
             } | null
             cfspeedtest?: {
-                colo?: string | null
                 latency_ms?: number | null
                 download_mbps?: number | null
                 upload_mbps?: number | null

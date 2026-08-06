@@ -127,10 +127,6 @@
 
             <!-- Network -->
             <ResultsPanel v-if="cfspeedtest" title="Network speed test">
-                <template #aside>
-                    <ResultsChip>Cloudflare [{{ cfspeedtest.colo }}]</ResultsChip>
-                </template>
-
                 <p class="mt-2 text-sm text-[#94979C]">
                     Measured from the server to Cloudflare's nearest edge — this latency rides on every external request the app makes.
                 </p>
@@ -405,8 +401,28 @@ const stackFacts = computed(() => {
         { label: 'Octane', value: e.php.octane != null ? bool(e.php.octane) : null },
         { label: 'Database', value: e.laravel.drivers?.database as string | undefined },
         { label: 'OPcache', value: e.php.op_cache != null ? bool(opcacheOn(e.php.op_cache)) : null },
-        { label: 'Memory limit', value: e.php.memory_limit }
+        // The knobs that explain more of the gap between two runs than the
+        // hardware often does.
+        { label: 'JIT', value: jit.value },
+        { label: 'OPcache memory', value: ini.value['opcache.memory_consumption'] ? `${ini.value['opcache.memory_consumption']} MB` : null },
+        { label: 'FPM workers', value: e.php.serving?.fpm_max_children ? `${e.php.serving.fpm_max_children} (${e.php.serving.fpm_pm ?? 'pm'})` : null },
+        { label: 'Memory limit', value: e.php.memory_limit },
+        { label: 'SAPI', value: e.php.php_server_api },
+        { label: 'BenchKit', value: e.build_version }
     ].filter(f => f.value != null && f.value !== '')
+})
+
+const ini = computed(() => run.value.environment.php.ini ?? {})
+
+// opcache.jit is "disable"/"off"/"0" when off, or a mode like "tracing" or a
+// 4-digit CRTO number when on — worth showing verbatim rather than as a
+// yes/no, because which mode was used matters.
+const jit = computed(() => {
+    const value = ini.value['opcache.jit']
+
+    if (value == null || value === '') return null
+
+    return ['disable', 'off', '0'].includes(String(value)) ? 'Off' : String(value)
 })
 
 const machineFacts = computed(() => {

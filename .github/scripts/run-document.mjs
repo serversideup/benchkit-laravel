@@ -68,6 +68,67 @@ export const CURRENCIES = [
     'PLN', 'INR', 'SGD', 'JPY', 'BRL', 'NZD', 'ZAR', 'MXN',
 ];
 
+// ---- privacy guard ----
+//
+// The app submits an allow-list, so nothing sensitive should reach here. This
+// is the second lock: a scan of every string in the document for things that
+// identify the person or the machine, run on every PR. It exists so that
+// adding a field later can't quietly start publishing someone's home IP —
+// the guard fails the PR before a human has to notice.
+//
+// A run is submitted from a machine the submitter controls, often their own
+// hardware at home. Treat that accordingly.
+
+const ALLOWED_URL_HOSTS = ['browser.geekbench.com'];
+
+// A four-part version string ("1.2.3.4") also matches the IP pattern. That's
+// left alone deliberately: it fails the PR with a message a maintainer can
+// read, which is the safe direction to be wrong in.
+const LEAK_PATTERNS = [
+    ['an IP address', /\b(?:\d{1,3}\.){3}\d{1,3}\b/],
+    ['an IPv6 address', /(?:[0-9a-f]{1,4}:){3,}[0-9a-f]{0,4}/i],
+    ['a filesystem path', /(?:^|[\s"'(=])(?:\/(?:home|root|var|usr|etc|opt|srv|mnt|media|tmp|Users)\/|[A-Za-z]:\\)/],
+    ['an email address', /[\w.+-]+@[\w-]+\.[a-z]{2,}/i],
+    ['a private hostname', /\b[\w-]+\.(?:local|internal|lan|home|localdomain)\b/i],
+];
+
+/**
+ * Every string in the document that looks like it identifies a person or a
+ * machine. Walks values rather than the serialized JSON so numbers can't be
+ * concatenated into something that resembles an address.
+ *
+ * @returns {string[]} one message per finding, empty when clean
+ */
+export const findPrivacyLeaks = (value) => {
+    const found = [];
+
+    const walk = (node, at) => {
+        if (typeof node === 'string') {
+            for (const [what, pattern] of LEAK_PATTERNS) {
+                if (pattern.test(node)) {
+                    found.push(`${at} looks like it contains ${what} (${JSON.stringify(node.slice(0, 60))}) — this file is public`);
+                }
+            }
+
+            const host = node.match(/https?:\/\/([^/\s"']+)/i)?.[1];
+
+            if (host && !ALLOWED_URL_HOSTS.includes(host.toLowerCase())) {
+                found.push(`${at} links to ${host}; only ${ALLOWED_URL_HOSTS.join(', ')} is allowed in a public run`);
+            }
+        } else if (Array.isArray(node)) {
+            node.forEach((item, index) => walk(item, `${at}[${index}]`));
+        } else if (node && typeof node === 'object') {
+            for (const [key, child] of Object.entries(node)) {
+                walk(child, at ? `${at}.${key}` : key);
+            }
+        }
+    };
+
+    walk(value, '');
+
+    return found;
+};
+
 /** Trim, and treat a placeholder as the blank the submitter meant. */
 export const cleanText = (value) => {
     if (typeof value !== 'string') return null;
