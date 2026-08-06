@@ -155,7 +155,7 @@ class StoreRunTest extends TestCase
             'provider_source' => 'user',
             'plan' => 'Premium AMD 2GB',
             'datacenter' => 'NYC3',
-            'cost' => '$24/mo',
+            'cost' => ['amount' => 20.5, 'currency' => 'EUR', 'period' => 'monthly'],
         ])->assertCreated();
 
         $meta = $response->json('run.meta');
@@ -164,7 +164,34 @@ class StoreRunTest extends TestCase
         $this->assertSame('user', $meta['provider_source']);
         $this->assertSame('Premium AMD 2GB', $meta['plan']);
         $this->assertSame('NYC3', $meta['datacenter']);
-        $this->assertSame('$24/mo', $meta['cost']);
+        $this->assertSame(['amount' => 20.5, 'currency' => 'EUR', 'period' => 'monthly'], $meta['cost']);
+    }
+
+    /**
+     * Cost is the one field the gallery does arithmetic on, so a run can't
+     * carry a price we can't compare — no free text, no unknown currency.
+     */
+    public function test_storing_rejects_a_cost_that_is_not_a_comparable_amount(): void
+    {
+        $this->writeHttpFixtures();
+
+        $this->postJson('/runs', [
+            'stages_completed' => ['http'],
+            'settings' => $this->defaultSettings(),
+            'cost' => ['amount' => 'twenty four', 'currency' => 'USD'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('cost.amount');
+
+        $this->postJson('/runs', [
+            'stages_completed' => ['http'],
+            'settings' => $this->defaultSettings(),
+            'cost' => ['amount' => 24, 'currency' => 'DOGE'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('cost.currency');
+
+        $this->postJson('/runs', [
+            'stages_completed' => ['http'],
+            'settings' => $this->defaultSettings(),
+            'cost' => ['amount' => 288, 'currency' => 'USD', 'period' => 'yearly'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('cost.period');
     }
 
     public function test_storing_requires_at_least_one_completed_stage(): void

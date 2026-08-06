@@ -3,6 +3,7 @@
 namespace App\Actions\Runs;
 
 use App\Actions\Results\AssembleResultsDocument;
+use App\Support\HostCost;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -76,7 +77,10 @@ class CreateRunSnapshot
                 'provider_source' => $provider !== null ? ($payload['provider_source'] ?? 'ripe') : null,
                 'plan' => $payload['plan'] ?? null,
                 'datacenter' => $payload['datacenter'] ?? null,
-                'cost' => $payload['cost'] ?? null,
+                // Normalized here so every snapshot on disk holds one shape,
+                // including runs started by a client that still remembers a
+                // free-text cost from before it was structured.
+                'cost' => HostCost::normalize($payload['cost'] ?? null),
             ],
             'settings' => $payload['settings'],
             'settings_preset' => $payload['preset'] ?? null,

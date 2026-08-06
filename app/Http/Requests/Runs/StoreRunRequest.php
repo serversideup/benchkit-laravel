@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class StoreRunRequest extends FormRequest
 {
+    use ValidatesHostCost;
+
     /**
      * @return array<string, array<mixed>>
      */
@@ -22,7 +24,8 @@ class StoreRunRequest extends FormRequest
             'provider_source' => ['nullable', 'string', Rule::in(['ripe', 'user'])],
             'plan' => ['nullable', 'string', 'max:120'],
             'datacenter' => ['nullable', 'string', 'max:120'],
-            'cost' => ['nullable', 'string', 'max:60'],
+            'cost' => ['nullable', 'array'],
+            ...self::costRules(),
             'logs' => ['nullable', 'array'],
             'logs.*' => ['array', 'max:20000'],
             'logs.*.*' => ['string'],
@@ -39,6 +42,7 @@ class StoreRunRequest extends FormRequest
             'stages_completed.min' => 'At least one completed benchmark stage is required to save a run.',
             'stages_completed.*.in' => 'Unknown benchmark stage.',
             'settings.required' => 'The settings used for the run are required.',
+            ...self::costMessages(),
         ];
     }
 }

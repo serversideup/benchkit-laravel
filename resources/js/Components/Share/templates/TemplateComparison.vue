@@ -59,6 +59,7 @@ import TemplateFrame from '@/Components/Share/templates/TemplateFrame.vue';
 import { runDisplay, serverLabelFor } from '@/Composables/useRunSummary';
 import { compareRuns, headlineDelta } from '@/Composables/useRunComparison';
 import { MONO, SANS } from '@/share/templateStyles';
+import { formatCost } from '@/cost';
 
 const props = defineProps({
     run: {
@@ -140,7 +141,9 @@ const contextParts = (run) => ({
     provider: run.meta.provider ?? null,
     plan: run.meta.plan ?? run.meta.plan_notes ?? null,
     datacenter: run.meta.datacenter ?? null,
-    cost: run.meta.cost ?? null,
+    // Formatted, not raw: these parts are compared with === to find what the
+    // two runs share, and two equal cost objects are never identical.
+    cost: formatCost(run.meta.cost),
 });
 
 const sharedKeys = computed(() => {

@@ -6,6 +6,8 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateRunRequest extends FormRequest
 {
+    use ValidatesHostCost;
+
     /**
      * @return array<string, array<mixed>>
      */
@@ -16,7 +18,16 @@ class UpdateRunRequest extends FormRequest
             'provider' => ['sometimes', 'nullable', 'string', 'max:120'],
             'plan' => ['sometimes', 'nullable', 'string', 'max:120'],
             'datacenter' => ['sometimes', 'nullable', 'string', 'max:120'],
-            'cost' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'cost' => ['sometimes', 'nullable', 'array'],
+            ...self::costRules(),
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return self::costMessages();
     }
 }

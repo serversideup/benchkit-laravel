@@ -12,7 +12,7 @@
             </span>
         </div>
 
-        <HostDetailsFields class="mt-4 lg:grid-cols-4" :host="host" :history="history" id-prefix="host" />
+        <HostDetailsFields class="mt-4" grid-class="lg:grid-cols-3" :host="host" :history="history" id-prefix="host" />
 
         <ConfirmModal :open="confirmingClear"
             title="Clear hosting details?"

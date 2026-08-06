@@ -33,14 +33,16 @@ class UpdateRunTest extends TestCase
             'provider' => 'Vultr',
             'plan' => 'High Frequency 1GB',
             'datacenter' => 'EWR',
-            'cost' => '$6/mo',
+            'cost' => ['amount' => 6, 'currency' => 'USD', 'period' => 'monthly'],
         ])->assertOk()
             ->assertJsonPath('run.meta.label', 'FrankenPHP test')
             ->assertJsonPath('run.meta.provider', 'Vultr')
             ->assertJsonPath('run.meta.provider_source', 'user')
             ->assertJsonPath('run.meta.plan', 'High Frequency 1GB')
             ->assertJsonPath('run.meta.datacenter', 'EWR')
-            ->assertJsonPath('run.meta.cost', '$6/mo');
+            ->assertJsonPath('run.meta.cost.amount', 6)
+            ->assertJsonPath('run.meta.cost.currency', 'USD')
+            ->assertJsonPath('run.meta.cost.period', 'monthly');
 
         $stored = json_decode(Storage::disk('runs')->get("{$id}.json"), true);
         $this->assertSame('FrankenPHP test', $stored['meta']['label']);

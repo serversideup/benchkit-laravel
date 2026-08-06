@@ -161,6 +161,7 @@ const {
     hasAnyValue,
     clearHost,
     seed,
+    costPayload,
 } = useHostEditor({
     runId: () => props.run.id,
     active: () => props.open,
@@ -183,7 +184,7 @@ const runWithMeta = computed(() => ({
         provider: host.provider || null,
         plan: host.plan || null,
         datacenter: host.datacenter || null,
-        cost: host.cost || null,
+        cost: costPayload(),
     },
 }));
 

@@ -4,6 +4,8 @@
 // the PR, and closes the issue. The submitter never forks, edits a file, or
 // types their username — GitHub already knows who they are.
 
+import { normalizeCost } from '@/cost';
+
 const REPO = 'serversideup/benchkit-laravel';
 
 // Real bug reports never carry this, so the bot ignores everything else.
@@ -20,9 +22,9 @@ const trimRoute = (route) => route && {
 };
 
 // Allow-list, never drop-list: the stored run carries the submitter's public
-// IP (in logs), their APP_URL / internal hostname (http.target,
-// laravel.environment.url), and a full ini dump. None of that belongs in a
-// public file, so we copy only the fields the gallery renders.
+// IP (in logs) and their APP_URL / internal hostname (http.target,
+// laravel.environment.url). None of that belongs in a public file, so we copy
+// only fields chosen deliberately.
 export const trimRunForSubmission = (run) => {
     const environment = run.environment ?? {};
     const server = environment.server ?? {};
@@ -86,7 +88,11 @@ export const trimRunForSubmission = (run) => {
             provider: run.meta?.provider ?? null,
             plan: run.meta?.plan ?? null,
             datacenter: run.meta?.datacenter ?? null,
-            cost: run.meta?.cost ?? null,
+            // Structured, always monthly, currency as billed. Runs snapshotted
+            // before cost was structured still hold a free-text string, so
+            // normalize on the way out rather than shipping two shapes into
+            // the public gallery.
+            cost: normalizeCost(run.meta?.cost),
         },
         environment: {
             server: {

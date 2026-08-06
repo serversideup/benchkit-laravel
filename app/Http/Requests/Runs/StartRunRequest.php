@@ -12,6 +12,8 @@ use Illuminate\Validation\Rule;
  */
 class StartRunRequest extends FormRequest
 {
+    use ValidatesHostCost;
+
     /**
      * @return array<string, array<mixed>>
      */
@@ -39,7 +41,8 @@ class StartRunRequest extends FormRequest
             'host_details.provider' => ['nullable', 'string', 'max:120'],
             'host_details.plan' => ['nullable', 'string', 'max:120'],
             'host_details.datacenter' => ['nullable', 'string', 'max:120'],
-            'host_details.cost' => ['nullable', 'string', 'max:60'],
+            'host_details.cost' => ['nullable', 'array'],
+            ...self::costRules('host_details.cost'),
         ];
     }
 
@@ -56,6 +59,7 @@ class StartRunRequest extends FormRequest
             'settings.http_connections.between' => 'The connection count must be between 1 and 500.',
             'settings.http_io_ms.between' => 'The simulated I/O response must be between 0 and 1000 milliseconds.',
             'settings.php_mode.in' => 'The PHP mode must be full or quick.',
+            ...self::costMessages('host_details.cost'),
         ];
     }
 }

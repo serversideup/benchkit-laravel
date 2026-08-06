@@ -1,6 +1,8 @@
 // Pure mapping from a run snapshot document (the JSON stored on the runs
 // disk) to display-ready values. No fetches — the snapshot is self-contained.
 
+import { formatCost } from '@/cost';
+
 export const formatUTCTimestamp = (isoString) => {
     const date = new Date(isoString);
     const pad = n => n < 10 ? '0' + n : n;
@@ -76,7 +78,8 @@ export const formatThroughput = (megabytesPerSecond) => {
 // $24/mo". `plan_notes` is the pre-split legacy field on older snapshots,
 // so it stands in when `plan` is absent.
 export const hostDetailsLine = (meta = {}, fields = ['provider', 'plan', 'datacenter', 'cost']) => {
-    const values = { ...meta, plan: meta.plan ?? meta.plan_notes };
+    // cost is stored structured; every caller here wants it as "€20/mo"
+    const values = { ...meta, plan: meta.plan ?? meta.plan_notes, cost: formatCost(meta.cost) };
 
     return fields.map((field) => values[field]).filter(Boolean).join(' · ');
 };

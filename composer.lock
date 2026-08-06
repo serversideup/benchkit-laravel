@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "eef64689ab413fa9adc2eec5343c3ac5",
+    "content-hash": "c12569896d1c277068c0a7906891c15a",
     "packages": [
         {
             "name": "brick/math",
@@ -7278,16 +7278,16 @@
         },
         {
             "name": "laravel/boost",
-            "version": "v2.4.11",
+            "version": "v2.4.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/boost.git",
-                "reference": "c98fc9d151de97a1864b51fc7c710fc03023ba17"
+                "reference": "f55e08f5afa89ac72f23f574175005b67878f466"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/boost/zipball/c98fc9d151de97a1864b51fc7c710fc03023ba17",
-                "reference": "c98fc9d151de97a1864b51fc7c710fc03023ba17",
+                "url": "https://api.github.com/repos/laravel/boost/zipball/f55e08f5afa89ac72f23f574175005b67878f466",
+                "reference": "f55e08f5afa89ac72f23f574175005b67878f466",
                 "shasum": ""
             },
             "require": {
@@ -7296,7 +7296,7 @@
                 "illuminate/contracts": "^11.45.3|^12.41.1|^13.0",
                 "illuminate/routing": "^11.45.3|^12.41.1|^13.0",
                 "illuminate/support": "^11.45.3|^12.41.1|^13.0",
-                "laravel/mcp": "^0.7.1|^0.8.0",
+                "laravel/mcp": "^0.7.1|^0.8.0|^0.9.0",
                 "laravel/prompts": "^0.3.10",
                 "laravel/roster": "^0.5.0",
                 "php": "^8.2"
@@ -7340,7 +7340,7 @@
                 "issues": "https://github.com/laravel/boost/issues",
                 "source": "https://github.com/laravel/boost"
             },
-            "time": "2026-06-26T08:21:49+00:00"
+            "time": "2026-07-17T14:28:57+00:00"
         },
         {
             "name": "laravel/mcp",
@@ -9328,16 +9328,16 @@
         },
         {
             "name": "serversideup/spin",
-            "version": "v3.2.4",
+            "version": "v3.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/serversideup/spin.git",
-                "reference": "67ebcfc6e3b64bb305486717a7d29409b8bfb6b7"
+                "reference": "4c65c3244470e2da44b0331efbefef5506a20fb2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/serversideup/spin/zipball/67ebcfc6e3b64bb305486717a7d29409b8bfb6b7",
-                "reference": "67ebcfc6e3b64bb305486717a7d29409b8bfb6b7",
+                "url": "https://api.github.com/repos/serversideup/spin/zipball/4c65c3244470e2da44b0331efbefef5506a20fb2",
+                "reference": "4c65c3244470e2da44b0331efbefef5506a20fb2",
                 "shasum": ""
             },
             "bin": [
@@ -9362,7 +9362,7 @@
             "description": "Replicate your production environment locally using Docker. Just run \"spin up\". It's really that easy.",
             "support": {
                 "issues": "https://github.com/serversideup/spin/issues",
-                "source": "https://github.com/serversideup/spin/tree/v3.2.4"
+                "source": "https://github.com/serversideup/spin/tree/v3.3.0"
             },
             "funding": [
                 {
@@ -9370,7 +9370,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-06-23T17:38:47+00:00"
+            "time": "2026-07-16T20:06:00+00:00"
         },
         {
             "name": "staabm/side-effects-detector",

@@ -6,7 +6,7 @@ name: Validate result submission
 on:
   pull_request:
     paths:
-      - 'docs/content/runs/**.json'
+      - 'docs/data/runs/**.json'
 
 permissions:
   contents: read
@@ -28,7 +28,7 @@ jobs:
         run: |
           base='${{ github.event.pull_request.base.sha }}'
           head='${{ github.event.pull_request.head.sha }}'
-          files=$(git diff --name-only --diff-filter=ACM "$base" "$head" -- 'docs/content/runs/*.json' | tr '\n' ' ')
+          files=$(git diff --name-only --diff-filter=ACM "$base" "$head" -- 'docs/data/runs/**/*.json' | tr '\n' ' ')
           echo "files=$files" >> "$GITHUB_OUTPUT"
           echo "Changed run files: ${files:-<none>}"
 

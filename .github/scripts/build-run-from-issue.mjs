@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Turns a result-submission issue into a validated docs/content/runs/<id>.json.
+// Turns a result-submission issue into a validated docs/data/runs file.
 // Identity comes from the authenticated issue author (ISSUE_AUTHOR), never from
 // the body — so it can't be spoofed. Nothing here executes issue content; it
 // only JSON.parses it, so running on arbitrary issues is safe.
@@ -7,11 +7,12 @@
 // Env: ISSUE_BODY, ISSUE_AUTHOR
 // Outputs (to $GITHUB_OUTPUT): valid=true|false, id, path, errors
 
-import { writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, appendFileSync, existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { validateSubmission } from './validate-run-submission.mjs';
+import { buildDocument, runsPathFor } from './run-document.mjs';
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
-const RUNS_DIR = 'docs/content/runs';
 
 const body = process.env.ISSUE_BODY ?? '';
 const author = (process.env.ISSUE_AUTHOR ?? '').trim();
@@ -57,22 +58,27 @@ if (typeof run.id !== 'string' || !ID_RE.test(run.id)) {
     bail(`Invalid run id "${run?.id}" — expected something like 20260805-152622-l9ft.`);
 }
 
-const doc = {
-    submission: {
-        github: author,
-        submitted_at: (run.created_at ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10),
-        verified: false,
-    },
-    run,
-};
+const path = runsPathFor(run.id);
 
-const { errors } = validateSubmission(doc, `${run.id}.json`);
+// A run id is minted once per benchmark, so the same id arriving twice is a
+// resubmission, not a new data point. Without this the branch force-pushes over
+// itself and `gh pr create` fails on an existing head, which reads as a crash.
+if (existsSync(path)) {
+    bail(`Run ${run.id} is already in the gallery — re-run the benchmark to submit a fresh result.`);
+}
+
+const doc = buildDocument(run, {
+    github: author,
+    submittedAt: (run.created_at ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+    verified: false,
+});
+
+const { errors } = validateSubmission(doc, path);
 if (errors.length) {
     bail('The submission didn\'t pass validation:', ...errors.map(e => `- ${e}`));
 }
 
-mkdirSync(RUNS_DIR, { recursive: true });
-const path = `${RUNS_DIR}/${run.id}.json`;
+mkdirSync(dirname(path), { recursive: true });
 writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
 
 console.log(`Wrote ${path} for @${author}`);

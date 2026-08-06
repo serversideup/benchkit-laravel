@@ -66,50 +66,61 @@
                     <div class="text-sm font-semibold text-highlighted">
                         {{ metricLabel }} across {{ filtered.length }} matching run{{ filtered.length === 1 ? '' : 's' }}
                     </div>
-                    <div class="text-xs text-dimmed">median {{ formatNumber(median) }} rps</div>
+                    <div class="text-xs text-dimmed">median {{ formatNumber(median) }} {{ metricUnit }}</div>
                 </div>
-                <div class="flex items-end gap-1.5 h-24">
+                <div class="flex items-end gap-px sm:gap-1 h-24">
                     <div
-                        v-for="entry in filtered"
-                        :key="entry.run.id"
+                        v-for="entry in strip"
+                        :key="entry.run_id"
                         class="flex-1 rounded-t bg-primary/70 hover:bg-primary transition-colors relative group cursor-pointer min-w-0"
                         :style="{ height: barHeight(metricValue(entry)) + '%' }"
-                        @click="navigateTo(`/results/${entry.run.id}`)"
+                        @click="navigateTo(`/results/${entry.run_id}`)"
                     >
                         <div class="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap rounded bg-inverted px-2 py-1 text-xs text-inverted z-10">
-                            {{ formatNumber(metricValue(entry)) }} rps · {{ entry.run.meta.provider || 'Self-hosted' }}
+                            {{ formatNumber(metricValue(entry)) }} {{ metricUnit }} · {{ entry.provider }}
                         </div>
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-dimmed">
-                    Each bar is one run ({{ metricLabel.toLowerCase() }}), tallest to shortest. It's a spread, not a
-                    leaderboard — the hardware and settings behind each run are different.
+                    <template v-if="strip.length < filtered.length">
+                        {{ strip.length }} bars sampled evenly across all {{ filtered.length }} matching runs
+                        ({{ metricLabel.toLowerCase() }}){{ stripMatchesSort ? ', tallest to shortest' : '' }}.
+                    </template>
+                    <template v-else>
+                        Each bar is one run ({{ metricLabel.toLowerCase() }}){{ stripMatchesSort ? ', tallest to shortest' : '' }}.
+                    </template>
+                    It's a spread, not a leaderboard — the hardware and settings behind each run are different.
+                </p>
+                <p v-if="sortBy === 'value'" class="mt-2 text-xs text-dimmed">
+                    Value ranking converts each cost to USD with approximate rates from {{ FX_RATES_AS_OF }} — close
+                    enough to compare hosts, not close enough to quote.
+                    <template v-if="unpricedCount">{{ unpricedCount }} run{{ unpricedCount === 1 ? '' : 's' }} with no cost recorded {{ unpricedCount === 1 ? 'is' : 'are' }} hidden.</template>
                 </p>
             </div>
 
             <!-- Cards -->
             <div class="grid gap-4 sm:grid-cols-2">
                 <NuxtLink
-                    v-for="entry in filtered"
-                    :key="entry.run.id"
-                    :to="`/results/${entry.run.id}`"
+                    v-for="entry in visible"
+                    :key="entry.run_id"
+                    :to="`/results/${entry.run_id}`"
                     class="group rounded-xl border border-default bg-elevated/40 p-5 hover:border-primary/60 hover:bg-elevated/70 transition-colors"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <h3 class="font-semibold text-highlighted truncate">{{ entry.run.meta.label }}</h3>
-                                <UBadge v-if="entry.submission.verified" color="primary" variant="subtle" size="sm">
+                                <h3 class="font-semibold text-highlighted truncate">{{ entry.label }}</h3>
+                                <UBadge v-if="entry.verified" color="primary" variant="subtle" size="sm">
                                     <UIcon name="i-lucide-badge-check" class="size-3 mr-1" />Maintainer
                                 </UBadge>
                             </div>
                             <div class="mt-1 flex items-center gap-2 text-xs text-dimmed">
-                                <UBadge :color="entry.run.environment.php.php_variation === 'frankenphp' ? 'success' : 'neutral'" variant="subtle" size="sm">
-                                    {{ entry.run.environment.php.php_variation }}
+                                <UBadge :color="entry.php_variation === 'frankenphp' ? 'success' : 'neutral'" variant="subtle" size="sm">
+                                    {{ entry.php_variation }}
                                 </UBadge>
-                                <span>PHP {{ entry.run.environment.php.php_version }}</span>
-                                <span>·</span>
-                                <span>{{ coresLabel(entry.run.environment.server.cpu_cores) }}</span>
+                                <span>PHP {{ entry.php_version }}</span>
+                                <span v-if="entry.cpu_cores">·</span>
+                                <span v-if="entry.cpu_cores">{{ coresLabel(entry.cpu_cores) }}</span>
                             </div>
                         </div>
                         <UIcon name="i-lucide-arrow-up-right" class="size-4 text-dimmed group-hover:text-primary shrink-0" />
@@ -118,15 +129,15 @@
                     <!-- Headline metrics -->
                     <div class="mt-4 grid grid-cols-3 gap-3">
                         <div>
-                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ formatNumber(primaryRoute(entry)?.requests_per_second) }}</div>
-                            <div class="text-xs text-dimmed">req/s · {{ primaryRouteLabel(entry) }}</div>
+                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ formatNumber(primaryMetric(entry)?.rps) }}</div>
+                            <div class="text-xs text-dimmed">req/s · {{ primaryMetric(entry)?.label ?? 'HTTP' }}</div>
                         </div>
                         <div>
-                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ primaryRoute(entry)?.p95_ms ?? '—' }}<span class="text-sm font-normal text-dimmed ml-0.5">ms</span></div>
+                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ primaryMetric(entry)?.p95_ms ?? '—' }}<span class="text-sm font-normal text-dimmed ml-0.5">ms</span></div>
                             <div class="text-xs text-dimmed">p95 latency</div>
                         </div>
                         <div>
-                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ entry.run.benchmarks.php?.headline?.read?.milliseconds ?? '—' }}<span class="text-sm font-normal text-dimmed ml-0.5">ms</span></div>
+                            <div class="text-xl font-bold text-highlighted tabular-nums">{{ entry.php_read_ms ?? '—' }}<span class="text-sm font-normal text-dimmed ml-0.5">ms</span></div>
                             <div class="text-xs text-dimmed">DB read</div>
                         </div>
                     </div>
@@ -134,22 +145,28 @@
                     <!-- Footer: submitter + cost -->
                     <div class="mt-4 pt-3 border-t border-default flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <template v-if="entry.submission.github">
+                            <template v-if="entry.github">
                                 <img
-                                    :src="`https://github.com/${entry.submission.github}.png?size=40`"
-                                    :alt="entry.submission.github"
+                                    :src="`https://github.com/${entry.github}.png?size=40`"
+                                    :alt="entry.github"
                                     class="size-5 rounded-full bg-elevated"
                                     loading="lazy"
                                 >
-                                <span class="text-xs text-muted">@{{ entry.submission.github }}</span>
+                                <span class="text-xs text-muted">@{{ entry.github }}</span>
                             </template>
                             <span v-else class="text-xs text-dimmed">Community submission</span>
                         </div>
                         <div class="text-xs text-dimmed">
-                            <template v-if="costLabel(entry.run.meta.cost)">{{ costLabel(entry.run.meta.cost) }} · </template>{{ entry.submission.submitted_at }}
+                            <template v-if="monthlyCostLabel(entry.cost_amount, entry.cost_currency)">{{ monthlyCostLabel(entry.cost_amount, entry.cost_currency) }} · </template>{{ entry.submitted_at }}
                         </div>
                     </div>
                 </NuxtLink>
+            </div>
+
+            <div v-if="visible.length < filtered.length" class="mt-6 text-center">
+                <UButton color="neutral" variant="outline" @click="shown += PAGE_SIZE">
+                    Show more — {{ visible.length }} of {{ filtered.length }}
+                </UButton>
             </div>
         </template>
 
@@ -180,15 +197,22 @@
 </template>
 
 <script setup lang="ts">
-import type { RunEntry } from '~/types/run'
-import { primaryRoute, formatNumber, coresLabel, costLabel } from '~/types/run'
+import type { ResultsIndex, RunIndex } from '~/types/run'
+import { primaryMetric, formatNumber, coresLabel, monthlyCostLabel, valuePerUsd } from '~/types/run'
+import { FX_RATES_AS_OF } from '~/utils/fx'
 
-const { data } = await useAsyncData('runs', () => queryCollection('runs').all())
-const entries = computed<RunEntry[]>(() => (data.value ?? []) as unknown as RunEntry[])
+// Summary fields for every run — the whole gallery in one small file. The full
+// run documents live one file each and are only loaded when someone opens one,
+// so this page's weight tracks the number of runs, not their size.
+// URL resolved in setup, not inside the handler — resultsApi reads runtime
+// config, and useAsyncData can re-run its handler outside a Nuxt context.
+const indexUrl = resultsApi('index.json')
+const { data } = await useAsyncData('results-index', () => $fetch<ResultsIndex>(indexUrl))
+const entries = computed<RunIndex[]>(() => data.value?.runs ?? [])
 
 const variation = ref<'all' | 'frankenphp' | 'fpm-nginx'>('all')
 const provider = ref('all')
-const sortBy = ref<'json_rps' | 'static_rps' | 'db_latency' | 'newest'>('json_rps')
+const sortBy = ref<'json_rps' | 'static_rps' | 'db_latency' | 'value' | 'newest'>('json_rps')
 
 const variationOptions = [
     { label: 'All', value: 'all' as const },
@@ -196,44 +220,74 @@ const variationOptions = [
     { label: 'fpm-nginx', value: 'fpm-nginx' as const }
 ]
 
-const providerOptions = computed(() => ['all', ...new Set(entries.value.map(e => e.run.meta.provider || 'Self-hosted'))])
+const providerOptions = computed(() => ['all', ...new Set(entries.value.map(e => e.provider))])
 
 const sortOptions = [
     { label: 'Sort: JSON req/s', value: 'json_rps' },
     { label: 'Sort: Static req/s', value: 'static_rps' },
     { label: 'Sort: DB read latency', value: 'db_latency' },
+    { label: 'Sort: req/s per $/mo', value: 'value' },
     { label: 'Sort: Newest', value: 'newest' }
 ]
 
-const metricLabel = computed(() => sortBy.value === 'static_rps' ? 'Static req/s' : 'JSON req/s')
+const metricLabel = computed(() => {
+    if (sortBy.value === 'static_rps') return 'Static req/s'
+    if (sortBy.value === 'value') return 'Req/s per $1/mo'
+    return 'JSON req/s'
+})
 
-function metricValue(entry: RunEntry): number {
-    const routes = entry.run.benchmarks.http?.routes
-    if (sortBy.value === 'static_rps') return routes?.static?.requests_per_second ?? 0
-    return routes?.json?.requests_per_second ?? routes?.static?.requests_per_second ?? 0
+const metricUnit = computed(() => sortBy.value === 'value' ? 'req/s per $1/mo' : 'rps')
+
+function metricValue(entry: RunIndex): number {
+    if (sortBy.value === 'static_rps') return entry.static_rps ?? 0
+    if (sortBy.value === 'value') return valuePerUsd(entry) ?? 0
+    return entry.json_rps ?? entry.static_rps ?? 0
 }
 
-function primaryRouteLabel(entry: RunEntry): string {
-    const r = entry.run.benchmarks.http?.routes
-    if (r?.json) return 'JSON'
-    if (r?.static) return 'static'
-    if (r?.db_read) return 'DB read'
-    return 'HTTP'
-}
+// The bars are only "tallest to shortest" when the strip's metric is what
+// we're sorting by; latency and date orderings say something else.
+const stripMatchesSort = computed(() => sortBy.value !== 'db_latency' && sortBy.value !== 'newest')
+
+// Sorting by value hides runs with no price on them — ranking a run at
+// "infinite req/s per dollar" because nobody typed a cost would be a lie.
+const pricedOnly = computed(() => sortBy.value === 'value')
 
 const filtered = computed(() => {
     const list = entries.value.filter((e) => {
-        if (variation.value !== 'all' && e.run.environment.php.php_variation !== variation.value) return false
-        if (provider.value !== 'all' && (e.run.meta.provider || 'Self-hosted') !== provider.value) return false
+        if (variation.value !== 'all' && e.php_variation !== variation.value) return false
+        if (provider.value !== 'all' && e.provider !== provider.value) return false
+        if (pricedOnly.value && valuePerUsd(e) == null) return false
         return true
     })
     return [...list].sort((a, b) => {
         if (sortBy.value === 'db_latency') {
-            return (a.run.benchmarks.http?.routes?.db_read?.p95_ms ?? Infinity) - (b.run.benchmarks.http?.routes?.db_read?.p95_ms ?? Infinity)
+            return (a.db_read_p95_ms ?? Infinity) - (b.db_read_p95_ms ?? Infinity)
         }
-        if (sortBy.value === 'newest') return b.submission.submitted_at.localeCompare(a.submission.submitted_at)
+        if (sortBy.value === 'newest') return b.submitted_at.localeCompare(a.submitted_at)
         return metricValue(b) - metricValue(a)
     })
+})
+
+const unpricedCount = computed(() => entries.value.length - entries.value.filter(e => valuePerUsd(e) != null).length)
+
+// Cards are paged rather than dumped: at a few thousand runs the grid alone is
+// tens of thousands of DOM nodes, and nobody scrolls past the first screen
+// anyway.
+const PAGE_SIZE = 24
+const shown = ref(PAGE_SIZE)
+const visible = computed(() => filtered.value.slice(0, shown.value))
+watch([variation, provider, sortBy], () => shown.value = PAGE_SIZE)
+
+// One bar per run stops being a distribution once the bars are thinner than
+// the gaps between them, so past this many we sample evenly across the sorted
+// list — same shape, readable width — and say so underneath.
+const MAX_BARS = 120
+const strip = computed(() => {
+    const list = filtered.value
+    if (list.length <= MAX_BARS) return list
+
+    const step = list.length / MAX_BARS
+    return Array.from({ length: MAX_BARS }, (_, i) => list[Math.floor(i * step)]!)
 })
 
 const median = computed(() => {
@@ -243,7 +297,9 @@ const median = computed(() => {
     return vals.length % 2 ? vals[mid]! : (vals[mid - 1]! + vals[mid]!) / 2
 })
 
-const maxMetric = computed(() => Math.max(1, ...filtered.value.map(metricValue)))
+// reduce, not Math.max(...spread) — spreading an array into a call throws
+// RangeError past ~130k arguments, which is a crash rather than a slow page.
+const maxMetric = computed(() => filtered.value.reduce((max, entry) => Math.max(max, metricValue(entry)), 1))
 function barHeight(v: number): number {
     return Math.max(8, Math.round((v / maxMetric.value) * 100))
 }

@@ -116,7 +116,7 @@ class SaveRunFromStateTest extends TestCase
             'provider' => 'DigitalOcean',
             'plan' => 'Premium AMD 2GB',
             'datacenter' => 'NYC3',
-            'cost' => '$24/mo',
+            'cost' => ['amount' => 24, 'currency' => 'USD', 'period' => 'monthly'],
         ]);
         $this->state->finishStage('http', 'completed');
 
@@ -126,5 +126,29 @@ class SaveRunFromStateTest extends TestCase
         $this->assertSame('DigitalOcean', $snapshot['meta']['provider']);
         $this->assertSame('user', $snapshot['meta']['provider_source']);
         $this->assertSame('NYC3', $snapshot['meta']['datacenter']);
+        // assertEquals, not assertSame: JSON has a single number type, so a
+        // whole amount comes back off disk as an int rather than a float.
+        $this->assertEquals(['amount' => 24, 'currency' => 'USD', 'period' => 'monthly'], $snapshot['meta']['cost']);
+    }
+
+    /**
+     * A browser that hasn't reloaded since cost became structured still
+     * remembers "$24/mo" from localStorage and sends it on the next run. The
+     * snapshot must never hold two shapes, so it's normalized on the way in.
+     */
+    public function test_a_free_text_cost_from_an_older_client_is_normalized(): void
+    {
+        $this->writeHttpFixtures();
+
+        $this->state->start(['http' => true], ['http'], 'custom', [
+            'provider' => 'Hetzner',
+            'cost' => '20 EUR',
+        ]);
+        $this->state->finishStage('http', 'completed');
+
+        $run = (new SaveRunFromState)->execute($this->state);
+        $snapshot = json_decode(Storage::disk('runs')->get("{$run['snapshot_id']}.json"), true);
+
+        $this->assertEquals(['amount' => 20, 'currency' => 'EUR', 'period' => 'monthly'], $snapshot['meta']['cost']);
     }
 }

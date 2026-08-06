@@ -70,6 +70,8 @@ class SaveRunFromState
             'provider_source' => $provider !== null ? $source : null,
             'plan' => $remembered['plan'] ?? null,
             'datacenter' => $remembered['datacenter'] ?? null,
+            // CreateRunSnapshot normalizes this — a remembered cost can still
+            // be free text from a client that hasn't reloaded yet.
             'cost' => $remembered['cost'] ?? null,
         ];
     }

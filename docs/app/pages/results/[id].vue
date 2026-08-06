@@ -9,21 +9,21 @@
             <div>
                 <div class="flex items-center gap-2 flex-wrap">
                     <h1 class="text-2xl sm:text-3xl font-bold text-[#F7F7F7]">{{ run.meta.label }}</h1>
-                    <UBadge v-if="entry.submission.verified" color="primary" variant="subtle">
+                    <UBadge v-if="submitter.verified" color="primary" variant="subtle">
                         <UIcon name="i-lucide-badge-check" class="size-3.5 mr-1" />Maintainer run
                     </UBadge>
                     <UBadge v-else color="neutral" variant="subtle">Unverified</UBadge>
                 </div>
                 <div class="mt-2 flex items-center gap-2 text-sm text-[#94979C]">
-                    <template v-if="entry.submission.github">
-                        <img :src="`https://github.com/${entry.submission.github}.png?size=40`" :alt="entry.submission.github" class="size-5 rounded-full" loading="lazy">
-                        <a :href="`https://github.com/${entry.submission.github}`" target="_blank" class="hover:text-[#F7F7F7]">@{{ entry.submission.github }}</a>
+                    <template v-if="submitter.github">
+                        <img :src="`https://github.com/${submitter.github}.png?size=40`" :alt="submitter.github" class="size-5 rounded-full" loading="lazy">
+                        <a :href="`https://github.com/${submitter.github}`" target="_blank" class="hover:text-[#F7F7F7]">@{{ submitter.github }}</a>
                         <span class="text-[#61656C]">·</span>
                     </template>
-                    <span>{{ entry.submission.submitted_at }}</span>
+                    <span>{{ submitter.submitted_at }}</span>
                     <span class="text-[#61656C]">·</span>
                     <a
-                        :href="`https://github.com/serversideup/benchkit-laravel/blob/main/docs/content/runs/${run.id}.json`"
+                        :href="`https://github.com/serversideup/benchkit-laravel/blob/main/${sourcePath}`"
                         target="_blank"
                         class="inline-flex items-center gap-1 hover:text-[#F7F7F7]"
                     >
@@ -49,7 +49,10 @@
             <!-- HTTP throughput -->
             <ResultsPanel v-if="routes.length" title="Web server load test">
                 <template #aside>
-                    <ResultsChip>{{ http.octane ? 'worker mode' : 'classic mode' }}</ResultsChip>
+                    <!-- Octane is a property of the PHP runtime, not of the
+                         HTTP benchmark — reading it off `http` here silently
+                         labelled every worker-mode run "classic mode". -->
+                    <ResultsChip>{{ run.environment.php.octane ? 'worker mode' : 'classic mode' }}</ResultsChip>
                     <ResultsChip v-if="http.duration_seconds">{{ http.duration_seconds }}s</ResultsChip>
                     <ResultsChip v-if="http.connections">{{ http.connections }} connections</ResultsChip>
                     <ResultsChip v-if="http.io_ms != null">I/O {{ http.io_ms }}ms</ResultsChip>
@@ -105,7 +108,7 @@
             <!-- PHP / database -->
             <ResultsPanel v-if="phpOps.length" title="Laravel database performance">
                 <template #aside>
-                    <ResultsChip>{{ phpOps[0].records }} records per operation</ResultsChip>
+                    <ResultsChip>{{ phpOps[0]?.records }} records per operation</ResultsChip>
                 </template>
 
                 <p class="mt-2 text-xs text-[#94979C]">↓ Lower is better — total time per operation</p>
@@ -205,21 +208,37 @@
 
 <script setup lang="ts">
 import type { RunEntry } from '~/types/run'
-import { coresLabel, formatThroughput } from '~/types/run'
+import { coresLabel, costLabel, formatThroughput } from '~/types/run'
 
 const route = useRoute()
 const id = route.params.id as string
 
-const { data } = await useAsyncData(`run-${id}`, () => queryCollection('runs').all())
-const entry = computed<RunEntry | undefined>(
-    () => ((data.value ?? []) as unknown as RunEntry[]).find(e => e.run.id === id)
+// One file, one run. Nothing about this page's weight depends on how many
+// other runs exist — which is the whole reason runs are published as static
+// JSON rather than compiled into a queryable collection.
+const runUrl = resultsApi(`${id}.json`)
+const { data: entry } = await useAsyncData(
+    `run-${id}`,
+    () => $fetch<RunEntry>(runUrl).catch(() => null)
 )
 
 if (!entry.value) {
     throw createError({ statusCode: 404, statusMessage: 'Result not found', fatal: true })
 }
 
+// Past the 404 guard `entry` is always present, but the guard doesn't narrow
+// the ref for the template — so unwrap once here rather than asserting at
+// every use.
 const run = computed(() => entry.value!.run)
+const submitter = computed(() => {
+    const { github, submitted_at, verified } = entry.value!
+
+    return { github, submitted_at, verified }
+})
+
+// Runs are sharded by month (see .github/scripts/run-document.mjs) so the
+// directory stays readable once there are thousands of them.
+const sourcePath = computed(() => `docs/data/runs/${id.slice(0, 4)}-${id.slice(4, 6)}/${id}.json`)
 const http = computed(() => run.value.benchmarks.http ?? { routes: {} })
 const cfspeedtest = computed(() => run.value.benchmarks.cfspeedtest ?? null)
 
@@ -249,7 +268,9 @@ const specs = computed(() => {
             label: 'Host',
             icon: 'i-lucide-server',
             value: m.provider || 'Self-hosted',
-            sub: [m.plan, m.datacenter].filter(Boolean).join(' · ') || null
+            // Cost in the currency the submitter is billed — no conversion,
+            // no invented dollar sign.
+            sub: [m.plan, m.datacenter, costLabel(m.cost)].filter(Boolean).join(' · ') || null
         },
         {
             label: 'Hardware',

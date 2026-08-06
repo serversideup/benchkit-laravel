@@ -11,7 +11,8 @@ export default defineNuxtConfig({
         'nuxt-og-image',
         'nuxt-llms',
         'nuxt-schema-org',
-        './modules/pre-render-raw-routes'
+        './modules/pre-render-raw-routes',
+        './modules/results-api'
     ],
 
     devtools: {

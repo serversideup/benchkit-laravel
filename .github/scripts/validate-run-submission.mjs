@@ -1,19 +1,22 @@
 #!/usr/bin/env node
-// Validates community result submissions (docs/content/runs/*.json) without any
-// npm dependencies, so it runs on a bare Node runner. Mirrors the `runs`
-// collection schema in docs/content.config.ts, plus free-text sanitization and
-// plausibility bounds a schema alone can't express.
+// Validates community result submissions (docs/data/runs/**/*.json) without
+// any npm dependencies, so it runs on a bare Node runner. This is the gate: a
+// run that fails here never merges, so it's the strictest check in the chain —
+// free-text sanitization, plausibility bounds, and index/run consistency, none
+// of which a type schema alone can express.
 //
 // As a module:  import { validateSubmission } from './validate-run-submission.mjs'
-//               validateSubmission(doc, 'name.json') -> { errors, warnings }
+//               validateSubmission(doc, 'path.json') -> { errors, warnings }
 // As a CLI:     node validate-run-submission.mjs [file ...]
-//               No args validates every docs/content/runs/*.json. Exit 1 on any
-//               error. Writes a markdown report to $GITHUB_STEP_SUMMARY if set.
+//               No args validates every docs/data/runs/**/*.json. Exit 1 on
+//               any error. Writes a markdown report to $GITHUB_STEP_SUMMARY if
+//               set.
 
 import { readFileSync, readdirSync, existsSync, appendFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { join } from 'node:path';
+import { CURRENCIES, indexFields, runsPathFor } from './run-document.mjs';
 
-const RUNS_DIR = 'docs/content/runs';
+const RUNS_DIR = 'docs/data/runs';
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
 const GITHUB_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const KNOWN_VARIATIONS = ['frankenphp', 'fpm-nginx', 'fpm-apache'];
@@ -21,9 +24,9 @@ const MAX_TEXT = 80;
 const MAX_RPS = 5_000_000;
 const MAX_MS = 600_000;
 
-// Pure validation of one parsed document. filename is used only for the
-// id-matches-filename check (pass null to skip it).
-export function validateSubmission(doc, filename = null) {
+// Pure validation of one parsed document. filepath is used only for the
+// id-matches-path check (pass null to skip it).
+export function validateSubmission(doc, filepath = null) {
     const errors = [];
     const warnings = [];
     const err = m => errors.push(m);
@@ -50,28 +53,27 @@ export function validateSubmission(doc, filename = null) {
     };
 
     if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
-        return { errors: ['Top level must be an object { submission, run }'], warnings };
+        return { errors: ['Top level must be an object of index fields plus a `run` object'], warnings };
     }
     const run = doc.run;
     if (typeof run !== 'object' || run === null) {
         return { errors: ['Missing `run` object'], warnings };
     }
 
-    // ---- submission (github comes from the authenticated issue author) ----
-    if (doc.submission != null) {
-        const gh = doc.submission.github;
-        if (gh != null && typeof gh !== 'string') err('submission.github must be a string');
-        if (typeof gh === 'string' && gh !== '' && !GITHUB_USER_RE.test(gh)) warn(`submission.github "${gh}" doesn't look like a GitHub username`);
-        if (doc.submission.verified != null && typeof doc.submission.verified !== 'boolean') err('submission.verified must be a boolean');
-        // The Maintainer badge isn't self-serve — flag for the reviewer, don't block.
-        if (doc.submission.verified === true) warn('submission.verified is true — the Maintainer badge should only be set on team-added runs');
-    }
+    // ---- submitter (github comes from the authenticated issue author) ----
+    const gh = doc.github;
+    if (gh != null && typeof gh !== 'string') err('github must be a string');
+    if (typeof gh === 'string' && gh !== '' && !GITHUB_USER_RE.test(gh)) warn(`github "${gh}" doesn't look like a GitHub username`);
+    if (doc.verified != null && typeof doc.verified !== 'boolean') err('verified must be a boolean');
+    // The Maintainer badge isn't self-serve — flag for the reviewer, don't block.
+    if (doc.verified === true) warn('verified is true — the Maintainer badge should only be set on team-added runs');
+    if (typeof doc.submitted_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(doc.submitted_at)) err('submitted_at must be a YYYY-MM-DD date');
 
     // ---- identity ----
     if (typeof run.id !== 'string' || !ID_RE.test(run.id)) {
         err(`run.id "${run.id}" is not a valid run id (expected e.g. 20260805-152622-l9ft)`);
-    } else if (filename && basename(filename) !== `${run.id}.json`) {
-        err(`filename must match run.id — expected ${run.id}.json, got ${basename(filename)}`);
+    } else if (filepath && filepath.replaceAll('\\', '/') !== runsPathFor(run.id)) {
+        err(`file must live at ${runsPathFor(run.id)}, got ${filepath}`);
     }
     if (run.schema_version !== 1) warn(`schema_version is ${run.schema_version} (validator knows version 1)`);
     if (typeof run.created_at !== 'string' || Number.isNaN(Date.parse(run.created_at))) err('run.created_at must be an ISO date string');
@@ -82,7 +84,18 @@ export function validateSubmission(doc, filename = null) {
     for (const key of ['provider', 'plan', 'datacenter']) {
         if (meta[key] != null) isText(meta[key], `meta.${key}`, { max: 60, required: false });
     }
-    if (meta.cost != null && typeof meta.cost !== 'number' && typeof meta.cost !== 'string') err('meta.cost must be a number, string, or null');
+    // Cost is the one field the gallery does arithmetic on, so it's structured
+    // or absent — never free text. Currency is stored as billed and never
+    // converted here; the site converts at render with a dated rate table.
+    if (meta.cost != null) {
+        if (typeof meta.cost !== 'object' || Array.isArray(meta.cost)) {
+            err('meta.cost must be an object { amount, currency, period } or null');
+        } else {
+            isNum(meta.cost.amount, 'meta.cost.amount', { min: 0, max: 1_000_000 });
+            if (!CURRENCIES.includes(meta.cost.currency)) err(`meta.cost.currency "${meta.cost.currency}" is not a currency BenchKit records`);
+            if (meta.cost.period !== 'monthly') err('meta.cost.period must be "monthly" — every cost is normalized to a month');
+        }
+    }
 
     // ---- environment ----
     const env = run.environment ?? {};
@@ -151,8 +164,25 @@ export function validateSubmission(doc, filename = null) {
 
     if (http == null && phpBench == null) warn('submission has neither HTTP nor PHP benchmarks — it will render nearly empty');
 
+    // ---- index fields ----
+    // The flat top-level fields are what the gallery filters and sorts on, and
+    // they're derived from `run`. Recompute them: a hand-edited PR that tweaks
+    // a number up here would show one figure in the list and another on the
+    // detail page, and nobody would notice which one was real.
+    for (const [key, expected] of Object.entries(indexFields(run))) {
+        const actual = doc[key] ?? null;
+        if (actual !== expected) err(`${key} must be ${JSON.stringify(expected)} to match the run, got ${JSON.stringify(actual)}`);
+    }
+
     return { errors, warnings };
 }
+
+// Runs are sharded into month directories, so walk rather than list.
+const findRunFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return findRunFiles(path);
+    return entry.name.endsWith('.json') ? [path] : [];
+});
 
 // ---- CLI ----
 const isMain = import.meta.url === `file://${process.argv[1]}`;
@@ -160,7 +190,7 @@ if (isMain) {
     const targets = process.argv.slice(2).filter(Boolean);
     const files = targets.length
         ? targets
-        : (existsSync(RUNS_DIR) ? readdirSync(RUNS_DIR).filter(f => f.endsWith('.json')).map(f => `${RUNS_DIR}/${f}`) : []);
+        : (existsSync(RUNS_DIR) ? findRunFiles(RUNS_DIR) : []);
 
     const report = [];
     let hadError = false;
@@ -175,7 +205,7 @@ if (isMain) {
         const { errors, warnings } = result;
         if (errors.length) hadError = true;
         const status = errors.length ? '❌ FAIL' : (warnings.length ? '⚠️ PASS (warnings)' : '✅ PASS');
-        report.push(`### ${status} — \`${basename(file)}\``);
+        report.push(`### ${status} — \`${file}\``);
         for (const e of errors) report.push(`- ❌ ${e}`);
         for (const w of warnings) report.push(`- ⚠️ ${w}`);
         console.log(`${status}  ${file}`);

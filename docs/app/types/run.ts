@@ -1,3 +1,5 @@
+import { approximateMonthlyUsd } from '~/utils/fx'
+
 export interface HttpRoute {
     path?: string
     requests_per_second: number
@@ -14,12 +16,54 @@ export interface PhpHeadline {
     label?: string
 }
 
-export interface RunEntry {
-    submission: {
-        github: string
-        submitted_at: string
-        verified: boolean
-    }
+/**
+ * Hosting cost as stored: a number, a currency, and one fixed period. Free
+ * text can't be compared, and "req/s per dollar" is the only reason to record
+ * a price at all. The currency is what the submitter is actually billed —
+ * conversion happens at render (utils/fx.ts), never in the file.
+ */
+export interface RunCost {
+    amount: number
+    currency: string
+    period: 'monthly'
+}
+
+/**
+ * The flat summary fields on every stored run — enough to render a gallery
+ * card, filter, and sort without opening the full run. Derived from `run` by
+ * .github/scripts/run-document.mjs and recomputed by the PR validator, so the
+ * summary can't drift from the detail it summarizes.
+ */
+export interface RunIndex {
+    github: string
+    submitted_at: string
+    verified: boolean
+    run_id: string
+    label: string | null
+    provider: string
+    php_variation: string | null
+    php_version: string | null
+    cpu_cores: number | null
+    json_rps: number | null
+    json_p95_ms: number | null
+    static_rps: number | null
+    static_p95_ms: number | null
+    db_read_rps: number | null
+    db_read_p95_ms: number | null
+    php_read_ms: number | null
+    cost_amount: number | null
+    cost_currency: string | null
+}
+
+/** What /api/results/index.json returns — every run, summary fields only. */
+export interface ResultsIndex {
+    schema_version: number
+    count: number
+    runs: RunIndex[]
+}
+
+/** What /api/results/<run id>.json returns — one run, in full. */
+export interface RunEntry extends RunIndex {
     run: {
         schema_version: number
         id: string
@@ -29,7 +73,7 @@ export interface RunEntry {
             provider?: string | null
             plan?: string | null
             datacenter?: string | null
-            cost?: number | string | null
+            cost?: RunCost | null
         }
         environment: {
             server: {
@@ -96,9 +140,43 @@ export interface RunEntry {
 
 // ---- Shared display helpers ----
 
-export function primaryRoute(entry: RunEntry): HttpRoute | undefined {
-    const r = entry.run.benchmarks.http?.routes
-    return r?.json ?? r?.static ?? r?.db_read ?? r?.io
+export interface PrimaryMetric {
+    label: string
+    rps: number
+    p95_ms: number | null
+}
+
+/**
+ * The headline route for a gallery card, read straight off the flat columns so
+ * a listing never has to open the full run. JSON first, then static, then DB
+ * read — the same priority the detail page uses.
+ */
+export function primaryMetric(entry: RunIndex): PrimaryMetric | null {
+    const candidates: Array<[string, number | null, number | null]> = [
+        ['JSON', entry.json_rps, entry.json_p95_ms],
+        ['static', entry.static_rps, entry.static_p95_ms],
+        ['DB read', entry.db_read_rps, entry.db_read_p95_ms]
+    ]
+
+    for (const [label, rps, p95_ms] of candidates) {
+        if (rps != null) return { label, rps, p95_ms }
+    }
+
+    return null
+}
+
+/**
+ * Requests per second per USD per month — the number the gallery exists to
+ * make visible. Approximate by construction: costs are billed in different
+ * currencies and converted with a hand-maintained table, so the UI says so.
+ */
+export function valuePerUsd(entry: RunIndex): number | null {
+    const rps = primaryMetric(entry)?.rps
+    const usd = approximateMonthlyUsd(entry.cost_amount, entry.cost_currency)
+
+    if (rps == null || usd == null || usd <= 0) return null
+
+    return rps / usd
 }
 
 export function formatNumber(n: number | null | undefined): string {
@@ -126,9 +204,28 @@ export function formatThroughput(mbps: number | null | undefined): string {
     return mbps >= 1000 ? `${(mbps / 1024).toFixed(2)} GB/s` : `${Math.round(mbps)} MB/s`
 }
 
-export function costLabel(cost: number | string | null | undefined): string | null {
-    if (cost == null || cost === '') return null
-    const n = typeof cost === 'string' ? Number.parseFloat(cost) : cost
-    if (Number.isNaN(n)) return String(cost)
-    return `$${n}/mo`
+/**
+ * "€20/mo" — the currency the submitter is billed, formatted properly rather
+ * than given a dollar sign and hoped for. Never converts.
+ */
+export function monthlyCostLabel(amount: number | null | undefined, currency: string | null | undefined): string | null {
+    if (amount == null || !currency) return null
+
+    try {
+        const formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+            maximumFractionDigits: 2
+        }).format(amount)
+
+        return `${formatted}/mo`
+    } catch {
+        // Unknown code — show the number and the code rather than nothing.
+        return `${amount} ${currency}/mo`
+    }
+}
+
+export function costLabel(cost: RunCost | null | undefined): string | null {
+    return monthlyCostLabel(cost?.amount, cost?.currency)
 }
