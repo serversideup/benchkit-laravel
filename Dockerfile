@@ -34,7 +34,7 @@ ENV APP_NAME=BenchKit \
     PHP_OPCACHE_MEMORY_CONSUMPTION=256 \
     PHP_OPCACHE_MAX_ACCELERATED_FILES=20000 \
     \
-    # Enabel Laravel optimizations by default but allow others to override it
+    # Enable Laravel optimizations by default but allow others to override it
     AUTORUN_ENABLED=true \
     AUTORUN_LARAVEL_STORAGE_LINK=true \
     AUTORUN_LARAVEL_OPTIMIZE=true \
@@ -42,6 +42,9 @@ ENV APP_NAME=BenchKit \
     AUTORUN_LARAVEL_ROUTE_CACHE=true \
     AUTORUN_LARAVEL_VIEW_CACHE=true \
     AUTORUN_LARAVEL_EVENT_CACHE=true \
+    \
+    # Set SSL mode to mixed by default but allow others to override it
+    SSL_MODE=mixed \
     \
     BCRYPT_ROUNDS=12 \
     \

@@ -4,7 +4,5 @@ services:
     image: traefik:v3.7
 
   php:
-    environment:
-      SSL_MODE: "full"
     depends_on:
       - traefik
