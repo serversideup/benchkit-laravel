@@ -9,8 +9,16 @@ use PhpBench\Attributes as Bench;
 /**
  * Benchmark comparing Eloquent ORM vs DB Facade for insert operations.
  *
- * This benchmark demonstrates the performance difference between using
- * Laravel's Eloquent ORM and the DB facade for bulk insert operations.
+ * Subjects insert only. Cleanup must stay out of a measured body because
+ * phpbench times the whole method, and a table reset there is charged to the
+ * insert — which distorted the bulk-vs-individual comparison most, pitting one
+ * bulk INSERT against a four-statement reset. Measured at 15% of the bulk
+ * figure, understating its advantage over individual inserts by a similar
+ * margin.
+ *
+ * Hence one revolution per iteration: setUpDatabase() runs per iteration, so
+ * every measurement is exactly RECORDS_COUNT inserts into an empty table. More
+ * iterations replace the lost revolutions and hold relative stdev near 1%.
  */
 #[Bench\BeforeMethods('setUpDatabase')]
 #[Bench\AfterMethods('tearDownDatabase')]
@@ -69,8 +77,8 @@ class InsertBenchmark extends BaseBenchmark
      * This simulates the common pattern of creating records individually
      * using Eloquent models, which triggers model events and validations.
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['database', 'insert', 'eloquent'])]
     public function benchEloquentInsertIndividual(): void
@@ -84,8 +92,6 @@ class InsertBenchmark extends BaseBenchmark
                 'updated_at' => now(),
             ]);
         }
-
-        $this->truncateTable(self::TABLE_NAME);
     }
 
     /**
@@ -93,8 +99,8 @@ class InsertBenchmark extends BaseBenchmark
      *
      * This uses the DB facade without Eloquent overhead.
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['database', 'insert', 'db-facade'])]
     public function benchDbFacadeInsertIndividual(): void
@@ -108,8 +114,6 @@ class InsertBenchmark extends BaseBenchmark
                 'updated_at' => now(),
             ]);
         }
-
-        $this->truncateTable(self::TABLE_NAME);
     }
 
     /**
@@ -118,8 +122,8 @@ class InsertBenchmark extends BaseBenchmark
      * This demonstrates the most efficient way to insert multiple records
      * using a single INSERT statement with multiple value sets.
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['database', 'insert', 'bulk'])]
     public function benchDbFacadeBulkInsert(): void
@@ -136,7 +140,6 @@ class InsertBenchmark extends BaseBenchmark
         }
 
         DB::table(self::TABLE_NAME)->insert($records);
-        $this->truncateTable(self::TABLE_NAME);
     }
 
     /**
@@ -145,8 +148,8 @@ class InsertBenchmark extends BaseBenchmark
      * This demonstrates inserting records in chunks, which can be more
      * memory-efficient for very large datasets.
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['database', 'insert', 'chunked'])]
     public function benchDbFacadeChunkedInsert(): void
@@ -168,11 +171,8 @@ class InsertBenchmark extends BaseBenchmark
             }
         }
 
-        // Insert remaining records
         if (! empty($records)) {
             DB::table(self::TABLE_NAME)->insert($records);
         }
-
-        $this->truncateTable(self::TABLE_NAME);
     }
 }

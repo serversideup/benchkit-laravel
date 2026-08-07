@@ -4,6 +4,11 @@ name: Process result submission
 # The app files these issues with a hidden marker in the body; real bug reports
 # never carry it, so they're ignored. Identity is the authenticated issue
 # author — nothing from the body is executed, only JSON-parsed.
+#
+# `labeled` is here so a maintainer can retry a submission that failed, but it
+# has to be gated: without the label check below, any label added to a
+# previously processed issue re-runs the whole job, which then dies at
+# `gh pr create` because the PR already exists and reads as a broken workflow.
 on:
   issues:
     types: [opened, labeled]
@@ -16,7 +21,9 @@ permissions:
 jobs:
   process:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.body, '<!-- benchkit-result-submission -->')
+    if: >-
+      contains(github.event.issue.body, '<!-- benchkit-result-submission -->')
+      && (github.event.action == 'opened' || github.event.label.name == 'retry-submission')
     env:
       GH_TOKEN: ${{ github.token }}
       ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -29,12 +36,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Ensure labels exist
         run: |
           gh label create result-submission --color 1f883d --description 'Community benchmark result' --force
           gh label create invalid-submission --color d1242f --description 'Result submission failed validation' --force
+          gh label create retry-submission --color 0969da --description 'Re-run the submission bot on this issue' --force
 
       - name: Build run file from the issue
         id: build
@@ -69,5 +77,5 @@ jobs:
           ERRORS: ${{ steps.build.outputs.errors }}
         run: |
           gh issue edit "$ISSUE_NUMBER" --add-label invalid-submission
-          gh issue comment "$ISSUE_NUMBER" --body "$(printf 'Sorry @%s — we could not add this automatically:\n\n%s\n\nRe-run the benchmark and use **Submit result** in the app to try again.' "$ISSUE_AUTHOR" "$ERRORS")"
+          gh issue comment "$ISSUE_NUMBER" --body "$(printf 'Sorry @%s — we could not add this automatically:\n\n%s\n\nRe-run the benchmark and use **Submit result** in the app to try again. (Maintainers: add the `retry-submission` label to re-run the bot on this issue as-is.)' "$ISSUE_AUTHOR" "$ERRORS")"
           gh issue close "$ISSUE_NUMBER" --reason "not planned"

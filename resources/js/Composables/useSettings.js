@@ -101,6 +101,11 @@ const activePreset = computed(() => {
 // Rough per-test durations in minutes, for the run estimate on the home
 // screen. The http stage is computed from its settings: four routes, each
 // warmed (~3s) then load tested for the configured duration.
+//
+// php_full and php_quick are measured, not guessed: the full phpbench suite is
+// 82 subjects and took ~26 minutes on a developer machine, the quick filter
+// took seconds. Both round up, because these run on whatever box the user is
+// benchmarking and that is usually slower than the one they were timed on.
 const durations = {
     hardware_base: 1,
     disk: 3,
@@ -108,38 +113,51 @@ const durations = {
     iperf: 1,
     network: 0.5,
     php_quick: 1,
-    php_full: 30,
+    php_full: 28,
 };
 
-const httpMinutes = () => (4 * ((Number(form.http_duration) || defaults.http_duration) + 3)) / 60;
+const httpMinutes = (settings) => (4 * ((Number(settings.http_duration) || defaults.http_duration) + 3)) / 60;
 
-const estimatedMinutes = computed(() => {
+// Takes a plain settings object so the preset buttons can be labelled from the
+// same arithmetic as the live estimate, instead of a hardcoded string that
+// drifts the moment a duration changes.
+const minutesFor = (settings) => {
     let minutes = 0;
 
-    if (form.hardware) {
+    if (settings.hardware) {
         minutes += durations.hardware_base;
-        minutes += form.disk ? durations.disk : 0;
-        minutes += form.geekbench ? durations.geekbench : 0;
-        minutes += form.iperf ? durations.iperf : 0;
+        minutes += settings.disk ? durations.disk : 0;
+        minutes += settings.geekbench ? durations.geekbench : 0;
+        minutes += settings.iperf ? durations.iperf : 0;
     }
 
-    minutes += form.network ? durations.network : 0;
-    minutes += form.http ? httpMinutes() : 0;
+    minutes += settings.network ? durations.network : 0;
+    minutes += settings.http ? httpMinutes(settings) : 0;
 
-    if (form.php_database) {
-        minutes += form.php_mode === 'quick' ? durations.php_quick : durations.php_full;
+    if (settings.php_database) {
+        minutes += settings.php_mode === 'quick' ? durations.php_quick : durations.php_full;
     }
 
     return minutes;
-});
+};
 
-const estimateLabel = computed(() => {
-    if (estimatedMinutes.value >= 30) {
-        return '~30+ min';
+const labelFor = (minutes) => {
+    if (minutes < 1) {
+        return '<1 min';
     }
 
-    return `~${Math.max(1, Math.round(estimatedMinutes.value))} min`;
-});
+    // Past half an hour the minute is noise; round to five so the number reads
+    // as the approximation it is.
+    return minutes >= 30
+        ? `~${Math.round(minutes / 5) * 5} min`
+        : `~${Math.round(minutes)} min`;
+};
+
+const estimatedMinutes = computed(() => minutesFor(form));
+
+const estimateLabel = computed(() => labelFor(estimatedMinutes.value));
+
+const presetEstimateLabel = (name) => labelFor(minutesFor({ ...defaults, ...presets[name] }));
 
 const runSummary = computed(() => {
     const tests = [];
@@ -171,6 +189,7 @@ export const useSettings = () => {
         applyPreset,
         activePreset,
         estimateLabel,
+        presetEstimateLabel,
         runSummary,
     };
 };

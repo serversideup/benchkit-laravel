@@ -9,7 +9,11 @@ class PhpBenchmarkResults extends BenchmarkResults
 {
     /**
      * The phpbench subjects surfaced as headline CRUD metrics. Every subject
-     * operates on 100 records so the four numbers are comparable.
+     * operates on 100 records so the four numbers are comparable — which holds
+     * only while each one measures its operation and nothing else. A subject
+     * that sets up or restores state inside its timed body breaks the
+     * comparison silently: delete used to rebuild the rows it removed, so it
+     * reported 2.4x its real cost and read as the slowest operation.
      *
      * @var array<string, array{benchmark: string, subject: string, records: int, label: string}>
      */
@@ -36,7 +40,7 @@ class PhpBenchmarkResults extends BenchmarkResults
             'benchmark' => 'DeleteBenchmark',
             'subject' => 'benchQueryBuilderIndividual',
             'records' => 100,
-            'label' => 'Delete 100 records (individual queries, includes restoring rows)',
+            'label' => 'Delete 100 records (individual queries)',
         ],
     ];
 

@@ -236,4 +236,57 @@ class HttpBenchmarkTest extends TestCase
         $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
         $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
     }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    protected function seedMetaAndOneRoute(array $overrides = []): void
+    {
+        File::put($this->resultsPath.'/http-meta.json', json_encode(array_merge([
+            'target' => 'http://localhost:8080',
+            'mode' => 'loopback',
+            'duration_seconds' => 10,
+            'connections' => 50,
+            'io_ms' => 100,
+        ], $overrides)));
+
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 1234.56, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.010],
+            'statusCodeDistribution' => ['200' => 12345],
+        ]));
+    }
+
+    public function test_http_results_flag_a_run_whose_concurrency_exceeds_the_fpm_pool(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 50, 'fpm_max_children' => 20]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.fpm_max_children', 20);
+        $response->assertJsonPath('http_results.pool_limited', true);
+    }
+
+    public function test_http_results_do_not_flag_a_run_that_fits_inside_the_fpm_pool(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 20, 'fpm_max_children' => 50]);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.pool_limited', false);
+    }
+
+    /**
+     * Octane and worker-mode images have no FPM pool, so there is nothing to
+     * compare the connection count against — that reads as unknown, not as
+     * "fits comfortably".
+     */
+    public function test_http_results_report_pool_limited_as_unknown_without_a_detected_pool(): void
+    {
+        $this->seedMetaAndOneRoute(['fpm_max_children' => null]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.fpm_max_children', null);
+        $response->assertJsonPath('http_results.pool_limited', null);
+    }
 }

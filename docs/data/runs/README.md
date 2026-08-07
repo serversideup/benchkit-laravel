@@ -63,7 +63,9 @@ A stored run is **summary fields plus the run itself**.
   "run": {
     // A trimmed BenchKit run document (app/Actions/Results/AssembleResultsDocument.php).
     // Logs, ini dumps, phpbench subjects, and settings are stripped before submission.
-    "schema_version": 1,
+    // v1 runs timed per-subject state rebuilds along with the operation and are
+    // rejected by the validator; they are not comparable with v2 numbers.
+    "schema_version": 2,
     "id": "20260805-152622-l9ft",
     "created_at": "2026-08-05T15:26:22+00:00",
     "meta": {

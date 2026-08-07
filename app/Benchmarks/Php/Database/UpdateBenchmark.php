@@ -14,6 +14,12 @@ use PhpBench\Attributes as Bench;
  * - Eloquent vs Query Builder
  * - Conditional updates
  * - Update with increments
+ *
+ * One revolution per iteration so every subject sees the dataset setUp() seeded.
+ * Several of these mutate the rows they select on — benchConditionalUpdate
+ * flips is_active, benchIncrementUpdate moves stock — so under repeated
+ * revolutions the second measurement onward ran against data the first had
+ * already changed.
  */
 #[Bench\BeforeMethods('setUp')]
 #[Bench\AfterMethods('tearDown')]
@@ -26,8 +32,6 @@ class UpdateBenchmark extends BaseBenchmark
     public function setUp(): void
     {
         parent::setUp();
-
-        // Create test table
         $this->ensureTestTable('benchmark_products', function ($table) {
             $table->id();
             $table->string('name');
@@ -64,13 +68,12 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Update records individually using Query Builder
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database'])]
     public function benchQueryBuilderIndividual(): void
     {
-        // Update 100 random records
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
 
         foreach ($idsToUpdate as $id) {
@@ -86,13 +89,12 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Update records individually using Eloquent
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'eloquent'])]
     public function benchEloquentIndividual(): void
     {
-        // Update 100 random records
         $idsToUpdate = array_slice($this->recordIds, 0, 100);
 
         foreach ($idsToUpdate as $id) {
@@ -110,8 +112,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Bulk update using whereIn
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchBulkUpdateWhereIn(): void
@@ -129,8 +131,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Conditional bulk update
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchConditionalUpdate(): void
@@ -146,8 +148,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Update with increment/decrement
      */
-    #[Bench\Revs(100)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database'])]
     public function benchIncrementUpdate(): void
@@ -164,8 +166,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Bulk increment using whereIn
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchBulkIncrement(): void
@@ -180,8 +182,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Update with upsert (MySQL 8.0+)
      */
-    #[Bench\Revs(10)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'upsert'])]
     public function benchUpsert(): void
@@ -209,8 +211,8 @@ class UpdateBenchmark extends BaseBenchmark
     /**
      * Chunked updates for large datasets
      */
-    #[Bench\Revs(50)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['update', 'database', 'chunked'])]
     public function benchChunkedUpdate(): void

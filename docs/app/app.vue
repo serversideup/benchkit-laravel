@@ -31,7 +31,7 @@
                 :navigation="navigation"
             />
         </ClientOnly>
-  </UApp>
+    </UApp>
 </template>
 
 <script setup lang="ts">

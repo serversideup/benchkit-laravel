@@ -18,7 +18,7 @@ class UnifiedResultsTest extends TestCase
 
         $response = $this->getJson('/results')->assertOk();
 
-        $response->assertJsonPath('schema_version', 1);
+        $response->assertJsonPath('schema_version', 2);
         $response->assertJsonStructure([
             'schema_version',
             'generated_at',

@@ -15,11 +15,14 @@ use PhpBench\Attributes as Bench;
  * - Conditional deletes
  * - Truncate operations
  *
- * Rows are seeded with explicit, deterministic ids and values so every run
- * and every host operates on identical data. Because deletes are destructive,
- * each benchmark method restores exactly the rows it deleted before the next
- * revolution — that restore cost is part of the timing and is constant, so
- * results remain comparable across runs.
+ * Rows are seeded with explicit, deterministic ids and values so every run and
+ * every host operates on identical data.
+ *
+ * Deletes are destructive, so the dataset has to be rebuilt between
+ * measurements. That rebuild used to happen inside each subject, where phpbench
+ * charged it to the delete — a 100-row delete was really timing a 100-row
+ * delete plus a 100-row insert. One revolution per iteration moves the rebuild
+ * into setUp(), which runs untimed, so a delete measures only the delete.
  */
 #[Bench\BeforeMethods('setUp')]
 #[Bench\AfterMethods('tearDown')]
@@ -32,8 +35,6 @@ class DeleteBenchmark extends BaseBenchmark
     public function setUp(): void
     {
         parent::setUp();
-
-        // Create test table
         $this->ensureTestTable('benchmark_products', function ($table) {
             $table->id();
             $table->string('name');
@@ -88,31 +89,14 @@ class DeleteBenchmark extends BaseBenchmark
     }
 
     /**
-     * Re-insert exactly the rows deleted by the current revolution so the
-     * next revolution starts from an identical dataset.
-     */
-    private function restoreDeletedRows(): void
-    {
-        $existing = DB::table('benchmark_products')->pluck('id')->all();
-        $missing = array_diff($this->recordIds, $existing);
-
-        $records = array_map(fn (int $id) => $this->makeRecord($id - 1), $missing);
-
-        foreach (array_chunk($records, 500) as $chunk) {
-            DB::table('benchmark_products')->insert($chunk);
-        }
-    }
-
-    /**
      * Delete records individually using Query Builder
      */
-    #[Bench\Revs(5)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchQueryBuilderIndividual(): void
     {
-        // Delete 100 records one by one
         $idsToDelete = array_slice($this->recordIds, 0, 100);
 
         foreach ($idsToDelete as $id) {
@@ -120,15 +104,13 @@ class DeleteBenchmark extends BaseBenchmark
                 ->where('id', $id)
                 ->delete();
         }
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Conditional delete (delete inactive records)
      */
-    #[Bench\Revs(5)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchConditionalDelete(): void
@@ -136,15 +118,13 @@ class DeleteBenchmark extends BaseBenchmark
         DB::table('benchmark_products')
             ->where('is_active', false)
             ->delete();
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Delete with multiple conditions
      */
-    #[Bench\Revs(5)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchMultiConditionDelete(): void
@@ -153,15 +133,13 @@ class DeleteBenchmark extends BaseBenchmark
             ->where('is_active', false)
             ->where('stock', 0)
             ->delete();
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Delete using raw SQL
      */
-    #[Bench\Revs(5)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database', 'raw'])]
     public function benchRawDelete(): void
@@ -170,15 +148,13 @@ class DeleteBenchmark extends BaseBenchmark
         $idList = implode(',', $idsToDelete);
 
         DB::statement("DELETE FROM benchmark_products WHERE id IN ({$idList})");
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Delete old records (date-based)
      */
-    #[Bench\Revs(50)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchDeleteOldRecords(): void
@@ -189,29 +165,25 @@ class DeleteBenchmark extends BaseBenchmark
         DB::table('benchmark_products')
             ->where('created_at', '<', $cutoffDate)
             ->delete();
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Truncate table (fastest for complete wipe)
      */
-    #[Bench\Revs(50)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database', 'truncate'])]
     public function benchTruncate(): void
     {
         DB::table('benchmark_products')->truncate();
-
-        $this->restoreDeletedRows();
     }
 
     /**
      * Delete with subquery
      */
-    #[Bench\Revs(50)]
-    #[Bench\Iterations(5)]
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
     #[Bench\Warmup(2)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchDeleteWithSubquery(): void
@@ -220,7 +192,5 @@ class DeleteBenchmark extends BaseBenchmark
         DB::table('benchmark_products')
             ->whereRaw('price < (SELECT AVG(price) FROM benchmark_products)')
             ->delete();
-
-        $this->restoreDeletedRows();
     }
 }

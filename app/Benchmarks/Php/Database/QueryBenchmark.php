@@ -33,7 +33,6 @@ class QueryBenchmark extends BaseBenchmark
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            // Add indexes for comparison
             $table->index('price');
             $table->index('is_active');
             $table->index(['price', 'is_active']);
@@ -54,7 +53,6 @@ class QueryBenchmark extends BaseBenchmark
                 'updated_at' => now(),
             ];
 
-            // Insert in chunks to avoid memory issues
             if (count($records) >= 1000) {
                 DB::table(self::TABLE_NAME)->insert($records);
                 $records = [];
@@ -137,9 +135,7 @@ class QueryBenchmark extends BaseBenchmark
             ->where('is_active', true)
             ->orderBy('id')
             ->chunk(1000, function ($products) {
-                // Process chunk
                 foreach ($products as $product) {
-                    // Simulate processing
                     $name = $product->name;
                 }
             });
@@ -159,7 +155,6 @@ class QueryBenchmark extends BaseBenchmark
             ->cursor();
 
         foreach ($cursor as $product) {
-            // Simulate processing
             $name = $product->name;
         }
     }

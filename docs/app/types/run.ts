@@ -1,5 +1,3 @@
-import { approximateMonthlyUsd } from '~/utils/fx'
-
 export interface HttpRoute {
     path?: string
     requests_per_second: number
@@ -20,8 +18,8 @@ export interface PhpHeadline {
 /**
  * Hosting cost as stored: a number, a currency, and one fixed period. Free
  * text can't be compared, and "req/s per dollar" is the only reason to record
- * a price at all. The currency is what the submitter is actually billed —
- * conversion happens at render (utils/fx.ts), never in the file.
+ * a price at all. The currency is what the submitter is actually billed, and
+ * is never converted: the gallery ranks value within one currency at a time.
  */
 export interface RunCost {
     amount: number
@@ -175,17 +173,23 @@ export function primaryMetric(entry: RunIndex): PrimaryMetric | null {
 }
 
 /**
- * Requests per second per USD per month — the number the gallery exists to
- * make visible. Approximate by construction: costs are billed in different
- * currencies and converted with a hand-maintained table, so the UI says so.
+ * Requests per second per unit of monthly cost, in whatever currency the run
+ * was billed in.
+ *
+ * Deliberately not converted to a common currency. Doing that needs an exchange
+ * rate, and any rate we ship is a number that is wrong by an unknown amount and
+ * gets more wrong every day nobody updates it — for a figure people would
+ * screenshot. The gallery compares within a single currency instead, which
+ * needs no rate and cannot go stale. Ratios from different currencies are not
+ * comparable, so callers must scope by currency before ranking.
  */
-export function valuePerUsd(entry: RunIndex): number | null {
+export function valuePerCostUnit(entry: RunIndex): number | null {
     const rps = primaryMetric(entry)?.rps
-    const usd = approximateMonthlyUsd(entry.cost_amount, entry.cost_currency)
+    const cost = entry.cost_amount
 
-    if (rps == null || usd == null || usd <= 0) return null
+    if (rps == null || cost == null || cost <= 0) return null
 
-    return rps / usd
+    return rps / cost
 }
 
 export function formatNumber(n: number | null | undefined): string {

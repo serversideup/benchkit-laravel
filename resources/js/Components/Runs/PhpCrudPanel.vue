@@ -7,16 +7,22 @@
             </span>
         </template>
 
-        <p class="mt-2 text-xs text-[#94979C]">&darr; Lower is better &mdash; total time per operation</p>
+        <p class="mt-2 text-xs text-[#94979C]">
+            &darr; Lower is better &mdash; time to run each operation over {{ records }} records, one query per record.
+        </p>
 
         <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-10 gap-y-6">
-            <div v-for="operation in operations" :key="operation.key" :title="`${operation.label}: ${formatMs(operation.data.milliseconds)} for ${operation.data.records ?? 100} records`">
+            <div v-for="operation in operations" :key="operation.key">
                 <p class="flex items-center gap-1.5">
                     <img :src="`/images/results/${operation.key}.png`" :alt="operation.label" class="w-4 h-4">
                     <span class="text-sm font-medium text-[#94979C]">{{ operation.label }}</span>
                 </p>
                 <p class="mt-1.5 text-4xl text-[#F7F7F7] font-mono font-medium leading-none">{{ formatMs(operation.data.milliseconds) }}</p>
                 <BarMeter class="mt-3.5 block h-2" :percent="operation.percent" />
+                <!-- The bars share one scale, so the tiles have to be genuinely
+                     comparable. Naming each operation's query keeps that claim
+                     checkable in a screenshot, where the tooltip isn't. -->
+                <p class="mt-2 text-xs text-[#61656C] leading-snug">{{ operation.detail }}</p>
             </div>
         </div>
 
@@ -70,6 +76,15 @@ const props = defineProps({
 
 const showSubjects = ref(false);
 
+// Each tile measures its operation and nothing else — no seeding, no cleanup,
+// no restoring rows. That is what lets the four share a bar scale.
+const DETAILS = {
+    create: 'INSERT per row',
+    read: 'SELECT, indexed where + limit',
+    update: 'UPDATE per row by id',
+    delete: 'DELETE per row by id',
+};
+
 const operations = computed(() => {
     const entries = [
         { key: 'create', label: 'Create', data: props.php.create ?? {} },
@@ -82,6 +97,7 @@ const operations = computed(() => {
 
     return entries.map((operation) => ({
         ...operation,
+        detail: DETAILS[operation.key] ?? '',
         percent: Math.max(2, (operation.data.milliseconds / maxMs) * 100),
     }));
 });

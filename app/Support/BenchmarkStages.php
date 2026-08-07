@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Actions\Results\CloudflareSpeedTestResults;
 use App\Actions\Results\HttpBenchmarkResults;
+use App\Actions\Specs\PhpSpecs;
 use RuntimeException;
 
 /**
@@ -110,12 +111,24 @@ class BenchmarkStages
 
         BenchmarkHttpItems::ensure();
 
-        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs);
+        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs, $this->fpmMaxChildren());
 
         return [
             'command' => (new HttpBenchCommand)->build($target, $duration, $connections, $ioMs),
             'collect' => null,
         ];
+    }
+
+    /**
+     * The FPM pool size, when this environment has one to detect. Recorded with
+     * the load settings so the results can flag a run whose concurrency exceeds
+     * the pool. Returns null on Octane/worker images, which have no pool.
+     */
+    protected function fpmMaxChildren(): ?int
+    {
+        $maxChildren = (new PhpSpecs)->execute()['serving']['fpm_max_children'] ?? null;
+
+        return is_numeric($maxChildren) ? (int) $maxChildren : null;
     }
 
     /**

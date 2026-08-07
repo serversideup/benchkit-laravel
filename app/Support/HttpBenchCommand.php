@@ -11,11 +11,7 @@ use App\Actions\Results\HttpBenchmarkResults;
  */
 class HttpBenchCommand
 {
-    /**
-     * Seconds of throwaway load before each route's measured window, so a
-     * cold OPcache/JIT, an unprimed route/config cache, and a just-booted
-     * worker do not land in the numbers. Discarded — never parsed.
-     */
+    /** Throwaway load before each measured window; discarded, never parsed. */
     protected const WARMUP_SECONDS = 3;
 
     /**

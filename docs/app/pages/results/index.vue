@@ -3,7 +3,10 @@
         <!-- Header -->
         <div class="mb-8">
             <div class="flex items-center gap-2 text-primary font-semibold text-sm mb-3">
-                <UIcon name="i-lucide-users" class="size-4" />
+                <UIcon
+                    name="i-lucide-users"
+                    class="size-4"
+                />
                 Community results
             </div>
             <h1 class="text-3xl sm:text-4xl font-bold text-highlighted tracking-tight">
@@ -18,12 +21,25 @@
 
         <!-- Honesty banner -->
         <div class="mb-8 flex items-start gap-3 rounded-lg border border-default bg-elevated/50 p-4">
-            <UIcon name="i-lucide-shield-alert" class="size-5 text-warning shrink-0 mt-0.5" />
+            <UIcon
+                name="i-lucide-shield-alert"
+                class="size-5 text-warning shrink-0 mt-0.5"
+            />
             <div class="text-sm text-muted leading-relaxed">
                 <span class="text-highlighted font-medium">Anyone can submit, and each run happens on the submitter's own machine</span>
                 — so we can't independently check the numbers. Treat them as real-world data points, not certified scores.
                 Every run comes in as a pull request a maintainer reviews before merging, and runs tagged
-                <UBadge color="primary" variant="subtle" size="sm" class="mx-1"><UIcon name="i-lucide-badge-check" class="size-3 mr-1" />Maintainer</UBadge>
+                <UBadge
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                    class="mx-1"
+                >
+                    <UIcon
+                        name="i-lucide-badge-check"
+                        class="size-3 mr-1"
+                    />Maintainer
+                </UBadge>
                 were run by the BenchKit team.
             </div>
         </div>
@@ -57,16 +73,37 @@
 
                 <div class="grow" />
 
-                <USelect v-model="sortBy" :items="sortOptions" size="xs" class="w-52" />
+                <!-- Only meaningful while ranking by value, where the currency
+                     defines the unit the ratio is expressed in. -->
+                <USelect
+                    v-if="sortBy === 'value' && currencyOptions.length > 1"
+                    :model-value="activeCurrency ?? undefined"
+                    :items="currencyOptions"
+                    size="xs"
+                    class="w-32"
+                    @update:model-value="currency = $event"
+                />
+
+                <USelect
+                    v-model="sortBy"
+                    :items="sortOptions"
+                    size="xs"
+                    class="w-56"
+                />
             </div>
 
             <!-- Distribution strip: the "not a podium" framing -->
-            <div v-if="filtered.length" class="mb-8 rounded-lg border border-default p-5">
+            <div
+                v-if="filtered.length"
+                class="mb-8 rounded-lg border border-default p-5"
+            >
                 <div class="flex items-baseline justify-between mb-3">
                     <div class="text-sm font-semibold text-highlighted">
                         {{ metricLabel }} across {{ filtered.length }} matching run{{ filtered.length === 1 ? '' : 's' }}
                     </div>
-                    <div class="text-xs text-dimmed">median {{ formatNumber(median) }} {{ metricUnit }}</div>
+                    <div class="text-xs text-dimmed">
+                        median {{ formatNumber(median) }} {{ metricUnit }}
+                    </div>
                 </div>
                 <div class="flex items-end gap-px sm:gap-1 h-24">
                     <div
@@ -91,10 +128,13 @@
                     </template>
                     It's a spread, not a leaderboard — the hardware and settings behind each run are different.
                 </p>
-                <p v-if="sortBy === 'value'" class="mt-2 text-xs text-dimmed">
-                    Value ranking converts each cost to USD with approximate rates from {{ FX_RATES_AS_OF }} — close
-                    enough to compare hosts, not close enough to quote.
-                    <template v-if="unpricedCount">{{ unpricedCount }} run{{ unpricedCount === 1 ? '' : 's' }} with no cost recorded {{ unpricedCount === 1 ? 'is' : 'are' }} hidden.</template>
+                <p
+                    v-if="sortBy === 'value' && activeCurrency"
+                    class="mt-2 text-xs text-dimmed"
+                >
+                    Value ranking compares runs billed in <span class="text-highlighted">{{ activeCurrency }}</span> only.
+                    Costs are never converted, so there's no exchange rate here to go out of date; pick another currency
+                    to rank within it instead. {{ valueExclusionNote }}
                 </p>
             </div>
 
@@ -110,12 +150,24 @@
                         <div class="min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
                                 <h3 class="font-semibold text-highlighted truncate">{{ entry.label }}</h3>
-                                <UBadge v-if="entry.verified" color="primary" variant="subtle" size="sm">
-                                    <UIcon name="i-lucide-badge-check" class="size-3 mr-1" />Maintainer
+                                <UBadge
+                                    v-if="entry.verified"
+                                    color="primary"
+                                    variant="subtle"
+                                    size="sm"
+                                >
+                                    <UIcon
+                                        name="i-lucide-badge-check"
+                                        class="size-3 mr-1"
+                                    />Maintainer
                                 </UBadge>
                             </div>
                             <div class="mt-1 flex items-center gap-2 text-xs text-dimmed">
-                                <UBadge :color="entry.php_variation === 'frankenphp' ? 'success' : 'neutral'" variant="subtle" size="sm">
+                                <UBadge
+                                    :color="entry.php_variation === 'frankenphp' ? 'success' : 'neutral'"
+                                    variant="subtle"
+                                    size="sm"
+                                >
                                     {{ entry.php_variation }}
                                 </UBadge>
                                 <span>PHP {{ entry.php_version }}</span>
@@ -123,7 +175,10 @@
                                 <span v-if="entry.cpu_cores">{{ coresLabel(entry.cpu_cores) }}</span>
                             </div>
                         </div>
-                        <UIcon name="i-lucide-arrow-up-right" class="size-4 text-dimmed group-hover:text-primary shrink-0" />
+                        <UIcon
+                            name="i-lucide-arrow-up-right"
+                            class="size-4 text-dimmed group-hover:text-primary shrink-0"
+                        />
                     </div>
 
                     <!-- Headline metrics -->
@@ -154,7 +209,10 @@
                                 >
                                 <span class="text-xs text-muted">@{{ entry.github }}</span>
                             </template>
-                            <span v-else class="text-xs text-dimmed">Community submission</span>
+                            <span
+                                v-else
+                                class="text-xs text-dimmed"
+                            >Community submission</span>
                         </div>
                         <div class="text-xs text-dimmed">
                             <template v-if="monthlyCostLabel(entry.cost_amount, entry.cost_currency)">{{ monthlyCostLabel(entry.cost_amount, entry.cost_currency) }} · </template>{{ entry.submitted_at }}
@@ -163,22 +221,39 @@
                 </NuxtLink>
             </div>
 
-            <div v-if="visible.length < filtered.length" class="mt-6 text-center">
-                <UButton color="neutral" variant="outline" @click="shown += PAGE_SIZE">
+            <div
+                v-if="visible.length < filtered.length"
+                class="mt-6 text-center"
+            >
+                <UButton
+                    color="neutral"
+                    variant="outline"
+                    @click="shown += PAGE_SIZE"
+                >
                     Show more — {{ visible.length }} of {{ filtered.length }}
                 </UButton>
             </div>
         </template>
 
         <!-- Empty state -->
-        <div v-else class="rounded-xl border border-dashed border-default p-10 text-center">
-            <UIcon name="i-lucide-inbox" class="size-8 text-dimmed mx-auto" />
-            <p class="mt-3 text-muted">No community runs yet — be the first to submit one.</p>
+        <div
+            v-else
+            class="rounded-xl border border-dashed border-default p-10 text-center"
+        >
+            <UIcon
+                name="i-lucide-inbox"
+                class="size-8 text-dimmed mx-auto"
+            />
+            <p class="mt-3 text-muted">
+                No community runs yet — be the first to submit one.
+            </p>
         </div>
 
         <!-- Submit CTA -->
         <div class="mt-10 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
-            <h2 class="text-lg font-semibold text-highlighted">Ran a benchmark? Add it to the gallery.</h2>
+            <h2 class="text-lg font-semibold text-highlighted">
+                Ran a benchmark? Add it to the gallery.
+            </h2>
             <p class="mt-2 text-sm text-muted max-w-xl mx-auto">
                 In the BenchKit app, click <span class="text-highlighted font-medium">Submit Results</span> — it opens a
                 pre-filled pull request with your run's JSON. No hand-editing. Your GitHub username is
@@ -198,8 +273,7 @@
 
 <script setup lang="ts">
 import type { ResultsIndex, RunIndex } from '~/types/run'
-import { primaryMetric, formatNumber, coresLabel, monthlyCostLabel, valuePerUsd } from '~/types/run'
-import { FX_RATES_AS_OF } from '~/utils/fx'
+import { primaryMetric, formatNumber, coresLabel, monthlyCostLabel, valuePerCostUnit } from '~/types/run'
 
 // Summary fields for every run — the whole gallery in one small file. The full
 // run documents live one file each and are only loaded when someone opens one,
@@ -226,21 +300,40 @@ const sortOptions = [
     { label: 'Sort: JSON req/s', value: 'json_rps' },
     { label: 'Sort: Static req/s', value: 'static_rps' },
     { label: 'Sort: DB read latency', value: 'db_latency' },
-    { label: 'Sort: req/s per $/mo', value: 'value' },
+    { label: 'Sort: req/s per unit cost', value: 'value' },
     { label: 'Sort: Newest', value: 'newest' }
 ]
 
+// Value ranking is scoped to one currency, because req/s per euro and req/s per
+// rupee are different units. Default to whichever currency the most priced runs
+// were billed in, so the sort lands on the largest comparable group.
+const currencyOptions = computed(() => {
+    const counts = new Map<string, number>()
+
+    for (const entry of entries.value) {
+        if (valuePerCostUnit(entry) == null || !entry.cost_currency) continue
+        counts.set(entry.cost_currency, (counts.get(entry.cost_currency) ?? 0) + 1)
+    }
+
+    return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([code, count]) => ({ label: `${code} (${count})`, value: code }))
+})
+
+const currency = ref<string | null>(null)
+const activeCurrency = computed(() => currency.value ?? currencyOptions.value[0]?.value ?? null)
+
 const metricLabel = computed(() => {
     if (sortBy.value === 'static_rps') return 'Static req/s'
-    if (sortBy.value === 'value') return 'Req/s per $1/mo'
+    if (sortBy.value === 'value') return `Req/s per 1 ${activeCurrency.value ?? ''}/mo`.trim()
     return 'JSON req/s'
 })
 
-const metricUnit = computed(() => sortBy.value === 'value' ? 'req/s per $1/mo' : 'rps')
+const metricUnit = computed(() => sortBy.value === 'value' ? `req/s per ${activeCurrency.value ?? 'unit'}` : 'rps')
 
 function metricValue(entry: RunIndex): number {
     if (sortBy.value === 'static_rps') return entry.static_rps ?? 0
-    if (sortBy.value === 'value') return valuePerUsd(entry) ?? 0
+    if (sortBy.value === 'value') return valuePerCostUnit(entry) ?? 0
     return entry.json_rps ?? entry.static_rps ?? 0
 }
 
@@ -249,14 +342,16 @@ function metricValue(entry: RunIndex): number {
 const stripMatchesSort = computed(() => sortBy.value !== 'db_latency' && sortBy.value !== 'newest')
 
 // Sorting by value hides runs with no price on them — ranking a run at
-// "infinite req/s per dollar" because nobody typed a cost would be a lie.
-const pricedOnly = computed(() => sortBy.value === 'value')
+// "infinite req/s per unit" because nobody typed a cost would be a lie — and
+// hides other currencies, whose ratios aren't on the same scale.
+const valueSort = computed(() => sortBy.value === 'value')
 
 const filtered = computed(() => {
     const list = entries.value.filter((e) => {
         if (variation.value !== 'all' && e.php_variation !== variation.value) return false
         if (provider.value !== 'all' && e.provider !== provider.value) return false
-        if (pricedOnly.value && valuePerUsd(e) == null) return false
+        if (valueSort.value && valuePerCostUnit(e) == null) return false
+        if (valueSort.value && e.cost_currency !== activeCurrency.value) return false
         return true
     })
     return [...list].sort((a, b) => {
@@ -268,7 +363,31 @@ const filtered = computed(() => {
     })
 })
 
-const unpricedCount = computed(() => entries.value.length - entries.value.filter(e => valuePerUsd(e) != null).length)
+// How many runs the value sort is leaving out, split by reason, so the note
+// under the strip can be specific rather than just "some runs are hidden".
+const excludedFromValue = computed(() => {
+    let unpriced = 0
+    let otherCurrency = 0
+
+    for (const entry of entries.value) {
+        if (valuePerCostUnit(entry) == null) unpriced++
+        else if (entry.cost_currency !== activeCurrency.value) otherCurrency++
+    }
+
+    return { unpriced, otherCurrency }
+})
+
+// Built here rather than as nested <template> fragments, where the linter's
+// newline rules turn "a, b." into "a , b ."
+const valueExclusionNote = computed(() => {
+    const { unpriced, otherCurrency } = excludedFromValue.value
+    const parts: string[] = []
+
+    if (unpriced) parts.push(`${unpriced} with no cost recorded`)
+    if (otherCurrency) parts.push(`${otherCurrency} billed in another currency`)
+
+    return parts.length ? `Hidden: ${parts.join(', ')}.` : ''
+})
 
 // Cards are paged rather than dumped: at a few thousand runs the grid alone is
 // tens of thousands of DOM nodes, and nobody scrolls past the first screen
@@ -276,7 +395,7 @@ const unpricedCount = computed(() => entries.value.length - entries.value.filter
 const PAGE_SIZE = 24
 const shown = ref(PAGE_SIZE)
 const visible = computed(() => filtered.value.slice(0, shown.value))
-watch([variation, provider, sortBy], () => shown.value = PAGE_SIZE)
+watch([variation, provider, sortBy, activeCurrency], () => shown.value = PAGE_SIZE)
 
 // One bar per run stops being a distribution once the bars are thinner than
 // the gaps between them, so past this many we sample evenly across the sorted

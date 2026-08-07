@@ -27,7 +27,6 @@ class FileBenchmark
     {
         $this->testDir = storage_path('app/private/benchmarks');
 
-        // Create test directory
         if (! File::exists($this->testDir)) {
             File::makeDirectory($this->testDir, 0755, true);
         }
@@ -41,7 +40,6 @@ class FileBenchmark
         // Large content - 1MB
         $this->largeContent = str_repeat('Large file content with significant amount of data. ', 20000);
 
-        // Create test files
         $this->smallFile = $this->testDir.'/small_test.txt';
         $this->mediumFile = $this->testDir.'/medium_test.txt';
         $this->largeFile = $this->testDir.'/large_test.txt';
@@ -64,7 +62,6 @@ class FileBenchmark
 
     public function __destruct()
     {
-        // Cleanup test files
         if (File::exists($this->testDir)) {
             File::deleteDirectory($this->testDir);
         }
@@ -152,9 +149,12 @@ class FileBenchmark
     public function benchReadFileLineByLine(): void
     {
         $handle = fopen($this->mediumFile, 'r');
+
+        // Empty body on purpose: the subject measures the read, and doing
+        // anything with $line would put that work in the timing too.
         while (($line = fgets($handle)) !== false) {
-            // Process line
         }
+
         fclose($handle);
     }
 
@@ -273,8 +273,6 @@ class FileBenchmark
     public function benchCsvRead(): void
     {
         $file = $this->testDir.'/read_test.csv';
-
-        // Create CSV file first
         $handle = fopen($file, 'w');
         foreach ($this->csvData as $row) {
             fputcsv($handle, $row);
@@ -283,9 +281,11 @@ class FileBenchmark
 
         // Now read it
         $handle = fopen($file, 'r');
+
+        // Empty body on purpose, as above.
         while (($row = fgetcsv($handle)) !== false) {
-            // Process row
         }
+
         fclose($handle);
     }
 

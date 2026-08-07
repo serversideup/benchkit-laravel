@@ -6,12 +6,16 @@
                 <Chip v-if="http.duration_seconds">{{ http.duration_seconds }}s</Chip>
                 <Chip v-if="http.connections">{{ http.connections }} connections</Chip>
                 <Chip v-if="http.io_ms != null">I/O {{ http.io_ms }}ms</Chip>
+                <Chip v-if="http.fpm_max_children">{{ http.fpm_max_children }} FPM workers</Chip>
                 <Chip v-if="targetLabel">{{ targetLabel }}</Chip>
             </span>
         </template>
 
-        <p v-if="http.mode === 'app-url'" class="mt-2 text-sm text-[#94979C]">
-            Measured through APP_URL &mdash; includes proxy and network overhead, so results aren't directly comparable with loopback runs.
+        <!-- The page-level RunCaveats banner says this run is pool-bound; here
+             the useful addition is the arithmetic, next to the route it caps. -->
+        <p v-if="http.pool_limited && ioCeiling" class="mt-3 text-sm text-[#F79009]">
+            Pool-bound: {{ http.connections }} connections against {{ http.fpm_max_children }} FPM workers caps the I/O route near
+            <span class="font-mono">{{ ioCeiling.toLocaleString() }} req/s</span> at {{ http.io_ms }}ms, whatever the hardware does.
         </p>
 
         <p class="mt-2 text-xs text-[#61656C]">
@@ -102,10 +106,27 @@ const props = defineProps({
 
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 
-// Ordered by real-world representativeness: DB read is the closest thing to
-// an actual Laravel page, static is the framework ceiling, and io models a
-// request dominated by one outbound call — where PHP-FPM and worker mode
-// converge. (io's description carries the actual delay, added in `routes`.)
+// The I/O route's hard ceiling under FPM: each worker can serve at most
+// 1000/io_ms requests per second, so the pool multiplies out to this and no
+// tuning below it matters.
+const ioCeiling = computed(() => {
+    const workers = props.http.fpm_max_children;
+    const ioMs = props.http.io_ms;
+
+    if (!workers || !ioMs) {
+        return null;
+    }
+
+    return Math.round(workers * (1000 / ioMs));
+});
+
+// Ordered by real-world representativeness: DB read is the closest thing to an
+// actual Laravel page, static is the framework ceiling, and io models a request
+// dominated by one outbound call, where per-request bootstrap shrinks to a small
+// fraction of the total. Under FPM that route is also bounded by pm.max_children
+// (see the pool_limited warning above), so read it against the pool size rather
+// than as a clean framework comparison. (io's description carries the actual
+// delay, added in `routes`.)
 const ROUTES = {
     db_read: { label: 'DB read', description: '20 rows queried per request' },
     json: { label: 'JSON API', description: '25-item JSON payload' },

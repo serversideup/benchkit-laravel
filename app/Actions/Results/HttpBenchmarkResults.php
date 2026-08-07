@@ -34,9 +34,16 @@ class HttpBenchmarkResults extends BenchmarkResults
      * Persist the load settings the run actually used so execute() can
      * report them alongside the per-route results.
      *
+     * $fpmMaxChildren is the FPM pool size when one was detected. It belongs
+     * with the load settings because it caps them: under FPM a request occupies
+     * a worker for its whole duration, so /bench/io — which sleeps io_ms to
+     * model an outbound call — can never exceed max_children / io_ms requests
+     * per second no matter how fast the box is. Recording it is what lets a
+     * reader tell a framework measurement from a pool-size measurement.
+     *
      * @param  array{url: string, mode: string}  $target
      */
-    public function writeMeta(array $target, int $duration, int $connections, int $ioMs): void
+    public function writeMeta(array $target, int $duration, int $connections, int $ioMs, ?int $fpmMaxChildren = null): void
     {
         File::ensureDirectoryExists(dirname($this->metaPath()));
         File::put($this->metaPath(), json_encode([
@@ -45,6 +52,7 @@ class HttpBenchmarkResults extends BenchmarkResults
             'duration_seconds' => $duration,
             'connections' => $connections,
             'io_ms' => $ioMs,
+            'fpm_max_children' => $fpmMaxChildren,
         ]));
     }
 
@@ -79,6 +87,8 @@ class HttpBenchmarkResults extends BenchmarkResults
         }
 
         $meta = $this->readJson($this->metaPath()) ?? [];
+        $maxChildren = isset($meta['fpm_max_children']) ? (int) $meta['fpm_max_children'] : null;
+        $connections = isset($meta['connections']) ? (int) $meta['connections'] : null;
 
         return [
             'mode' => $meta['mode'] ?? null,
@@ -86,8 +96,26 @@ class HttpBenchmarkResults extends BenchmarkResults
             'duration_seconds' => $meta['duration_seconds'] ?? null,
             'connections' => $meta['connections'] ?? null,
             'io_ms' => $meta['io_ms'] ?? null,
+            'fpm_max_children' => $maxChildren,
+            'pool_limited' => $this->isPoolLimited($connections, $maxChildren),
             'routes' => $routes,
         ];
+    }
+
+    /**
+     * Whether the load asked for more concurrency than the FPM pool can serve.
+     * When it does, throughput is bounded by the pool rather than by the
+     * application, and the numbers say more about pm.max_children than about
+     * the framework. Null when there is no pool to compare against — Octane
+     * and worker-mode images have none.
+     */
+    protected function isPoolLimited(?int $connections, ?int $maxChildren): ?bool
+    {
+        if ($connections === null || $maxChildren === null || $maxChildren <= 0) {
+            return null;
+        }
+
+        return $connections > $maxChildren;
     }
 
     /**

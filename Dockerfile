@@ -90,7 +90,7 @@ ENV APP_NAME=BenchKit \
 # Node.js - Base Image
 ############################################
 ARG BASE_OS=trixie
-FROM node:22-${BASE_OS} AS node-base
+FROM node:24-${BASE_OS} AS node-base
 
 ############################################
 # PHP - Development Image

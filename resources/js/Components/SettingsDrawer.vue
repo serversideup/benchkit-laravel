@@ -114,7 +114,7 @@
                                 <label for="http-io-ms" class="text-sm text-[#CECFD2] font-mono font-medium">Simulated I/O response (ms)</label>
                                 <input type="number" id="http-io-ms" v-model.number="form.http_io_ms" min="0" max="1000" step="10"
                                     class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
-                                <p class="mt-1.5 text-xs text-[#94979C] font-mono">Adds a route that sleeps this long to mimic one outbound call (DB, cache, API) — the workload where PHP-FPM and worker mode converge. 0 = framework only.</p>
+                                <p class="mt-1.5 text-xs text-[#94979C] font-mono">Adds a route that sleeps this long to mimic one outbound call (DB, cache, API), so framework overhead becomes a smaller share of the request. Under PHP-FPM this route is also capped by the worker pool. 0 = framework only.</p>
                             </div>
                         </div>
 

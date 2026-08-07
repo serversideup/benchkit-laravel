@@ -1,6 +1,13 @@
 <template>
     <UContainer class="mx-auto max-w-[960px] py-10">
-        <UButton to="/results" variant="ghost" color="neutral" size="sm" icon="i-lucide-arrow-left" class="mb-6">
+        <UButton
+            to="/results"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            icon="i-lucide-arrow-left"
+            class="mb-6"
+        >
             All results
         </UButton>
 
@@ -8,16 +15,40 @@
         <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
             <div>
                 <div class="flex items-center gap-2 flex-wrap">
-                    <h1 class="text-2xl sm:text-3xl font-bold text-[#F7F7F7]">{{ run.meta.label }}</h1>
-                    <UBadge v-if="submitter.verified" color="primary" variant="subtle">
-                        <UIcon name="i-lucide-badge-check" class="size-3.5 mr-1" />Maintainer run
+                    <h1 class="text-2xl sm:text-3xl font-bold text-[#F7F7F7]">
+                        {{ run.meta.label }}
+                    </h1>
+                    <UBadge
+                        v-if="submitter.verified"
+                        color="primary"
+                        variant="subtle"
+                    >
+                        <UIcon
+                            name="i-lucide-badge-check"
+                            class="size-3.5 mr-1"
+                        />Maintainer run
                     </UBadge>
-                    <UBadge v-else color="neutral" variant="subtle">Unverified</UBadge>
+                    <UBadge
+                        v-else
+                        color="neutral"
+                        variant="subtle"
+                    >
+                        Unverified
+                    </UBadge>
                 </div>
                 <div class="mt-2 flex items-center gap-2 text-sm text-[#94979C]">
                     <template v-if="submitter.github">
-                        <img :src="`https://github.com/${submitter.github}.png?size=40`" :alt="submitter.github" class="size-5 rounded-full" loading="lazy">
-                        <a :href="`https://github.com/${submitter.github}`" target="_blank" class="hover:text-[#F7F7F7]">@{{ submitter.github }}</a>
+                        <img
+                            :src="`https://github.com/${submitter.github}.png?size=40`"
+                            :alt="submitter.github"
+                            class="size-5 rounded-full"
+                            loading="lazy"
+                        >
+                        <a
+                            :href="`https://github.com/${submitter.github}`"
+                            target="_blank"
+                            class="hover:text-[#F7F7F7]"
+                        >@{{ submitter.github }}</a>
                         <span class="text-[#61656C]">·</span>
                     </template>
                     <span>{{ submitter.submitted_at }}</span>
@@ -27,7 +58,10 @@
                         target="_blank"
                         class="inline-flex items-center gap-1 hover:text-[#F7F7F7]"
                     >
-                        <UIcon name="i-lucide-file-json" class="size-3.5" /> Source
+                        <UIcon
+                            name="i-lucide-file-json"
+                            class="size-3.5"
+                        /> Source
                     </a>
                 </div>
             </div>
@@ -35,28 +69,53 @@
 
         <!-- At-a-glance spec strip: whose machine, running what -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div v-for="spec in specs" :key="spec.label" class="rounded-xl border border-[#22262F] bg-[#0C0E12] p-4">
+            <div
+                v-for="spec in specs"
+                :key="spec.label"
+                class="rounded-xl border border-[#22262F] bg-[#0C0E12] p-4"
+            >
                 <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-[#61656C]">
-                    <UIcon :name="spec.icon" class="size-3.5" /> {{ spec.label }}
+                    <UIcon
+                        :name="spec.icon"
+                        class="size-3.5"
+                    /> {{ spec.label }}
                 </div>
-                <div class="mt-2 text-lg font-semibold text-[#F7F7F7] leading-tight break-words">{{ spec.value }}</div>
-                <div v-if="spec.sub" class="text-xs text-[#94979C] mt-0.5 break-words">{{ spec.sub }}</div>
+                <div class="mt-2 text-lg font-semibold text-[#F7F7F7] leading-tight break-words">
+                    {{ spec.value }}
+                </div>
+                <div
+                    v-if="spec.sub"
+                    class="text-xs text-[#94979C] mt-0.5 break-words"
+                >
+                    {{ spec.sub }}
+                </div>
             </div>
         </div>
 
         <!-- Panels card -->
         <div class="rounded-2xl border border-[#22262F] bg-[#0C0E12] px-6 sm:px-8">
             <!-- HTTP throughput -->
-            <ResultsPanel v-if="routes.length" title="Web server load test">
+            <ResultsPanel
+                v-if="routes.length"
+                title="Web server load test"
+            >
                 <template #aside>
                     <!-- Octane is a property of the PHP runtime, not of the
                          HTTP benchmark — reading it off `http` here silently
                          labelled every worker-mode run "classic mode". -->
                     <ResultsChip>{{ run.environment.php.octane ? 'worker mode' : 'classic mode' }}</ResultsChip>
-                    <ResultsChip v-if="http.duration_seconds">{{ http.duration_seconds }}s</ResultsChip>
-                    <ResultsChip v-if="http.connections">{{ http.connections }} connections</ResultsChip>
-                    <ResultsChip v-if="http.io_ms != null">I/O {{ http.io_ms }}ms</ResultsChip>
-                    <ResultsChip v-if="http.mode">{{ http.mode }}</ResultsChip>
+                    <ResultsChip v-if="http.duration_seconds">
+                        {{ http.duration_seconds }}s
+                    </ResultsChip>
+                    <ResultsChip v-if="http.connections">
+                        {{ http.connections }} connections
+                    </ResultsChip>
+                    <ResultsChip v-if="http.io_ms != null">
+                        I/O {{ http.io_ms }}ms
+                    </ResultsChip>
+                    <ResultsChip v-if="http.mode">
+                        {{ http.mode }}
+                    </ResultsChip>
                 </template>
 
                 <p class="mt-2 text-xs text-[#61656C]">
@@ -66,75 +125,148 @@
 
                 <!-- Mobile: one route per block -->
                 <div class="mt-5 flex flex-col divide-y divide-[#22262F] md:hidden">
-                    <div v-for="route in routes" :key="`m-${route.key}`" class="py-5 first:pt-0 last:pb-0">
-                        <p class="text-sm font-medium text-[#CECFD2]">{{ route.label }}</p>
-                        <p class="text-xs text-[#94979C] mt-0.5">{{ route.description }}</p>
+                    <div
+                        v-for="benchRoute in routes"
+                        :key="`m-${benchRoute.key}`"
+                        class="py-5 first:pt-0 last:pb-0"
+                    >
+                        <p class="text-sm font-medium text-[#CECFD2]">
+                            {{ benchRoute.label }}
+                        </p>
+                        <p class="text-xs text-[#94979C] mt-0.5">
+                            {{ benchRoute.description }}
+                        </p>
                         <div class="mt-2">
-                            <p class="text-5xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ round(route.data.requests_per_second) }}</p>
-                            <p class="mt-1.5 text-sm text-[#94979C] font-mono">req/s</p>
+                            <p class="text-5xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">
+                                {{ round(benchRoute.data.requests_per_second) }}
+                            </p>
+                            <p class="mt-1.5 text-sm text-[#94979C] font-mono">
+                                req/s
+                            </p>
                         </div>
                         <div class="mt-4 flex flex-col gap-2.5">
-                            <div v-for="p in PERCENTILES" :key="`m-${route.key}-${p.key}`" class="flex items-center gap-2">
+                            <div
+                                v-for="p in PERCENTILES"
+                                :key="`m-${benchRoute.key}-${p.key}`"
+                                class="flex items-center gap-2"
+                            >
                                 <span class="w-24 shrink-0 text-xs text-[#94979C]">{{ p.human }} <span class="text-[#61656C]">{{ p.key }}</span></span>
-                                <span class="w-[44px] shrink-0 text-left text-xs font-mono tabular-nums text-[#CECFD2]">{{ route.values[p.key] }}ms</span>
-                                <ResultsBar class="flex-1 h-2" :percent="route.widths[p.key]" :color="p.color" />
+                                <span class="w-[44px] shrink-0 text-left text-xs font-mono tabular-nums text-[#CECFD2]">{{ benchRoute.values[p.key] }}ms</span>
+                                <ResultsBar
+                                    class="flex-1 h-2"
+                                    :percent="benchRoute.widths[p.key]"
+                                    :color="p.color"
+                                />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Desktop: routes across, percentiles down -->
-                <div class="mt-7 hidden md:grid gap-x-8 gap-y-3 items-center" :style="`grid-template-columns: 96px repeat(${routes.length}, minmax(0, 1fr))`">
+                <div
+                    class="mt-7 hidden md:grid gap-x-8 gap-y-3 items-center"
+                    :style="`grid-template-columns: 96px repeat(${routes.length}, minmax(0, 1fr))`"
+                >
                     <div class="self-end" />
-                    <div v-for="route in routes" :key="`head-${route.key}`" class="self-stretch flex flex-col">
-                        <p class="text-sm font-medium text-[#CECFD2]">{{ route.label }}</p>
-                        <p class="text-xs text-[#94979C] mt-0.5">{{ route.description }}</p>
+                    <div
+                        v-for="benchRoute in routes"
+                        :key="`head-${benchRoute.key}`"
+                        class="self-stretch flex flex-col"
+                    >
+                        <p class="text-sm font-medium text-[#CECFD2]">
+                            {{ benchRoute.label }}
+                        </p>
+                        <p class="text-xs text-[#94979C] mt-0.5">
+                            {{ benchRoute.description }}
+                        </p>
                         <div class="mt-auto pt-4">
-                            <p class="text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ round(route.data.requests_per_second) }}</p>
-                            <p class="mt-1.5 text-sm text-[#94979C] font-mono">req/s</p>
+                            <p class="text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">
+                                {{ round(benchRoute.data.requests_per_second) }}
+                            </p>
+                            <p class="mt-1.5 text-sm text-[#94979C] font-mono">
+                                req/s
+                            </p>
                         </div>
                     </div>
 
-                    <template v-for="p in PERCENTILES" :key="p.key">
+                    <template
+                        v-for="p in PERCENTILES"
+                        :key="p.key"
+                    >
                         <span class="text-xs text-[#94979C]">{{ p.human }} <span class="text-[#61656C]">{{ p.key }}</span></span>
-                        <div v-for="route in routes" :key="`${route.key}-${p.key}`" class="flex items-center gap-2">
-                            <span class="w-[44px] shrink-0 text-left text-xs font-mono tabular-nums text-[#CECFD2]">{{ route.values[p.key] }}ms</span>
-                            <ResultsBar class="flex-1 h-2" :percent="route.widths[p.key]" :color="p.color" />
+                        <div
+                            v-for="benchRoute in routes"
+                            :key="`${benchRoute.key}-${p.key}`"
+                            class="flex items-center gap-2"
+                        >
+                            <span class="w-[44px] shrink-0 text-left text-xs font-mono tabular-nums text-[#CECFD2]">{{ benchRoute.values[p.key] }}ms</span>
+                            <ResultsBar
+                                class="flex-1 h-2"
+                                :percent="benchRoute.widths[p.key]"
+                                :color="p.color"
+                            />
                         </div>
                     </template>
                 </div>
             </ResultsPanel>
 
             <!-- PHP / database -->
-            <ResultsPanel v-if="phpOps.length" title="Laravel database performance">
+            <ResultsPanel
+                v-if="phpOps.length"
+                title="Laravel database performance"
+            >
                 <template #aside>
                     <ResultsChip>{{ phpOps[0]?.records }} records per operation</ResultsChip>
                 </template>
 
-                <p class="mt-2 text-xs text-[#94979C]">↓ Lower is better — total time per operation</p>
+                <p class="mt-2 text-xs text-[#94979C]">
+                    ↓ Lower is better — total time per operation
+                </p>
 
                 <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-10 gap-y-6">
-                    <div v-for="op in phpOps" :key="op.key">
+                    <div
+                        v-for="op in phpOps"
+                        :key="op.key"
+                    >
                         <p class="flex items-center gap-1.5">
-                            <img :src="`/images/results/${op.key}.png`" :alt="op.label" class="w-4 h-4">
+                            <img
+                                :src="`/images/results/${op.key}.png`"
+                                :alt="op.label"
+                                class="w-4 h-4"
+                            >
                             <span class="text-sm font-medium text-[#94979C]">{{ op.label }}</span>
                         </p>
-                        <p class="mt-1.5 text-4xl text-[#F7F7F7] font-mono font-medium leading-none">{{ formatMs(op.milliseconds) }}</p>
-                        <ResultsBar class="mt-3.5 h-2" :percent="op.percent" />
+                        <p class="mt-1.5 text-4xl text-[#F7F7F7] font-mono font-medium leading-none">
+                            {{ formatMs(op.milliseconds) }}
+                        </p>
+                        <ResultsBar
+                            class="mt-3.5 h-2"
+                            :percent="op.percent"
+                        />
                     </div>
                 </div>
             </ResultsPanel>
 
             <!-- Network -->
-            <ResultsPanel v-if="cfspeedtest" title="Network speed test">
+            <ResultsPanel
+                v-if="cfspeedtest"
+                title="Network speed test"
+            >
                 <p class="mt-2 text-sm text-[#94979C]">
                     Measured from the server to Cloudflare's nearest edge — this latency rides on every external request the app makes.
                 </p>
 
                 <div class="mt-6 flex flex-wrap items-end gap-x-10 gap-y-6">
-                    <div v-for="stat in networkStats" :key="stat.label">
+                    <div
+                        v-for="stat in networkStats"
+                        :key="stat.label"
+                    >
                         <p class="flex items-center gap-1.5 text-sm font-medium text-[#94979C]">
-                            <img :src="stat.icon" alt="" class="w-3.5"> {{ stat.label }}
+                            <img
+                                :src="stat.icon"
+                                alt=""
+                                class="w-3.5"
+                            > {{ stat.label }}
                         </p>
                         <p class="flex items-baseline gap-2 mt-1">
                             <span class="text-4xl text-[#F7F7F7] font-mono font-medium leading-none">{{ stat.value }}</span>
@@ -145,35 +277,77 @@
             </ResultsPanel>
 
             <!-- Hardware: Geekbench + disk throughput -->
-            <ResultsPanel v-if="geekbench || diskRows.length" title="Hardware">
-                <template v-if="geekbench?.url" #aside>
-                    <a :href="geekbench.url" target="_blank" class="text-xs font-mono text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C]">View on Geekbench &rarr;</a>
+            <ResultsPanel
+                v-if="geekbench || diskRows.length"
+                title="Hardware"
+            >
+                <template
+                    v-if="geekbench?.url"
+                    #aside
+                >
+                    <a
+                        :href="geekbench.url"
+                        target="_blank"
+                        class="text-xs font-mono text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C]"
+                    >View on Geekbench &rarr;</a>
                 </template>
 
-                <p class="mt-2 text-xs text-[#94979C]">↑ Higher is better</p>
+                <p class="mt-2 text-xs text-[#94979C]">
+                    ↑ Higher is better
+                </p>
 
-                <div v-if="geekbench" class="mt-6 flex flex-wrap items-end gap-x-12 gap-y-6">
+                <div
+                    v-if="geekbench"
+                    class="mt-6 flex flex-wrap items-end gap-x-12 gap-y-6"
+                >
                     <div>
                         <p class="flex items-center gap-1.5 text-sm font-medium text-[#94979C]">
-                            <img src="/images/results/single-core.png" alt="" class="w-3.5"> Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} single-core
+                            <img
+                                src="/images/results/single-core.png"
+                                alt=""
+                                class="w-3.5"
+                            > Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} single-core
                         </p>
-                        <p class="mt-1 text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ round(geekbench.single) }}</p>
+                        <p class="mt-1 text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">
+                            {{ round(geekbench.single) }}
+                        </p>
                     </div>
                     <div>
                         <p class="flex items-center gap-1.5 text-sm font-medium text-[#94979C]">
-                            <img src="/images/results/multi-core.png" alt="" class="w-3.5"> Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} multi-core
+                            <img
+                                src="/images/results/multi-core.png"
+                                alt=""
+                                class="w-3.5"
+                            > Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} multi-core
                         </p>
-                        <p class="mt-1 text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">{{ round(geekbench.multi) }}</p>
+                        <p class="mt-1 text-4xl text-[#F7F7F7] font-mono font-medium leading-none tabular-nums">
+                            {{ round(geekbench.multi) }}
+                        </p>
                     </div>
                 </div>
 
-                <div v-if="diskRows.length" class="mt-7 flex flex-col gap-5">
-                    <div v-for="row in diskRows" :key="row.bs">
-                        <p class="text-xs text-[#CECFD2] font-mono mb-2">Disk I/O <span class="text-[#61656C]">&middot; {{ row.bs }}</span></p>
+                <div
+                    v-if="diskRows.length"
+                    class="mt-7 flex flex-col gap-5"
+                >
+                    <div
+                        v-for="row in diskRows"
+                        :key="row.bs"
+                    >
+                        <p class="text-xs text-[#CECFD2] font-mono mb-2">
+                            Disk I/O <span class="text-[#61656C]">&middot; {{ row.bs }}</span>
+                        </p>
                         <div class="flex flex-col gap-2.5">
-                            <div v-for="col in DISK_COLS" :key="`${row.bs}-${col.key}`" class="flex items-center gap-3">
+                            <div
+                                v-for="col in DISK_COLS"
+                                :key="`${row.bs}-${col.key}`"
+                                class="flex items-center gap-3"
+                            >
                                 <span class="w-16 shrink-0 text-xs text-[#94979C]">{{ col.label }}</span>
-                                <ResultsBar class="flex-1 h-2" :percent="row.widths[col.key]" />
+                                <ResultsBar
+                                    class="flex-1 h-2"
+                                    :percent="row.widths[col.key]"
+                                />
                                 <span class="w-[84px] shrink-0 text-right text-xs text-[#CECFD2] font-mono tabular-nums">{{ formatThroughput(row.values[col.key]) }}</span>
                             </div>
                         </div>
@@ -185,13 +359,21 @@
             <ResultsPanel title="Environment">
                 <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm">
                     <div class="flex flex-col gap-3">
-                        <div v-for="fact in stackFacts" :key="fact.label" class="grid grid-cols-[110px_1fr] gap-3">
+                        <div
+                            v-for="fact in stackFacts"
+                            :key="fact.label"
+                            class="grid grid-cols-[110px_1fr] gap-3"
+                        >
                             <span class="text-[#94979C]">{{ fact.label }}</span>
                             <span class="text-[#F7F7F7] font-mono break-words">{{ fact.value }}</span>
                         </div>
                     </div>
                     <div class="flex flex-col gap-3">
-                        <div v-for="fact in machineFacts" :key="fact.label" class="grid grid-cols-[110px_1fr] gap-3">
+                        <div
+                            v-for="fact in machineFacts"
+                            :key="fact.label"
+                            class="grid grid-cols-[110px_1fr] gap-3"
+                        >
                             <span class="text-[#94979C]">{{ fact.label }}</span>
                             <span class="text-[#F7F7F7] font-mono break-words">{{ fact.value }}</span>
                         </div>
@@ -203,7 +385,7 @@
 </template>
 
 <script setup lang="ts">
-import type { RunEntry } from '~/types/run'
+import type { HttpRoute, RunEntry } from '~/types/run'
 import { coresLabel, costLabel, formatThroughput } from '~/types/run'
 
 const route = useRoute()
@@ -311,13 +493,13 @@ const formatMs = (ms: number) => ms >= 1 ? `${ms.toFixed(1)}ms` : `${Math.round(
 const routes = computed(() => {
     const routeData = http.value.routes ?? {}
     return Object.keys(ROUTES)
-        .map(key => ({ key, data: (routeData as Record<string, any>)[key] }))
-        .filter(r => r.data && r.data.requests_per_second != null)
+        .map(key => ({ key, data: (routeData as Record<string, HttpRoute | undefined>)[key] }))
+        .filter((r): r is { key: string, data: HttpRoute } => r.data?.requests_per_second != null)
         .map(({ key, data }) => {
             const values: Record<string, number> = {}
             const widths: Record<string, number> = {}
             // Bars scale within each route to its own slowest percentile.
-            const routeMax = Math.max(1, ...PERCENTILES.map(p => data[`${p.key}_ms`]).filter((v: number) => v != null))
+            const routeMax = Math.max(1, ...PERCENTILES.map(p => data[`${p.key}_ms`]).filter(v => v != null))
             PERCENTILES.forEach((p) => {
                 const raw = data[`${p.key}_ms`]
                 values[p.key] = raw != null ? Math.round(raw) : 0

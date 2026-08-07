@@ -46,6 +46,9 @@
             <HostDetailsPanel v-if="detailsOpen" class="mt-5" :run-id="run.id" :meta="meta"
                 @updated="meta = $event" @close="detailsOpen = false" />
 
+            <RunCaveats class="rise-in mt-8" style="animation-delay: 150ms;"
+                :environment="run.environment" :http="display.http" />
+
             <div class="rise-in mt-8 rounded-xl border border-[#22262F] bg-[#0C0E12] px-6 sm:px-8 divide-y divide-[#22262F]" style="animation-delay: 180ms;">
                 <HttpPanel v-if="display.http" :http="display.http" />
                 <PhpCrudPanel v-if="display.php" :php="display.php" :mode="run.settings?.php_mode" />
@@ -71,6 +74,7 @@ import IconXLogo from '@/Components/Icons/IconXLogo.vue';
 import IconArrowUpRight from '@/Components/Icons/IconArrowUpRight.vue';
 import RunMetaEditor from '@/Components/Runs/RunMetaEditor.vue';
 import HostDetailsPanel from '@/Components/Runs/HostDetailsPanel.vue';
+import RunCaveats from '@/Components/Runs/RunCaveats.vue';
 import HttpPanel from '@/Components/Runs/HttpPanel.vue';
 import PhpCrudPanel from '@/Components/Runs/PhpCrudPanel.vue';
 import NetworkPanel from '@/Components/Runs/NetworkPanel.vue';

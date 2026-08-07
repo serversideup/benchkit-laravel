@@ -2,41 +2,41 @@
 import type { NuxtError } from '#app'
 
 defineProps<{
-  error: NuxtError
+    error: NuxtError
 }>()
 
 useHead({
-  htmlAttrs: {
-    lang: 'en'
-  }
+    htmlAttrs: {
+        lang: 'en'
+    }
 })
 
 useSeoMeta({
-  title: 'Page not found',
-  description: 'We are sorry but this page could not be found.'
+    title: 'Page not found',
+    description: 'We are sorry but this page could not be found.'
 })
 
 const { data: navigation } = await useAsyncData('navigation', () => queryCollectionNavigation('docs'))
 const { data: files } = useLazyAsyncData('search', () => queryCollectionSearchSections('docs'), {
-  server: false
+    server: false
 })
 
 provide('navigation', navigation)
 </script>
 
 <template>
-  <UApp>
-    <AppHeader />
+    <UApp>
+        <AppHeader />
 
-    <UError :error="error" />
+        <UError :error="error" />
 
-    <AppFooter />
+        <AppFooter />
 
-    <ClientOnly>
-      <LazyUContentSearch
-        :files="files"
-        :navigation="navigation"
-      />
-    </ClientOnly>
-  </UApp>
+        <ClientOnly>
+            <LazyUContentSearch
+                :files="files"
+                :navigation="navigation"
+            />
+        </ClientOnly>
+    </UApp>
 </template>

@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { CURRENCIES, findPrivacyLeaks, indexFields, runsPathFor } from './run-document.mjs';
 
 const RUNS_DIR = 'docs/data/runs';
+// Keep in step with AssembleResultsDocument::execute() in the app.
+const SCHEMA_VERSION = 2;
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
 const GITHUB_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const KNOWN_VARIATIONS = ['frankenphp', 'fpm-nginx', 'fpm-apache'];
@@ -75,7 +77,14 @@ export function validateSubmission(doc, filepath = null) {
     } else if (filepath && filepath.replaceAll('\\', '/') !== runsPathFor(run.id)) {
         err(`file must live at ${runsPathFor(run.id)}, got ${filepath}`);
     }
-    if (run.schema_version !== 1) warn(`schema_version is ${run.schema_version} (validator knows version 1)`);
+    // v1 CRUD timings included per-subject state rebuilds in the measurement —
+    // delete reported ~2.4x its real cost — so v1 numbers can't sit in the same
+    // gallery as v2 ones. Reject rather than warn; the run has to be redone.
+    if (run.schema_version === 1) {
+        err('schema_version 1 runs were produced before a benchmark timing fix and are not comparable with current results — please re-run the benchmark and submit again');
+    } else if (run.schema_version !== SCHEMA_VERSION) {
+        warn(`schema_version is ${run.schema_version} (validator knows version ${SCHEMA_VERSION})`);
+    }
     if (typeof run.created_at !== 'string' || Number.isNaN(Date.parse(run.created_at))) err('run.created_at must be an ISO date string');
 
     // ---- meta ----
@@ -109,6 +118,12 @@ export function validateSubmission(doc, filepath = null) {
     isText(php.php_version, 'environment.php.php_version', { max: 20 });
     isText(php.php_variation, 'environment.php.php_variation', { max: 40 });
     if (php.php_variation && !KNOWN_VARIATIONS.includes(php.php_variation)) warn(`unknown php_variation "${php.php_variation}"`);
+    // Not an error — a real run on a real box, and worth having. But OPcache off
+    // depresses every number so far below a production configuration that it
+    // shouldn't sit unlabelled next to runs that had it on.
+    if (php.op_cache != null && String(php.op_cache) !== '1') {
+        warn('OPcache was disabled for this run, so its numbers are far below a production configuration and are not comparable with the rest of the gallery');
+    }
 
     if (env.laravel?.environment?.laravel_version == null) err('environment.laravel.environment.laravel_version is required');
 
@@ -128,6 +143,11 @@ export function validateSubmission(doc, filepath = null) {
             for (const p of ['p50_ms', 'p95_ms', 'p99_ms']) isNum(r[p], `http.routes.${key}.${p}`, { min: 0, max: MAX_MS });
             if (r.success_rate != null) isNum(r.success_rate, `http.routes.${key}.success_rate`, { min: 0, max: 1 });
         }
+        if (http.fpm_max_children != null) isNum(http.fpm_max_children, 'http.fpm_max_children', { min: 1, max: 100_000 });
+        if (http.pool_limited != null && typeof http.pool_limited !== 'boolean') err('http.pool_limited must be a boolean');
+        // Not fatal — the run is real, it just isn't a framework comparison.
+        // Surfacing it in review is what keeps the gallery interpretable.
+        if (http.pool_limited === true) warn('this run held more connections open than the FPM pool has workers, so its throughput is bounded by pm.max_children rather than by the application');
     }
 
     const phpBench = benchmarks.php;

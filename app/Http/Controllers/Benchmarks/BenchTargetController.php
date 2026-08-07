@@ -64,13 +64,11 @@ class BenchTargetController extends Controller
     }
 
     /**
-     * Models a request whose time is dominated by one outbound dependency
-     * call — a database over a socket, a cache, an HTTP API — by sleeping a
-     * caller-supplied delay. This is the route where PHP-FPM and Octane
-     * worker mode converge: the per-request framework bootstrap that worker
-     * mode removes shrinks to noise once real I/O dominates the request. The
-     * delay is clamped to the same 0–1000ms band the settings enforce, so a
-     * stray query string can never hang a worker.
+     * Models a request dominated by one outbound dependency call by sleeping a
+     * caller-supplied delay. Under FPM the sleep holds a worker, so this route
+     * is bounded by pm.max_children as well as by the framework — see the
+     * pool_limited flag on the results. Clamped to the 0-1000ms band the
+     * settings enforce, so a stray query string can't hang a worker.
      */
     public function io(Request $request): JsonResponse
     {

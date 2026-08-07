@@ -142,6 +142,10 @@ export const trimRunForSubmission = (run) => {
             duration_seconds: benchmarks.http.duration_seconds,
             connections: benchmarks.http.connections,
             io_ms: benchmarks.http.io_ms,
+            // Pool size is config, not identity, and without it a reader can't
+            // tell a framework result from one bounded by pm.max_children.
+            fpm_max_children: benchmarks.http.fpm_max_children,
+            pool_limited: benchmarks.http.pool_limited,
             routes: Object.fromEntries(
                 ['static', 'json', 'db_read', 'io']
                     .filter((key) => benchmarks.http.routes?.[key])

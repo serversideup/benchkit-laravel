@@ -21,6 +21,15 @@ export default defineNuxtConfig({
 
     css: ['~/assets/css/main.css'],
 
+    // site.url is the ORIGIN only; the /open-source/benchkit sub-path comes
+    // from NUXT_APP_BASE_URL (app.baseURL), which nuxt-site-config combines
+    // with this to build canonical/sitemap/OG URLs.
+    site: {
+        url: process.env.NUXT_SITE_URL || 'https://serversideup.net',
+        name: process.env.NUXT_SITE_NAME || 'BenchKit — Understand true Laravel performance',
+        env: process.env.NUXT_SITE_ENV || 'production'
+    },
+
     content: {
         build: {
             markdown: {
@@ -44,6 +53,10 @@ export default defineNuxtConfig({
         }
     },
 
+    ui: {
+        colorMode: false
+    },
+
     compatibilityDate: '2024-07-11',
 
     nitro: {
@@ -63,13 +76,6 @@ export default defineNuxtConfig({
                 braceStyle: '1tbs'
             }
         }
-    },
-
-    // Analytics off unless PLAUSIBLE_ENABLED=true. Points at Server Side Up's
-    // self-hosted Plausible; the site domain scopes it to /open-source/benchkit.
-    plausible: {
-        enabled: process.env.PLAUSIBLE_ENABLED === 'true',
-        apiHost: 'https://a.521dimensions.com'
     },
 
     llms: {
@@ -119,16 +125,10 @@ export default defineNuxtConfig({
         ]
     },
 
-    // site.url is the ORIGIN only; the /open-source/benchkit sub-path comes
-    // from NUXT_APP_BASE_URL (app.baseURL), which nuxt-site-config combines
-    // with this to build canonical/sitemap/OG URLs.
-    site: {
-        url: process.env.NUXT_SITE_URL || 'https://serversideup.net',
-        name: process.env.NUXT_SITE_NAME || 'BenchKit — Understand true Laravel performance',
-        env: process.env.NUXT_SITE_ENV || 'production'
-    },
-
-    ui: {
-        colorMode: false
+    // Analytics off unless PLAUSIBLE_ENABLED=true. Points at Server Side Up's
+    // self-hosted Plausible; the site domain scopes it to /open-source/benchkit.
+    plausible: {
+        enabled: process.env.PLAUSIBLE_ENABLED === 'true',
+        apiHost: 'https://a.521dimensions.com'
     }
 })

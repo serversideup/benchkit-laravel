@@ -8,31 +8,20 @@ use Illuminate\Support\Facades\Schema;
 abstract class BaseBenchmark
 {
     /**
-     * Set up the benchmark environment.
-     * This method runs before each benchmark iteration.
+     * Runs per iteration, outside the measured body. Anything a subject needs
+     * set up or torn down belongs here rather than in the subject itself.
      */
     public function setUp(): void
     {
-        // Disable query logging for accurate benchmarks
         DB::connection()->disableQueryLog();
-
-        // Clear any query caches
         DB::connection()->flushQueryLog();
     }
 
-    /**
-     * Clean up after benchmark.
-     * This method runs after each benchmark iteration.
-     */
     public function tearDown(): void
     {
-        // Re-enable query logging if needed
         DB::connection()->enableQueryLog();
     }
 
-    /**
-     * Truncate a table safely.
-     */
     protected function truncateTable(string $table): void
     {
         $driver = DB::connection()->getDriverName();
@@ -42,21 +31,17 @@ abstract class BaseBenchmark
             DB::table($table)->truncate();
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
         } elseif ($driver === 'sqlite') {
-            // SQLite doesn't support TRUNCATE, but DELETE works
-            // and foreign key constraints are handled differently
+            // SQLite has no TRUNCATE; DELETE plus resetting the sequence is the
+            // equivalent, and foreign keys have to come off around it.
             DB::statement('PRAGMA foreign_keys = OFF;');
             DB::table($table)->delete();
             DB::statement('DELETE FROM sqlite_sequence WHERE name = ?', [$table]);
             DB::statement('PRAGMA foreign_keys = ON;');
         } else {
-            // For other databases, try simple truncate
             DB::table($table)->truncate();
         }
     }
 
-    /**
-     * Create a test table if it doesn't exist.
-     */
     protected function ensureTestTable(string $table, callable $schemaBuilder): void
     {
         if (! Schema::hasTable($table)) {
@@ -64,9 +49,6 @@ abstract class BaseBenchmark
         }
     }
 
-    /**
-     * Drop a test table if it exists.
-     */
     protected function dropTestTable(string $table): void
     {
         Schema::dropIfExists($table);

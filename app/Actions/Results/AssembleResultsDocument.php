@@ -23,7 +23,7 @@ class AssembleResultsDocument
     public function execute(): array
     {
         return [
-            'schema_version' => 1,
+            'schema_version' => 2,
             'generated_at' => now()->toIso8601String(),
             'environment' => [
                 'server' => (new ServerSpecs)->execute(),

@@ -4,7 +4,16 @@ The marketing + documentation site for [BenchKit](https://github.com/serversideu
 
 ## Local development
 
-Requires Node 22 and Yarn (see `.nvmrc` / `packageManager`).
+Requires Node 24 and Yarn (see `.nvmrc` / `packageManager`).
+
+`yarn build` prerenders an OG image per page, which peaks around 1.5 GB and can exhaust Node's
+default heap on a small machine (`FATAL ERROR: ... heap out of memory`). If you hit that, give
+the build more headroom for that run rather than committing a limit — a ceiling above the
+machine's physical RAM makes it swap and is slower than the failure it replaces:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=3072 yarn build
+```
 
 ```bash
 cd docs
@@ -27,7 +36,20 @@ All pages live in [`content/`](./content):
 - `content/index.md` — the marketing landing page (authored with Nuxt UI MDC components).
 - `content/docs/**` — the documentation, organized into numeric-prefixed folders with a `.navigation.yml` per section.
 
-Search for `SCREENSHOT_NEEDED` across `content/` to find where product screenshots should be dropped in.
+### Screenshots still to add
+
+Tracked here rather than as comments in `content/`, because `server/routes/raw/` publishes the
+raw markdown of every docs page and a `SCREENSHOT_NEEDED` placeholder would be served with it.
+
+| Page | Shot |
+| --- | --- |
+| `docs/getting-started/quick-start` | Home screen: Start Benchmark, Quick/Full presets |
+| `docs/configuration/default-configurations` | Settings drawer: presets and the load-test inputs |
+| `docs/configuration/customizing-the-image` | Compare view diffing two runs |
+| `docs/benchmarks/web-server-load-test` | Load-test panel: four routes with req/s and percentile bars |
+| `docs/benchmarks/throughput-vs-latency` | "Test from your own machine" panel with the corrected latency command |
+
+The landing page hero uses `public/images/benchkit-header.png`.
 
 ## Deployment
 

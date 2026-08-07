@@ -59,9 +59,12 @@ export default defineNuxtModule({
                 const doc = JSON.parse(readFileSync(file, 'utf8'))
 
                 const problem
-                    = typeof doc?.run_id !== 'string' ? 'no run_id'
-                        : typeof doc?.run !== 'object' || doc.run === null ? 'no run object'
-                            : typeof doc?.submitted_at !== 'string' ? 'no submitted_at'
+                    = typeof doc?.run_id !== 'string'
+                        ? 'no run_id'
+                        : typeof doc?.run !== 'object' || doc.run === null
+                            ? 'no run object'
+                            : typeof doc?.submitted_at !== 'string'
+                                ? 'no submitted_at'
                                 : null
 
                 if (problem) {

@@ -1,7 +1,7 @@
 ---
 seo:
-  title: BenchKit — Understand true Laravel performance
-  description: A self-hostable benchmarking playground that measures real-world Laravel performance across hardware and PHP images — hardware, network, web-server load, and PHP CRUD.
+  title: BenchKit — Measure real Laravel performance on your own server
+  description: A self-hostable benchmark for Laravel. Run a realistic workload on any box, see what your hardware and PHP configuration actually do, and compare it against what the community is running.
 ---
 
 ::u-page-hero{class="dark:bg-black"}
@@ -9,10 +9,10 @@ seo:
 orientation: vertical
 ---
 #title
-Understand your [true]{.text-primary-500} Laravel performance.
+What is your server [actually]{.text-primary-500} doing?
 
 #description
-BenchKit is a self-hostable benchmarking playground for Laravel. Spin it up on any server, run a real workload, and see how your hardware and PHP setup actually perform — then compare FrankenPHP against PHP-FPM, sweep your tuning, and share the results.
+BenchKit is a self-hostable benchmark for Laravel. Run it on the box you care about and it measures hardware, network, web-server throughput, and database work, then shows you the exact configuration that produced every number. Use it to pick a host, or to find out what your tuning is really worth.
 
 #links
   :::u-button
@@ -22,32 +22,63 @@ BenchKit is a self-hostable benchmarking playground for Laravel. Spin it up on a
   trailing-icon: i-lucide-arrow-right
   color: primary
   ---
-  Get started
+  Run your first benchmark
   :::
 
   :::u-button
   ---
-  icon: i-simple-icons-github
+  to: /results
+  size: xl
   color: neutral
   variant: outline
-  size: xl
-  to: https://github.com/serversideup/benchkit-laravel
-  target: _blank
+  icon: i-lucide-gauge
   ---
-  Star on GitHub
+  Browse community results
   :::
 
 #default
-<!-- SCREENSHOT_NEEDED: home-hero — the BenchKit app home screen (Start Benchmark + presets). Replace /images/benchkit-header.png below. -->
-![BenchKit — understand true Laravel performance](/images/benchkit-header.png){.rounded-xl.border.border-white/10.mx-auto}
+![The BenchKit results screen](/images/benchkit-header.png){.rounded-xl.border.border-white/10.mx-auto}
 ::
 
 ::u-page-section{class="dark:bg-black"}
 #title
-Benchmarks that reflect [the real world]{.text-primary-500}, not hello-world.
+Two reasons people [run it]{.text-primary-500}.
 
 #description
-Most PHP benchmarks measure the one thing that doesn't matter in production. BenchKit measures what does.
+The same benchmark answers a shopping question and a tuning question.
+
+#features
+  :::u-page-card
+  ---
+  icon: i-lucide-wallet
+  orientation: vertical
+  ---
+  #title
+  Work out what a box is worth
+
+  #description
+  Run the same suite on a $6 VPS and a $48 one and find out whether you get eight times the Laravel. Record what you pay and compare throughput per dollar against every other submitted run.
+  :::
+
+  :::u-page-card
+  ---
+  icon: i-lucide-flask-conical
+  orientation: vertical
+  ---
+  #title
+  Find out what your tuning does
+
+  #description
+  Turn OPcache off. Change the JIT buffer. Switch from PHP-FPM to worker mode. Re-run and diff. Most tuning advice is repeated rather than measured, and this is how you check it on your own hardware.
+  :::
+::
+
+::u-page-section{class="dark:bg-black"}
+#title
+Four stages, and [an honest account]{.text-primary-500} of each.
+
+#description
+Every stage names the tool behind it, and the docs say plainly where each number stops being meaningful.
 
 #features
   :::u-page-card
@@ -59,7 +90,7 @@ Most PHP benchmarks measure the one thing that doesn't matter in production. Ben
   Web server load test
 
   #description
-  Drives your app with oha across static, JSON, DB-read, and a simulated I/O route — reporting requests/sec and latency percentiles.
+  `oha` drives four routes: static, JSON, a database read, and one dominated by a simulated outbound call. Reports throughput and latency percentiles per route.
   :::
 
   :::u-page-card
@@ -68,10 +99,10 @@ Most PHP benchmarks measure the one thing that doesn't matter in production. Ben
   orientation: vertical
   ---
   #title
-  Hardware & network
+  Hardware and network
 
   #description
-  Geekbench, disk I/O (fio), and a Cloudflare network test — so you know the box, not just the framework.
+  Geekbench and fio through YABS, plus a Cloudflare speed test. Tells you about the box itself, which is usually where the difference actually lives.
   :::
 
   :::u-page-card
@@ -80,22 +111,10 @@ Most PHP benchmarks measure the one thing that doesn't matter in production. Ben
   orientation: vertical
   ---
   #title
-  PHP database (CRUD)
+  Database operations
 
   #description
-  phpbench-driven Create/Read/Update/Delete timing against SQLite by default — or your own MySQL/Postgres.
-  :::
-
-  :::u-page-card
-  ---
-  icon: i-lucide-zap
-  orientation: vertical
-  ---
-  #title
-  FrankenPHP vs PHP-FPM
-
-  #description
-  Run the same suite on each image and compare side by side. Watch worker mode's lead shrink as I/O grows — the real lesson.
+  phpbench times Create, Read, Update, and Delete against SQLite by default, or point it at your own MySQL or Postgres.
   :::
 
   :::u-page-card
@@ -104,10 +123,22 @@ Most PHP benchmarks measure the one thing that doesn't matter in production. Ben
   orientation: vertical
   ---
   #title
-  Compare & share
+  Compare two runs
 
   #description
-  Diff any two runs, and share results to the community with one click.
+  Diff any two runs side by side. Swap the image variation, change one setting, run it again, and read the delta.
+  :::
+
+  :::u-page-card
+  ---
+  icon: i-lucide-file-search
+  orientation: vertical
+  ---
+  #title
+  Every number is traceable
+
+  #description
+  Each result records the PHP version and SAPI, serving mode, OPcache and JIT settings, FPM pool size, database engine, and the exact load applied.
   :::
 
   :::u-page-card
@@ -116,39 +147,48 @@ Most PHP benchmarks measure the one thing that doesn't matter in production. Ben
   orientation: vertical
   ---
   #title
-  Self-hostable & honest
+  Yours, and temporary
 
   #description
-  Runs on your own hardware in a container. Every run discloses the exact config that produced it.
+  Runs as a container on your own hardware. Nothing phones home. Destroy it when you're done.
   :::
 ::
 
 ::u-page-section{class="dark:bg-black"}
 #title
-See what the [community]{.text-primary-500} is running.
+See what [other people's]{.text-primary-500} servers do.
 
 #description
-Real BenchKit results are shared every day on X with #BenchKit. Browse the live feed to see how different VPS providers, hardware, and PHP images stack up.
+Submitted runs land in a public gallery: the hardware, the configuration, the cost, and the numbers. Filter it down to your image variation and provider before you draw any conclusion, because a shared vCPU and a dedicated box are not the same test.
 
 #links
   :::u-button
   ---
-  to: https://x.com/search?q=%23BenchKit&f=live
-  target: _blank
+  to: /results
   size: xl
   color: primary
-  trailing-icon: i-simple-icons-x
+  trailing-icon: i-lucide-arrow-right
   ---
-  Browse #BenchKit on X
+  Browse community results
+  :::
+
+  :::u-button
+  ---
+  to: /docs/community-results
+  size: xl
+  color: neutral
+  variant: outline
+  ---
+  How submitting works
   :::
 ::
 
 ::u-page-section{class="dark:bg-black"}
 #title
-Measure your own workload. [Trust the numbers.]{.text-primary-500}
+Read the [limitations]{.text-primary-500} before you quote a number.
 
 #description
-BenchKit is built to be accurate and honest about what it does — and doesn't — measure. Read the methodology before you draw conclusions.
+The load generator shares a box with the app. SQLite is the default database. One connection count is one point on a curve, and closed-loop tail latency is optimistic. None of that is hidden, because a benchmark you can't argue with isn't worth much.
 
 #links
   :::u-button
