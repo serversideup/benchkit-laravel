@@ -10,8 +10,22 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-dev-images:
+    # Only build for PRs opened from a branch on this repo, which requires
+    # write access. Any fork — including a maintainer's personal fork — gets a
+    # read-only token on `pull_request`, so it can neither obtain an OIDC token
+    # for Depot nor push to the registry. Outside contributions are covered by
+    # the Tests workflow instead, which needs no secrets.
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository
+      }}
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
       registry-repositories: "docker.io/serversideup/benchkit-laravel"
@@ -19,9 +33,5 @@ jobs:
       tag-prefix: "pr-${{ inputs.pr_number || github.event.pull_request.number }}"
       release-type: testing
       authenticate_with_ghcr: false
-      push-to-registry: >-
-        ${{ 
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.type == 'Organization')
-        }}
+      push-to-registry: true
     secrets: inherit
