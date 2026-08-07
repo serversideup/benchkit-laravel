@@ -34,6 +34,15 @@ ENV APP_NAME=BenchKit \
     PHP_OPCACHE_MEMORY_CONSUMPTION=256 \
     PHP_OPCACHE_MAX_ACCELERATED_FILES=20000 \
     \
+    # Enabel Laravel optimizations by default but allow others to override it
+    AUTORUN_ENABLED=true \
+    AUTORUN_LARAVEL_STORAGE_LINK=true \
+    AUTORUN_LARAVEL_OPTIMIZE=true \
+    AUTORUN_LARAVEL_CONFIG_CACHE=true \
+    AUTORUN_LARAVEL_ROUTE_CACHE=true \
+    AUTORUN_LARAVEL_VIEW_CACHE=true \
+    AUTORUN_LARAVEL_EVENT_CACHE=true \
+    \
     BCRYPT_ROUNDS=12 \
     \
     LOG_CHANNEL=stack \
@@ -130,11 +139,6 @@ FROM php-base AS php-ci
 # so we set the ROOT user and configure
 # the PHP-FPM pool to run as www-data
 USER root
-RUN if command -v php-fpm > /dev/null 2>&1; then \
-      echo "" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
-      echo "user = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf && \
-      echo "group = www-data" >> /usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf; \
-    fi
 
 ############################################
 # Node.js - Development Image
