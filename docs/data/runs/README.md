@@ -4,8 +4,8 @@ Each `*.json` file under this directory is **one submitted BenchKit run**, rende
 [community results gallery](https://serversideup.net/open-source/benchkit/results).
 
 You don't write these by hand. In the BenchKit app, run a benchmark and click
-**Submit Results** — it opens a pre-filled issue, and a bot files the pull request that
-adds one file here.
+**Submit result** — it opens a pre-filled issue carrying a compressed submission token, and
+a bot unpacks it, seals it, and files the pull request that adds one file here.
 
 ## How these become a website
 
@@ -39,7 +39,7 @@ A stored run is **summary fields plus the run itself**.
   // Everything the gallery lists, filters, or sorts on, hoisted so that showing a list
   // of runs never means loading every run in full.
   //
-  // All of them are DERIVED from `run` by .github/scripts/run-document.mjs, and the PR
+  // All of them are DERIVED from `run` by shared/submission/run-document.mjs, and the PR
   // validator recomputes and compares them. Don't hand-edit: a mismatch fails CI, which
   // is what stops a summary from disagreeing with the run it summarizes.
   "run_id": "20260805-152622-l9ft",
@@ -79,7 +79,12 @@ A stored run is **summary fields plus the run itself**.
       "cost": { "amount": 20, "currency": "EUR", "period": "monthly" }
     },
     "environment": { "server": { ... }, "php": { ... }, "laravel": { ... } },
-    "benchmarks": { "http": { ... }, "php": { ... }, "cfspeedtest": { ... } }
+    "benchmarks": { "http": { ... }, "php": { ... }, "cfspeedtest": { ... } },
+
+    // SHA-256 over a canonical, key-sorted serialization of everything in `run`
+    // except `meta` and this block, stamped by the bot when it accepts the
+    // submission. See "Integrity" below.
+    "integrity": { "algorithm": "sha256", "digest": "fc25536d…" }
   }
 }
 ```
@@ -87,8 +92,33 @@ A stored run is **summary fields plus the run itself**.
 The shape is enforced by the `validate-run-submission` GitHub Action, which is the gate
 that matters: a run that fails it never merges. It checks far more than a type schema
 could — value ranges, control characters and HTML in free text, the filename matching the
-run id, and the summary fields matching the run. The build does a shallow sanity check on
-top, so a malformed file fails the build rather than rendering a blank card.
+run id, the summary fields matching the run, and the integrity seal matching the
+measurements. The build re-checks the shape and the seal, so a malformed or altered file
+fails the build rather than shipping.
+
+## Integrity
+
+Every stored run carries `run.integrity`: a SHA-256 over a canonical, key-sorted
+serialization of everything in `run` **except** `meta` and the seal itself. The bot
+computes it when it accepts a submission; the PR validator and the site build both
+recompute it and refuse a mismatch.
+
+`meta` sits outside the seal on purpose. The label, host, plan, datacenter, and cost are
+typed by a person, and a maintainer should be free to fix `Digial Ocean` → `DigitalOcean`
+in review without breaking anything. Everything else — the whole environment and every
+benchmark number — is sealed by default, so a field added to a run later is covered without
+anyone remembering to extend a list.
+
+What this buys, plainly: **tamper-evidence, not authenticity.** BenchKit is open source and
+self-hosted, so someone determined enough can run the encoder and mint whatever they like —
+no client-side checksum can prevent that. What the seal does eliminate is the entire class
+of low-effort problems: a truncated submission, a mangled paste, a number nudged in the
+issue body, an edit slipped into the pull request, or a commit straight to `main` after
+merge. Reformatting the file, reordering keys, or changing indentation does not break it.
+Editing a measurement does, permanently, on every future CI run.
+
+The `verified` badge and human review are what speak to whether a number was honestly
+measured. The seal only says it is the number that was submitted.
 
 ## Naming
 
@@ -134,11 +164,14 @@ If you spot something in here that shouldn't be public, please open an issue.
 
 ## Currency
 
-Costs are stored exactly as the submitter is billed and are **never converted on the way
-in** — a USD figure baked into the file would be wrong the moment rates moved, with no
-record of which rate was used. The gallery converts at render time using the
-hand-maintained table in `docs/app/utils/fx.ts`, and labels anything derived from it as
-approximate.
+Costs are stored exactly as the submitter is billed and are **never converted** — not on
+the way in, and not at render either. Any rate we shipped would be wrong by an unknown
+amount and get more wrong every day nobody updated it, for a figure people screenshot.
+
+The gallery compares value *within* a single currency instead, which needs no rate and
+cannot go stale (`valuePerCostUnit` in [`docs/app/types/run.ts`](../../app/types/run.ts),
+scoped by a currency selector). Ratios across currencies aren't comparable, so nothing
+tries to make them look like they are.
 
 ## Trust & honesty
 

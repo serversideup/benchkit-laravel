@@ -1,5 +1,9 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 📊 Submit a benchmark result
+    url: https://serversideup.net/open-source/benchkit/results/submit
+    about: Results are submitted from the BenchKit app — paste your token here to check it first.
+
   - name: ❓ Support Question
     url: https://github.com/serversideup/benchkit-laravel/discussions
     about: Get friendly support from the community in Discussions.

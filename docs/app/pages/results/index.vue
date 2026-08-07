@@ -249,15 +249,27 @@
             </p>
         </div>
 
+        <!-- Sits outside the CTA below so it's reachable whether or not the
+             gallery has runs, and so link crawling finds the page. -->
+        <p class="mt-6 text-center text-sm text-muted">
+            Already have a submission token?
+            <ULink
+                to="/results/submit"
+                class="text-primary"
+            >
+                Check it before you submit
+            </ULink>
+        </p>
+
         <!-- Submit CTA -->
         <div class="mt-10 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
             <h2 class="text-lg font-semibold text-highlighted">
                 Ran a benchmark? Add it to the gallery.
             </h2>
             <p class="mt-2 text-sm text-muted max-w-xl mx-auto">
-                In the BenchKit app, click <span class="text-highlighted font-medium">Submit Results</span> — it opens a
-                pre-filled pull request with your run's JSON. No hand-editing. Your GitHub username is
-                recorded automatically from the PR.
+                In the BenchKit app, click <span class="text-highlighted font-medium">Submit result</span> — you'll see
+                exactly what gets published, then it opens a pre-filled GitHub issue. A bot files the pull
+                request. No hand-editing, and your GitHub username is recorded automatically.
             </p>
             <UButton
                 to="https://serversideup.net/open-source/benchkit/docs/getting-started"

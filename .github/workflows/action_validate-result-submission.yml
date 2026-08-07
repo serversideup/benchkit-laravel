@@ -1,12 +1,14 @@
 name: Validate result submission
 
-# Runs on PRs that add or change community result files. Read-only and
-# secret-free (plain `pull_request`, not `pull_request_target`), so a fork PR
-# can never run with write access — it only parses and checks the JSON.
+# Runs on PRs that add or change community result files, or that change the
+# rules those files are checked against. Read-only and secret-free (plain
+# `pull_request`, not `pull_request_target`), so a fork PR can never run with
+# write access — it only parses and checks the JSON.
 on:
   pull_request:
     paths:
       - 'docs/data/runs/**.json'
+      - 'docs/shared/submission/**.mjs'
 
 permissions:
   contents: read
@@ -23,15 +25,27 @@ jobs:
         with:
           node-version: 24
 
-      - name: Determine changed run files
+      - name: Determine what to validate
         id: changed
         run: |
           base='${{ github.event.pull_request.base.sha }}'
           head='${{ github.event.pull_request.head.sha }}'
+          rules=$(git diff --name-only --diff-filter=ACMD "$base" "$head" -- 'docs/shared/submission/')
           files=$(git diff --name-only --diff-filter=ACM "$base" "$head" -- 'docs/data/runs/**/*.json' | tr '\n' ' ')
-          echo "files=$files" >> "$GITHUB_OUTPUT"
-          echo "Changed run files: ${files:-<none>}"
+
+          # A change to the rules can invalidate a run that passed under the old
+          # ones, so re-check the whole gallery rather than only what this PR
+          # touched. The validator walks every stored run when given no files.
+          if [ -n "$rules" ]; then
+            echo 'scope=all' >> "$GITHUB_OUTPUT"
+            echo 'files=' >> "$GITHUB_OUTPUT"
+            echo 'Submission rules changed — validating every stored run.'
+          else
+            echo 'scope=changed' >> "$GITHUB_OUTPUT"
+            echo "files=$files" >> "$GITHUB_OUTPUT"
+            echo "Changed run files: ${files:-<none>}"
+          fi
 
       - name: Validate submissions
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.scope == 'all' || steps.changed.outputs.files != ''
         run: node .github/scripts/validate-run-submission.mjs ${{ steps.changed.outputs.files }}

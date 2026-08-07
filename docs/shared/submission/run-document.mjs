@@ -1,12 +1,11 @@
-#!/usr/bin/env node
 // Shared shape rules for a stored community run (docs/data/runs/**/*.json),
-// used by both the builder and the validator so a hand-edited PR can't drift
-// from what the bot would have written.
+// used by the submission bot, the pull-request validator, and the site's own
+// /results/submit page, so none of them can drift from the others.
 //
 // A stored document is index fields + the run:
 //
 //   { run_id, github, submitted_at, verified, provider, php_variation, ...,
-//     run: { <the full trimmed run document> } }
+//     run: { <the full trimmed run document>, integrity: {...} } }
 //
 // The flat fields are what a *list* of runs needs — everything the gallery
 // renders on a card, filters on, or sorts by. Splitting them out is what lets
@@ -16,12 +15,14 @@
 // recomputes them and rejects a mismatch, so the summary can't lie about the
 // detail it summarizes.
 
-const RUNS_DIR = 'docs/data/runs';
+import { sha256Hex } from './token.mjs'
+
+const RUNS_DIR = 'docs/data/runs'
 
 // People fill optional fields with placeholders rather than leaving them
 // blank, and every distinct spelling becomes its own filter chip in the
 // gallery. Treat them as "not answered", which is what they mean.
-const PLACEHOLDERS = new Set(['na', 'n/a', 'n\\a', 'none', 'null', 'nil', 'nope', 'unknown', 'tbd', '-', '--', '?', 'x']);
+const PLACEHOLDERS = new Set(['na', 'n/a', 'n\\a', 'none', 'null', 'nil', 'nope', 'unknown', 'tbd', '-', '--', '?', 'x'])
 
 // Canonical names for hosts we see often, keyed by the name stripped to
 // lowercase letters and digits. Anything unrecognized passes through exactly
@@ -60,13 +61,58 @@ const PROVIDER_ALIASES = {
     homelab: 'Self-Hosted',
     self: 'Self-Hosted',
     selfhosted: 'Self-Hosted',
-    vultr: 'Vultr',
-};
+    vultr: 'Vultr'
+}
 
 export const CURRENCIES = [
     'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF', 'SEK', 'NOK', 'DKK',
-    'PLN', 'INR', 'SGD', 'JPY', 'BRL', 'NZD', 'ZAR', 'MXN',
-];
+    'PLN', 'INR', 'SGD', 'JPY', 'BRL', 'NZD', 'ZAR', 'MXN'
+]
+
+// ---- integrity ----
+//
+// The token the app submits is opaque: it can't be hand-edited without running
+// BenchKit's own encoder, which is what stops a number being nudged between
+// the app and the issue. Once the bot unpacks it, though, the run lands in the
+// repo as readable JSON, and from there a pull-request edit or a commit
+// straight to main would go unnoticed. So the bot seals the measurements on
+// the way in and the validator re-checks the seal on every change.
+//
+// The seal deliberately covers everything *except* meta — the label, host,
+// plan, datacenter, and cost a person typed, which a maintainer may
+// legitimately correct in review ("Digial Ocean" -> "DigitalOcean") — and
+// except the seal itself. Everything else is sealed by default, so a field
+// added to a run later is covered without anyone remembering to add it here.
+//
+// This is tamper-evidence, not authenticity: it proves the numbers are the
+// ones the bot received, not that they were honestly measured. The `verified`
+// badge and human review are what speak to that.
+
+export const UNSEALED_KEYS = ['meta', 'integrity']
+
+/**
+ * Deterministic JSON: object keys sorted, no whitespace, array order kept.
+ * Sorting is what makes the seal survive a round trip through a pretty-printed
+ * file — key order in JSON is incidental, and nothing should break because a
+ * formatter moved a line.
+ */
+export const canonicalJson = (value) => {
+    if (Array.isArray(value)) {
+        return `[${value.map(canonicalJson).join(',')}]`
+    }
+
+    if (value !== null && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`
+    }
+
+    return JSON.stringify(value === undefined ? null : value)
+}
+
+export const canonicalMeasurements = run => canonicalJson(
+    Object.fromEntries(Object.entries(run ?? {}).filter(([key]) => !UNSEALED_KEYS.includes(key)))
+)
+
+export const measurementDigest = async run => sha256Hex(new TextEncoder().encode(canonicalMeasurements(run)))
 
 // ---- privacy guard ----
 //
@@ -79,7 +125,7 @@ export const CURRENCIES = [
 // A run is submitted from a machine the submitter controls, often their own
 // hardware at home. Treat that accordingly.
 
-const ALLOWED_URL_HOSTS = ['browser.geekbench.com'];
+const ALLOWED_URL_HOSTS = ['browser.geekbench.com']
 
 // A four-part version string ("1.2.3.4") also matches the IP pattern. That's
 // left alone deliberately: it fails the PR with a message a maintainer can
@@ -89,8 +135,8 @@ const LEAK_PATTERNS = [
     ['an IPv6 address', /(?:[0-9a-f]{1,4}:){3,}[0-9a-f]{0,4}/i],
     ['a filesystem path', /(?:^|[\s"'(=])(?:\/(?:home|root|var|usr|etc|opt|srv|mnt|media|tmp|Users)\/|[A-Za-z]:\\)/],
     ['an email address', /[\w.+-]+@[\w-]+\.[a-z]{2,}/i],
-    ['a private hostname', /\b[\w-]+\.(?:local|internal|lan|home|localdomain)\b/i],
-];
+    ['a private hostname', /\b[\w-]+\.(?:local|internal|lan|home|localdomain)\b/i]
+]
 
 /**
  * Every string in the document that looks like it identifies a person or a
@@ -100,58 +146,58 @@ const LEAK_PATTERNS = [
  * @returns {string[]} one message per finding, empty when clean
  */
 export const findPrivacyLeaks = (value) => {
-    const found = [];
+    const found = []
 
     const walk = (node, at) => {
         if (typeof node === 'string') {
             for (const [what, pattern] of LEAK_PATTERNS) {
                 if (pattern.test(node)) {
-                    found.push(`${at} looks like it contains ${what} (${JSON.stringify(node.slice(0, 60))}) — this file is public`);
+                    found.push(`${at} looks like it contains ${what} (${JSON.stringify(node.slice(0, 60))}) — this file is public`)
                 }
             }
 
-            const host = node.match(/https?:\/\/([^/\s"']+)/i)?.[1];
+            const host = node.match(/https?:\/\/([^/\s"']+)/i)?.[1]
 
             if (host && !ALLOWED_URL_HOSTS.includes(host.toLowerCase())) {
-                found.push(`${at} links to ${host}; only ${ALLOWED_URL_HOSTS.join(', ')} is allowed in a public run`);
+                found.push(`${at} links to ${host}; only ${ALLOWED_URL_HOSTS.join(', ')} is allowed in a public run`)
             }
         } else if (Array.isArray(node)) {
-            node.forEach((item, index) => walk(item, `${at}[${index}]`));
+            node.forEach((item, index) => walk(item, `${at}[${index}]`))
         } else if (node && typeof node === 'object') {
             for (const [key, child] of Object.entries(node)) {
-                walk(child, at ? `${at}.${key}` : key);
+                walk(child, at ? `${at}.${key}` : key)
             }
         }
-    };
+    }
 
-    walk(value, '');
+    walk(value, '')
 
-    return found;
-};
+    return found
+}
 
 /** Trim, and treat a placeholder as the blank the submitter meant. */
 export const cleanText = (value) => {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed && !PLACEHOLDERS.has(trimmed.toLowerCase()) ? trimmed : null;
-};
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    return trimmed && !PLACEHOLDERS.has(trimmed.toLowerCase()) ? trimmed : null
+}
 
 export const canonicalProvider = (value) => {
-    const name = cleanText(value);
-    if (!name) return null;
+    const name = cleanText(value)
+    if (!name) return null
 
-    const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = name.toLowerCase().replace(/[^a-z0-9]/g, '')
 
     // RIPE gives us names like "DIGITALOCEAN-ASN" when we guess the host from
     // the network, so try the name without that suffix too.
-    return PROVIDER_ALIASES[key] ?? PROVIDER_ALIASES[key.replace(/asn$/, '')] ?? name;
-};
+    return PROVIDER_ALIASES[key] ?? PROVIDER_ALIASES[key.replace(/asn$/, '')] ?? name
+}
 
 /** Runs are sharded by month so the directory stays readable at scale. */
-export const runsPathFor = (id) => `${RUNS_DIR}/${id.slice(0, 4)}-${id.slice(4, 6)}/${id}.json`;
+export const runsPathFor = id => `${RUNS_DIR}/${id.slice(0, 4)}-${id.slice(4, 6)}/${id}.json`
 
-const num = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
-const route = (run, key) => run?.benchmarks?.http?.routes?.[key] ?? null;
+const num = value => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+const route = (run, key) => run?.benchmarks?.http?.routes?.[key] ?? null
 
 /**
  * The queryable columns for one run: everything the gallery list renders,
@@ -159,7 +205,7 @@ const route = (run, key) => run?.benchmarks?.http?.routes?.[key] ?? null;
  * — same run in, same fields out — so the validator can recompute and compare.
  */
 export const indexFields = (run) => {
-    const cost = run?.meta?.cost ?? null;
+    const cost = run?.meta?.cost ?? null
 
     return {
         run_id: run?.id ?? null,
@@ -179,28 +225,32 @@ export const indexFields = (run) => {
         php_read_ms: num(run?.benchmarks?.php?.headline?.read?.milliseconds),
         // Stored as billed, never converted — a rate belongs at display time.
         cost_amount: num(cost?.amount),
-        cost_currency: typeof cost?.currency === 'string' ? cost.currency : null,
-    };
-};
+        cost_currency: typeof cost?.currency === 'string' ? cost.currency : null
+    }
+}
 
 /**
  * Assemble the file the gallery reads. Placeholder answers are dropped and the
  * host name is canonicalized in place, so the run and the filter chips agree
- * — the whole edit is visible in the PR diff a maintainer reviews.
+ * — the whole edit is visible in the PR diff a maintainer reviews. The
+ * measurements are sealed last, after that normalization, so the seal covers
+ * exactly what lands in the repo.
  */
-export const buildDocument = (run, { github, submittedAt, verified = false }) => {
-    const meta = { ...(run.meta ?? {}) };
-    meta.provider = canonicalProvider(meta.provider);
-    meta.plan = cleanText(meta.plan);
-    meta.datacenter = cleanText(meta.datacenter);
+export const buildDocument = async (run, { github, submittedAt, verified = false }) => {
+    const meta = { ...(run.meta ?? {}) }
+    meta.provider = canonicalProvider(meta.provider)
+    meta.plan = cleanText(meta.plan)
+    meta.datacenter = cleanText(meta.datacenter)
 
-    const normalized = { ...run, meta };
+    const normalized = { ...run, meta }
+
+    normalized.integrity = { algorithm: 'sha256', digest: await measurementDigest(normalized) }
 
     return {
         ...indexFields(normalized),
         github,
         submitted_at: submittedAt,
         verified,
-        run: normalized,
-    };
-};
+        run: normalized
+    }
+}

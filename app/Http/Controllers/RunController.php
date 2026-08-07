@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Runs\BuildSubmissionDocument;
 use App\Actions\Runs\CreateRunSnapshot;
 use App\Actions\Runs\DeleteRun;
+use App\Actions\Runs\EncodeSubmissionToken;
 use App\Actions\Runs\FindRun;
 use App\Actions\Runs\ListRuns;
 use App\Actions\Runs\UpdateRunMeta;
 use App\Http\Requests\Runs\StoreRunRequest;
 use App\Http\Requests\Runs\UpdateRunRequest;
+use App\Support\SubmissionIssue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Inertia\Inertia;
@@ -74,6 +77,37 @@ class RunController extends Controller
                 'id' => $snapshot['id'],
                 'meta' => $snapshot['meta'],
             ],
+        ]);
+    }
+
+    /**
+     * Everything the browser needs to submit this run to the community
+     * gallery: the public document, the token that carries it, and the GitHub
+     * issue URL to open.
+     *
+     * The allow-list that decides what leaves the machine runs here rather
+     * than in the browser, so it is covered by tests and works the same on an
+     * instance served over plain HTTP.
+     */
+    public function submission(string $id): JsonResponse
+    {
+        $run = (new FindRun)->execute($id);
+
+        abort_if($run === null, 404);
+
+        $document = (new BuildSubmissionDocument)->execute($run);
+        $encoded = (new EncodeSubmissionToken)->execute($document);
+        $issue = SubmissionIssue::for($document, $encoded['token']);
+
+        return response()->json([
+            'token' => $encoded['token'],
+            'digest' => $encoded['digest'],
+            'bytes' => $encoded['bytes'],
+            'issue_url' => $issue['url'],
+            // False when the token was too long to ride in the URL, so the UI
+            // knows to ask for a paste instead of promising a one-click file.
+            'prefill' => $issue['prefill'],
+            'document' => $document,
         ]);
     }
 

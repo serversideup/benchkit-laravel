@@ -9,9 +9,12 @@ class PhpSpecs
      * list rather than ini_get_all() — the point is a readable, reproducible
      * record of the tuning that produced a run, not 200 directives of noise.
      *
+     * Public because BuildSubmissionDocument publishes this list minus its own
+     * withheld keys, rather than keeping a second copy that could drift.
+     *
      * @var array<int, string>
      */
-    protected const INI_KEYS = [
+    public const INI_KEYS = [
         'opcache.enable',
         'opcache.enable_cli',
         'opcache.jit',

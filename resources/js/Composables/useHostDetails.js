@@ -159,35 +159,54 @@ export const useHostEditor = ({ runId, meta = {}, active = () => true, onFlush =
     };
 
     let timer = null;
+    let pending = false;
+
+    const persist = async () => {
+        pending = false;
+        clearTimeout(timer);
+        timer = null;
+
+        onFlush?.();
+
+        try {
+            const run = await updateRunMeta(resolveRunId(), {
+                provider: host.provider || null,
+                plan: host.plan || null,
+                datacenter: host.datacenter || null,
+                cost: costPayload(),
+            });
+
+            saveHostDetails(host);
+            saved.value = true;
+            setTimeout(() => saved.value = false, 2000);
+            onSaved?.(run.meta);
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     watch(() => FIELDS.map((field) => host[field]).join('|'), () => {
         if( seeding || !active() ) {
             return;
         }
 
+        pending = true;
         clearTimeout(timer);
-        timer = setTimeout(async () => {
-            onFlush?.();
-
-            try {
-                const run = await updateRunMeta(resolveRunId(), {
-                    provider: host.provider || null,
-                    plan: host.plan || null,
-                    datacenter: host.datacenter || null,
-                    cost: costPayload(),
-                });
-
-                saveHostDetails(host);
-                saved.value = true;
-                setTimeout(() => saved.value = false, 2000);
-                onSaved?.(run.meta);
-            } catch (error) {
-                console.error(error);
-            }
-        }, 600);
+        timer = setTimeout(persist, 600);
     });
 
-    return { host, history, saved, hasAnyValue, clearHost, seed, costPayload };
+    /**
+     * Commit a pending edit now rather than waiting out the debounce. The
+     * submission document is built server-side from the stored run, so an edit
+     * still sitting in the timer would simply be missing from it.
+     */
+    const flush = async () => {
+        if( pending ) {
+            await persist();
+        }
+    };
+
+    return { host, history, saved, hasAnyValue, clearHost, seed, costPayload, flush };
 };
 
 export const saveHostDetails = (details) => {

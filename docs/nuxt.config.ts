@@ -62,7 +62,11 @@ export default defineNuxtConfig({
     nitro: {
         prerender: {
             routes: [
-                '/'
+                '/',
+                // Listed rather than left to link crawling: it's a fully
+                // client-side tool, so if a link to it ever moved, the route
+                // would silently stop being emitted.
+                '/results/submit'
             ],
             crawlLinks: true,
             autoSubfolderIndex: false

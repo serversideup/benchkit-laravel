@@ -2,15 +2,16 @@
 // Turns a result-submission issue into a validated docs/data/runs file.
 // Identity comes from the authenticated issue author (ISSUE_AUTHOR), never from
 // the body — so it can't be spoofed. Nothing here executes issue content; it
-// only JSON.parses it, so running on arbitrary issues is safe.
+// only decodes and JSON-parses it, so running on arbitrary issues is safe.
 //
 // Env: ISSUE_BODY, ISSUE_AUTHOR
 // Outputs (to $GITHUB_OUTPUT): valid=true|false, id, path, errors
 
 import { writeFileSync, mkdirSync, appendFileSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { validateSubmission } from './validate-run-submission.mjs';
-import { buildDocument, runsPathFor } from './run-document.mjs';
+import { validateSubmission } from '../../docs/shared/submission/validate.mjs';
+import { buildDocument, runsPathFor } from '../../docs/shared/submission/run-document.mjs';
+import { findToken, decodeToken, looksLikeToken } from '../../docs/shared/submission/token.mjs';
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
 
@@ -36,22 +37,52 @@ const bail = (...messages) => {
     process.exit(0);
 };
 
-// The app wraps the results in a ```json fenced block.
-const fence = body.match(/```json\s*([\s\S]*?)```/i);
-if (!fence) bail('Could not find a ```json code block with your results in the issue.');
+/**
+ * The app packs a submission into a single `bk1.` token, which is both far
+ * smaller than the JSON it carries — the old format overran GitHub's URL limit
+ * and arrived truncated — and checksummed, so an edit between the app and here
+ * is visible.
+ *
+ * The raw ```json fence is still accepted. BenchKit instances are disposable
+ * and people run whichever image they happened to pull, so older app builds
+ * will keep filing the old shape for a long time and there's no reason to turn
+ * those away.
+ */
+const readSubmission = async () => {
+    const token = findToken(body);
 
-let parsed;
-try {
-    parsed = JSON.parse(fence[1].trim());
-} catch (e) {
-    bail(`The results JSON could not be parsed: ${e.message}`);
-}
+    if (token) {
+        try {
+            return await decodeToken(token);
+        } catch (error) {
+            bail(error.message);
+        }
+    }
+
+    if (looksLikeToken(body)) {
+        bail('Your submission token looks cut short — the issue holds the start of one but not a complete token. Copy the whole thing from BenchKit and paste it here, or open a fresh issue with **Submit result**.');
+    }
+
+    const fence = body.match(/```json\s*([\s\S]*?)```/i);
+
+    if (!fence) {
+        bail('Could not find a submission token in the issue. Open your run in BenchKit, click **Submit result**, and use the link it gives you.');
+    }
+
+    try {
+        return JSON.parse(fence[1].trim());
+    } catch (e) {
+        bail(`The results JSON could not be parsed: ${e.message}`);
+    }
+};
+
+const parsed = await readSubmission();
 
 // Accept either the bare run document or a { run } wrapper.
 let run = parsed;
 if (parsed && typeof parsed === 'object' && parsed.run && !parsed.id) run = parsed.run;
 
-if (!run || typeof run !== 'object') bail('The results JSON is not an object.');
+if (!run || typeof run !== 'object') bail('The submission is not an object.');
 
 // Validate the id BEFORE using it as a filename — this is the path-traversal guard.
 if (typeof run.id !== 'string' || !ID_RE.test(run.id)) {
@@ -67,13 +98,13 @@ if (existsSync(path)) {
     bail(`Run ${run.id} is already in the gallery — re-run the benchmark to submit a fresh result.`);
 }
 
-const doc = buildDocument(run, {
+const doc = await buildDocument(run, {
     github: author,
     submittedAt: (run.created_at ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10),
     verified: false,
 });
 
-const { errors } = validateSubmission(doc, path);
+const { errors } = await validateSubmission(doc, path);
 if (errors.length) {
     bail('The submission didn\'t pass validation:', ...errors.map(e => `- ${e}`));
 }

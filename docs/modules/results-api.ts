@@ -1,6 +1,7 @@
 import { addPrerenderRoutes, createResolver, defineNuxtModule } from '@nuxt/kit'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { measurementDigest } from '../shared/submission/run-document.mjs'
 
 /**
  * Publishes the community runs in docs/data/runs as a small static API:
@@ -32,7 +33,7 @@ export default defineNuxtModule({
         name: 'results-api',
         configKey: 'resultsApi'
     },
-    setup(_options, nuxt) {
+    async setup(_options, nuxt) {
         const { resolve } = createResolver(import.meta.url)
         const dataDir = resolve(nuxt.options.rootDir, 'data/runs')
 
@@ -50,12 +51,16 @@ export default defineNuxtModule({
             }
         }
 
-        // Deliberately shallow. The real gate is the validate-run-submission
-        // action, which blocks the PR; this only catches a file that would
-        // render as a blank card, and it throws rather than warns so a broken
-        // run fails the build instead of shipping silently.
-        function runIds(): string[] {
-            return runFiles(dataDir).map((file) => {
+        // Shape check plus the seal. The full gate is the
+        // validate-run-submission action, which blocks the PR; this catches a
+        // file that would render as a blank card, and re-checks the integrity
+        // digest so a run edited straight on main fails the build instead of
+        // shipping. Both throw rather than warn — a broken or altered run
+        // should never reach the gallery quietly.
+        async function runIds(): Promise<string[]> {
+            const ids: string[] = []
+
+            for (const file of runFiles(dataDir)) {
                 const doc = JSON.parse(readFileSync(file, 'utf8'))
 
                 const problem
@@ -65,17 +70,21 @@ export default defineNuxtModule({
                             ? 'no run object'
                             : typeof doc?.submitted_at !== 'string'
                                 ? 'no submitted_at'
-                                : null
+                                : doc.run.integrity?.digest !== await measurementDigest(doc.run)
+                                    ? 'its measurements no longer match run.integrity.digest, so it was edited after it was submitted'
+                                    : null
 
                 if (problem) {
                     throw new Error(`${file} is not a usable run document (${problem}). Run: node .github/scripts/validate-run-submission.mjs`)
                 }
 
-                return doc.run_id as string
-            })
+                ids.push(doc.run_id as string)
+            }
+
+            return ids
         }
 
-        const ids = runIds()
+        const ids = await runIds()
         console.log(`Publishing ${ids.length} community result${ids.length === 1 ? '' : 's'} to /api/results`)
 
         // Mounted as a server asset rather than read off disk, so the handlers

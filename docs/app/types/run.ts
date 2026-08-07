@@ -30,7 +30,7 @@ export interface RunCost {
 /**
  * The flat summary fields on every stored run — enough to render a gallery
  * card, filter, and sort without opening the full run. Derived from `run` by
- * .github/scripts/run-document.mjs and recomputed by the PR validator, so the
+ * shared/submission/run-document.mjs and recomputed by the PR validator, so the
  * summary can't drift from the detail it summarizes.
  */
 export interface RunIndex {
@@ -76,6 +76,13 @@ export interface RunEntry extends RunIndex {
         }
         settings_preset?: string | null
         stages_completed?: string[]
+        /**
+         * SHA-256 over everything in `run` except `meta` and this block, stamped
+         * by the bot when it accepts a submission and re-checked on every pull
+         * request and every site build. An edit to any measurement breaks it;
+         * `meta` sits outside so a maintainer can still fix a host name or cost.
+         */
+        integrity?: { algorithm: 'sha256', digest: string }
         environment: {
             build_version?: string | null
             server: {
@@ -108,6 +115,8 @@ export interface RunEntry extends RunIndex {
                 duration_seconds?: number
                 connections?: number
                 io_ms?: number
+                fpm_max_children?: number | null
+                pool_limited?: boolean | null
                 routes: {
                     static?: HttpRoute
                     json?: HttpRoute

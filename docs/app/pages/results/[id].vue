@@ -414,7 +414,7 @@ const submitter = computed(() => {
     return { github, submitted_at, verified }
 })
 
-// Runs are sharded by month (see .github/scripts/run-document.mjs) so the
+// Runs are sharded by month (see shared/submission/run-document.mjs) so the
 // directory stays readable once there are thousands of them.
 const sourcePath = computed(() => `docs/data/runs/${id.slice(0, 4)}-${id.slice(4, 6)}/${id}.json`)
 const http = computed(() => run.value.benchmarks.http ?? { routes: {} })
