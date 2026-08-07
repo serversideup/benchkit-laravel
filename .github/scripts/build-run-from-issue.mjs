@@ -11,7 +11,7 @@ import { writeFileSync, mkdirSync, appendFileSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { validateSubmission } from '../../docs/shared/submission/validate.mjs';
 import { buildDocument, runsPathFor } from '../../docs/shared/submission/run-document.mjs';
-import { findToken, decodeToken, looksLikeToken } from '../../docs/shared/submission/token.mjs';
+import { findToken, findFencedPayload, decodeToken, decodePayload, looksLikeToken } from '../../docs/shared/submission/token.mjs';
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
 
@@ -38,15 +38,24 @@ const bail = (...messages) => {
 };
 
 /**
- * The app packs a submission into a single `bk1.` token, which is both far
- * smaller than the JSON it carries — the old format overran GitHub's URL limit
- * and arrived truncated — and checksummed, so an edit between the app and here
- * is visible.
+ * Read whichever shape this app build produced. Three are accepted, newest
+ * first:
  *
- * The raw ```json fence is still accepted. BenchKit instances are disposable
- * and people run whichever image they happened to pull, so older app builds
- * will keep filing the old shape for a long time and there's no reason to turn
- * those away.
+ *   1. a `bk1.<payload>.<checksum>` token anywhere in the body
+ *   2. a bare compressed payload inside a ```benchkit fence
+ *   3. the original raw ```json fence
+ *
+ * All three are real submissions from real runs. BenchKit instances are
+ * disposable and people run whichever image they happened to pull, so the
+ * versions in the wild are not something this repo controls — being liberal
+ * here costs nothing and turning a valid run away costs someone their
+ * benchmark.
+ *
+ * Only shape 1 carries a transport checksum. That matters less than it sounds:
+ * a truncated or corrupted payload still fails to inflate under 1 and 2 alike,
+ * which was the failure that prompted all of this, and the bot seals the
+ * measurements itself further down — so what lands in the repo is equally
+ * protected however it arrived.
  */
 const readSubmission = async () => {
     const token = findToken(body);
@@ -59,21 +68,31 @@ const readSubmission = async () => {
         }
     }
 
-    if (looksLikeToken(body)) {
-        bail('Your submission token looks cut short — the issue holds the start of one but not a complete token. Copy the whole thing from BenchKit and paste it here, or open a fresh issue with **Submit result**.');
+    const payload = findFencedPayload(body);
+
+    if (payload) {
+        try {
+            return await decodePayload(payload);
+        } catch (error) {
+            bail(error.message);
+        }
     }
 
     const fence = body.match(/```json\s*([\s\S]*?)```/i);
 
-    if (!fence) {
-        bail('Could not find a submission token in the issue. Open your run in BenchKit, click **Submit result**, and use the link it gives you.');
+    if (fence) {
+        try {
+            return JSON.parse(fence[1].trim());
+        } catch (e) {
+            bail(`The results JSON could not be parsed: ${e.message}`);
+        }
     }
 
-    try {
-        return JSON.parse(fence[1].trim());
-    } catch (e) {
-        bail(`The results JSON could not be parsed: ${e.message}`);
+    if (looksLikeToken(body)) {
+        bail('Your submission token looks cut short — the issue holds the start of one but not a complete token. Copy the whole thing from BenchKit and paste it here, or open a fresh issue with **Submit result**.');
     }
+
+    bail('Could not find a submission token in the issue. Open your run in BenchKit, click **Submit result**, and use the link it gives you.');
 };
 
 const parsed = await readSubmission();

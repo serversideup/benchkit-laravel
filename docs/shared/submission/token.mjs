@@ -35,8 +35,37 @@ export const MAX_PAYLOAD_BYTES = 512 * 1024
 
 export const TOKEN_RE = new RegExp(`${TOKEN_VERSION}\\.[A-Za-z0-9_-]+\\.[0-9a-f]{${DIGEST_LENGTH}}`)
 
+/**
+ * Some app builds write the compressed payload on its own inside a ```benchkit
+ * fence, with the format named by the fence tag instead of a `bk1.` prefix and
+ * no checksum after it. BenchKit instances are disposable and people run
+ * whichever image they happened to pull, so a submission in that shape is a
+ * real submission from a real run and turning it away helps nobody — the same
+ * reasoning that keeps the older ```json fence working.
+ *
+ * What's lost is only the transport checksum. Inflate still fails loudly on a
+ * truncated or corrupted payload, which was the failure that mattered, and the
+ * bot seals the measurements itself once it has them — so the at-rest guarantee
+ * is identical either way.
+ */
+// The closing fence is optional on purpose: a body cut short loses it, and a
+// regex that simply failed to match would report "no submission here" for what
+// is really a truncated one. Matching to the end instead lets inflate fail,
+// which names the actual problem.
+export const FENCE_RE = /```benchkit\r?\n([A-Za-z0-9_\-\s]*?)(?:```|$)/i
+
 /** The token in a block of text (an issue body, a paste), or null. */
 export const findToken = text => (typeof text === 'string' ? text.match(TOKEN_RE)?.[0] ?? null : null)
+
+/**
+ * A bare compressed payload from a ```benchkit fence, whitespace stripped so a
+ * line-wrapped paste still decodes. Null when there's no such fence.
+ */
+export const findFencedPayload = (text) => {
+    const match = typeof text === 'string' ? text.match(FENCE_RE) : null
+
+    return match ? match[1].replace(/\s+/g, '') : null
+}
 
 /**
  * True when the text holds something that was meant to be a token but doesn't
@@ -94,8 +123,50 @@ const inflateRaw = async (bytes) => {
     return out
 }
 
+const unpack = async (payload) => {
+    if (String(payload ?? '').length > MAX_TOKEN_LENGTH) {
+        throw new Error('That submission is too long to be a BenchKit run.')
+    }
+
+    try {
+        return await inflateRaw(base64urlToBytes(payload))
+    } catch (error) {
+        // A truncated submission is the common case: the deflate stream simply
+        // runs out, which is exactly the failure the old JSON-in-a-URL format
+        // could not detect. DecompressionStream's own error is often empty, so
+        // don't rely on it carrying anything readable.
+        const detail = error.message || error.name || 'the compressed data ended unexpectedly'
+
+        throw new Error(`The submission could not be unpacked, which usually means it was cut short or only partly copied: ${detail}.`)
+    }
+}
+
+const parseDocument = (bytes) => {
+    let document
+
+    try {
+        document = JSON.parse(new TextDecoder().decode(bytes))
+    } catch (error) {
+        throw new Error(`The submission unpacked but did not contain valid JSON: ${error.message}`)
+    }
+
+    if (document === null || typeof document !== 'object' || Array.isArray(document)) {
+        throw new Error('The submission did not contain a run document.')
+    }
+
+    return document
+}
+
 /**
- * Decode a token into the submission document it carries.
+ * Decode a bare compressed payload — no version prefix, no checksum. Used for
+ * the ```benchkit fence shape described above.
+ *
+ * @returns {Promise<object>} the submission document
+ */
+export const decodePayload = async payload => parseDocument(await unpack(payload))
+
+/**
+ * Decode a full `bk1.` token, verifying its checksum.
  *
  * Throws with a message written to be shown to the submitter — every failure
  * here is expected input, not a bug, and the difference between "your token was
@@ -104,51 +175,19 @@ const inflateRaw = async (bytes) => {
  * @returns {Promise<object>} the submission document
  */
 export const decodeToken = async (token) => {
-    const trimmed = String(token ?? '').trim()
-
-    if (trimmed.length > MAX_TOKEN_LENGTH) {
-        throw new Error('That token is too long to be a BenchKit submission.')
-    }
-
-    const parts = trimmed.split('.')
+    const parts = String(token ?? '').trim().split('.')
 
     if (parts.length !== 3 || parts[0] !== TOKEN_VERSION) {
         throw new Error(`This doesn't look like a submission token — expected one starting with "${TOKEN_VERSION}." and ending in a 16-character checksum.`)
     }
 
     const [, payload, digest] = parts
-
-    let bytes
-
-    try {
-        bytes = await inflateRaw(base64urlToBytes(payload))
-    } catch (error) {
-        // A truncated token is the common case: the deflate stream simply runs
-        // out, which is exactly the failure the old JSON-in-a-URL format could
-        // not detect. DecompressionStream's own error is often empty, so don't
-        // rely on it carrying anything readable.
-        const detail = error.message || error.name || 'the compressed data ended unexpectedly'
-
-        throw new Error(`The token could not be unpacked, which usually means it was cut short or only partly copied: ${detail}.`)
-    }
-
+    const bytes = await unpack(payload)
     const hash = await sha256Hex(bytes)
 
     if (hash.slice(0, DIGEST_LENGTH) !== digest) {
         throw new Error('The token\'s checksum does not match its contents, so it was altered after the app generated it. Re-copy it from the app and try again.')
     }
 
-    let document
-
-    try {
-        document = JSON.parse(new TextDecoder().decode(bytes))
-    } catch (error) {
-        throw new Error(`The token unpacked but did not contain valid JSON: ${error.message}`)
-    }
-
-    if (document === null || typeof document !== 'object' || Array.isArray(document)) {
-        throw new Error('The token did not contain a run document.')
-    }
-
-    return document
+    return parseDocument(bytes)
 }
