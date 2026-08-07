@@ -36,6 +36,7 @@ ENV APP_NAME=BenchKit \
     \
     # Enable Laravel optimizations by default but allow others to override it
     AUTORUN_ENABLED=true \
+    AUTORUN_LARAVEL_SKIP_IF_NOT_FOUND=true \
     AUTORUN_LARAVEL_STORAGE_LINK=true \
     AUTORUN_LARAVEL_OPTIMIZE=true \
     AUTORUN_LARAVEL_CONFIG_CACHE=true \
