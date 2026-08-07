@@ -6,7 +6,7 @@
 ARG PHP_VARIATION=fpm-nginx
 ARG PHP_VERSION=8.5
 ARG BASE_OS=trixie
-ARG BASE_IMAGE=serversideup/php:${PHP_VERSION}-${PHP_VARIATION}-${BASE_OS}
+ARG BASE_IMAGE=serversideup/php:beta-${PHP_VERSION}-${PHP_VARIATION}-${BASE_OS}
 
 # Learn more about the Server Side Up PHP Docker Images at:
 # https://serversideup.net/open-source/docker-php/
