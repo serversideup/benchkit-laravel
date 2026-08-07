@@ -1,0 +1,54 @@
+##
+# CI environment (SPIN_ENV=ci).
+#
+# Runs the test suite against the same serversideup/php image the project ships,
+# using the php-ci and node-ci targets in the Dockerfile. Reproduce CI locally:
+#
+#   SPIN_ENV=ci ./vendor/bin/spin run -T php composer install
+#   SPIN_ENV=ci ./vendor/bin/spin run -T node sh -c "yarn install --frozen-lockfile && yarn build"
+#   SPIN_ENV=ci ./vendor/bin/spin run -T php composer test
+##
+services:
+  # Nothing in CI is served over HTTP, so keep the reverse proxy out of it.
+  # `!reset` is required: a plain empty value would merge with (not replace)
+  # the depends_on declared in docker-compose.yml.
+  traefik:
+    profiles: ["donotstart"]
+
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: php-ci
+      args:
+        PHP_VARIATION: "${PHP_VARIATION:-fpm-nginx}"
+        PHP_VERSION: "${PHP_VERSION:-8.5}"
+        BASE_OS: "${BASE_OS:-trixie}"
+    depends_on: !reset []
+    # Spin exports SPIN_USER_ID/SPIN_GROUP_ID, so a local `SPIN_ENV=ci` run
+    # writes vendor/ and caches as you rather than root. CI has neither set and
+    # falls through to root, which is what the php-ci target expects.
+    user: "${SPIN_USER_ID:-0}:${SPIN_GROUP_ID:-0}"
+    environment:
+      # docker-compose.yml sets SSL_MODE=full, which makes the entrypoint
+      # generate a self-signed keypair on boot. CI never serves HTTPS.
+      SSL_MODE: "off"
+      # $HOME is /root in the image; unwritable when running as the host user.
+      COMPOSER_HOME: /tmp/composer
+    volumes:
+      - .:/var/www/html/
+    working_dir: /var/www/html
+
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: node-ci
+      args:
+        BASE_OS: "${BASE_OS:-trixie}"
+    user: "${SPIN_USER_ID:-0}:${SPIN_GROUP_ID:-0}"
+    environment:
+      YARN_CACHE_FOLDER: /tmp/yarn-cache
+    volumes:
+      - .:/usr/src/app/
+    working_dir: /usr/src/app/

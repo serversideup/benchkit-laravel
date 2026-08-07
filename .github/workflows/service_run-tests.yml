@@ -1,0 +1,51 @@
+name: Run Tests
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ${{ github.ref }}
+        description: 'The git ref to checkout (branch, tag, or commit SHA)'
+
+# Runs the suite inside the same serversideup/php image the project ships, via
+# the php-ci and node-ci targets in the Dockerfile. Locally this is:
+#   SPIN_ENV=ci ./vendor/bin/spin run -T php composer test
+# CI calls docker compose directly because vendor/bin/spin is itself a Composer
+# dependency, and Composer has not run yet at this point.
+env:
+  COMPOSE_FILES: -f docker-compose.yml -f docker-compose.ci.yml
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Match the PHP versions we publish images for.
+        php-version: ['8.4', '8.5']
+
+    env:
+      PHP_VERSION: ${{ matrix.php-version }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Build the CI images
+        run: docker compose $COMPOSE_FILES build
+
+      - name: Install Composer dependencies
+        run: docker compose $COMPOSE_FILES run --rm -T php composer install --no-interaction --no-progress
+
+      # Feature tests hit Inertia pages, which render resources/views/app.blade.php
+      # and therefore need a real Vite manifest. Building here also verifies the
+      # frontend build that the image's node-build stage depends on.
+      - name: Build frontend assets
+        run: docker compose $COMPOSE_FILES run --rm -T node sh -c "yarn install --frozen-lockfile && yarn build"
+
+      - name: Run tests
+        run: docker compose $COMPOSE_FILES run --rm -T php composer test

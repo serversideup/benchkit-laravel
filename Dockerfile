@@ -219,5 +219,7 @@ RUN mkdir -p /var/www/html/.infrastructure/volume_data/sqlite/; \
     # List the composer packages
     composer show --locked; \
     \
-    # Install Composer dependencies
-    composer install --optimize-autoloader --no-interaction --no-progress --no-ansi
+    # Install Composer dependencies. phpbench is a runtime requirement (it powers
+    # the `php` benchmark stage) and lives in `require`, so --no-dev keeps only
+    # tooling like phpunit, pint, and spin out of the shipped image.
+    composer install --no-dev --optimize-autoloader --no-interaction --no-progress --no-ansi

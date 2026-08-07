@@ -1,0 +1,11 @@
+name: Tests
+
+# Pushes to main are covered by the test gate inside the beta publish workflow,
+# so this only needs to cover pull requests.
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  tests:
+    uses: ./.github/workflows/service_run-tests.yml

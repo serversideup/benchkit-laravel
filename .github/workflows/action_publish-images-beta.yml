@@ -1,29 +1,39 @@
 name: Docker Publish (Beta Images)
 
+# `beta` currently tracks the tip of `main` so changes can be pulled and tested
+# before a release. Once 1.0 ships, swap the `push` trigger for
+# `release: [prereleased]` and resolve `ref` from the latest pre-release tag.
 on:
   workflow_dispatch:
-  release:
-    types: [prereleased]
-  schedule:
-    - cron: '25 9 * * 1'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      # docs/ is a standalone Nuxt site and is excluded from the image via
+      # .dockerignore, so it can never change the build.
+      - 'docs/**'
+
+# Two pushes in quick succession would otherwise race for the `beta` tag.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  get-latest-beta-release:
-    runs-on: ubuntu-24.04
-    outputs:
-      release_tag: ${{ steps.get_latest_beta.outputs.release_tag }}
-    steps:
-      - name: Get Latest Beta Release
-        id: get_latest_beta
-        run: |
-          LATEST_BETA=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases | jq -r '[.[] | select(.prerelease == true)][0].tag_name')
-          echo "release_tag=${LATEST_BETA}" >> $GITHUB_OUTPUT
+  tests:
+    uses: ./.github/workflows/service_run-tests.yml
+    with:
+      ref: ${{ github.sha }}
 
   build-beta-images:
+    needs: tests
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
-      registry-repositories: "docker.io/serversideup/benchkit-laravel"
+      registry-repositories: "docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel"
       tag-prefix: "beta"
       release-type: testing
-      ref: ${{ needs.get-latest-beta-release.outputs.release_tag }}
+      ref: ${{ github.sha }}
     secrets: inherit
