@@ -17,7 +17,6 @@ BenchKit for Laravel is an open source and containerized Laravel application to 
 This application runs completely decentralized and community results are encourage to be shared on X (Twitter) with the hashtag of `#BenchKit and #Laravel`. View the community results below:
 
 - [View community results on X (Twitter) →](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live)
-- [View community results on Bluesky →](https://bsky.app/search?q=laravel+benchkit)
 
 ## Powered by Spin Pro
 Spin is an [open source tool built by Server Side Up](https://serversideup.net/open-source/spin/) to help you run Docker from development → production. Spin is language agnostic, so you can use it with any language but we also provide official templates. This project was powered by Spin Pro, which offers additional features for Laravel power users.
