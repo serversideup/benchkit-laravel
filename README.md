@@ -85,7 +85,7 @@ This project takes an incredible amount of computing power to build and maintain
 <a href="https://depot.dev/"><img src="https://serversideup.net/sponsors/depot.png" alt="Depot" width="250px"></a>&nbsp;&nbsp;<a href="https://hub.docker.com/u/serversideup"><img src="https://serversideup.net/sponsors/docker.png" alt="Docker" width="250px"></a>
 
 #### Individual Supporters
-<!-- supporters --><a href="https://github.com/aagjalpankaj"><img src="https://github.com/aagjalpankaj.png" width="40px" alt="aagjalpankaj" /></a>&nbsp;&nbsp;<!-- supporters -->
+<!-- supporters --><p align="center"><a href="https://github.com/sponsors/serversideup"><img src="https://521public.s3.amazonaws.com/serversideup/sponsors/sponsor-empty-state.png" alt="Sponsors"></a></p><!-- supporters -->
 
 ## 🚀 Need help optimizing your app for maximum performance?
 
