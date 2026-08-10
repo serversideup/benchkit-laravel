@@ -443,4 +443,21 @@ class SubmissionTest extends TestCase
     {
         $this->getJson('/runs/20990101-000000-zzzz/submission')->assertNotFound();
     }
+
+    public function test_a_run_that_measured_no_routes_still_builds_a_submission(): void
+    {
+        // Empty routes are published as `{}` rather than `[]` so the gallery can
+        // read them by key, which means everything consuming the document has to
+        // cope with an object here as well as an array.
+        $id = $this->seedSensitiveRun('20260806-205616-kitw', [
+            'benchmarks' => ['http' => ['routes' => []]],
+        ]);
+
+        $response = $this->getJson("/runs/{$id}/submission")->assertOk();
+        $body = urldecode(parse_url($response->json('issue_url'), PHP_URL_QUERY));
+
+        $this->assertStringNotContainsString('| Route |', $body);
+        $this->assertStringContainsString('| Host | DigitalOcean |', $body);
+        $this->assertNotNull(EncodeSubmissionToken::decode($response->json('token')));
+    }
 }

@@ -75,7 +75,16 @@ jobs:
         if: steps.build.outputs.valid != 'true'
         env:
           ERRORS: ${{ steps.build.outputs.errors }}
+          RETRYABLE: ${{ steps.build.outputs.retryable }}
         run: |
+          # Some failures can't succeed on a retry — a run already in the
+          # gallery stays already in the gallery. Inviting one anyway reads as
+          # though the submitter did something fixable when they didn't.
+          footer=''
+          if [ "$RETRYABLE" != 'false' ]; then
+            footer=$'\n\nRe-run the benchmark and use **Submit result** in the app to try again. (Maintainers: add the `retry-submission` label to re-run the bot on this issue as-is.)'
+          fi
+
           gh issue edit "$ISSUE_NUMBER" --add-label invalid-submission
-          gh issue comment "$ISSUE_NUMBER" --body "$(printf 'Sorry @%s — we could not add this automatically:\n\n%s\n\nRe-run the benchmark and use **Submit result** in the app to try again. (Maintainers: add the `retry-submission` label to re-run the bot on this issue as-is.)' "$ISSUE_AUTHOR" "$ERRORS")"
+          gh issue comment "$ISSUE_NUMBER" --body "$(printf 'Sorry @%s — we could not add this automatically:\n\n%s%s' "$ISSUE_AUTHOR" "$ERRORS" "$footer")"
           gh issue close "$ISSUE_NUMBER" --reason "not planned"

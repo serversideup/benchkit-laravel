@@ -12,6 +12,8 @@
 // it, opens the PR, and closes the issue. The submitter never forks, edits a
 // file, or types their username — GitHub already knows who they are.
 
+import { jsonHeaders } from '@/http';
+
 /**
  * Everything needed to submit one run: the public document (for the review
  * step), the token that carries it, and the GitHub URL to open.
@@ -68,3 +70,14 @@ const legacyCopy = (text) => {
 };
 
 export const openIssue = (url) => window.open(url, '_blank', 'noopener');
+
+/**
+ * Remember that a submission was opened for this run, so returning to it warns
+ * instead of sending the submitter to GitHub to be told the bot already has it.
+ *
+ * Fire and forget: the popup must open in the same gesture, so nothing here may
+ * be awaited, and a failed write costs a warning rather than a submission.
+ */
+export const markSubmitted = (runId) => {
+    fetch(`/runs/${runId}/submission`, { method: 'POST', headers: jsonHeaders() }).catch(() => {});
+};

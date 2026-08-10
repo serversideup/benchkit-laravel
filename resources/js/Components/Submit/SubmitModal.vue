@@ -72,6 +72,14 @@
                                 </div>
                             </div>
 
+                            <!-- A run id is minted once per benchmark, so the bot rejects the
+                                 same run twice. Say so here rather than letting them find out
+                                 from a closed issue. -->
+                            <p v-if="submittedOn" class="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[#F79009]">
+                                <IconShield :size="14" class="mt-px shrink-0" />
+                                <span>You opened a submission for this run on {{ submittedOn }}. If it was accepted, submitting again will be turned away &mdash; run the benchmark again for a fresh result.</span>
+                            </p>
+
                             <p v-if="error" class="mt-4 text-xs leading-relaxed text-[#F97066]">
                                 {{ error }} <button type="button" class="cursor-pointer underline underline-offset-2" @click="load">Try again</button>
                             </p>
@@ -83,7 +91,7 @@
 
                             <button @click="submit" type="button" :disabled="!ready"
                                 class="mt-5 flex w-full cursor-pointer items-center justify-center rounded-lg border border-[#E62E05] bg-[#E62E05] py-3.5 text-base font-medium text-white shadow-sm transition-colors duration-200 hover:border-[#F13D12] hover:bg-[#F13D12] disabled:cursor-wait disabled:border-[#22262F] disabled:bg-[#13161B] disabled:text-[#61656C]">
-                                {{ ready ? 'Submit result' : 'Preparing…' }}
+                                {{ ready ? (submittedOn ? 'Submit again anyway' : 'Submit result') : 'Preparing…' }}
                                 <IconArrowUpRight v-if="ready" class="ml-2" :size="18" />
                             </button>
 
@@ -111,7 +119,7 @@ import IconChevronDown from '@/Components/Icons/IconChevronDown.vue';
 import IconShield from '@/Components/Icons/IconShield.vue';
 import HostDetailsFields from '@/Components/Runs/HostDetailsFields.vue';
 import SubmissionPreview from '@/Components/Submit/SubmissionPreview.vue';
-import { copyToken, fetchSubmission, openIssue } from '@/Composables/useSubmitResults';
+import { copyToken, fetchSubmission, markSubmitted, openIssue } from '@/Composables/useSubmitResults';
 import { useHostEditor } from '@/Composables/useHostDetails';
 import { formatMs, serverLabelFor } from '@/Composables/useRunSummary';
 
@@ -174,6 +182,14 @@ const load = async () => {
 // keystroke early would publish a half-typed host name.
 const ready = computed(() => Boolean(submission.value) && !loading.value && !pending.value && !error.value);
 
+const submittedOn = computed(() => {
+    const opened = props.run.submission_opened_at;
+
+    return opened
+        ? new Date(opened).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+        : null;
+});
+
 const identity = computed(() => {
     const summary = props.run.summary ?? {};
 
@@ -203,6 +219,8 @@ const close = () => emit('close');
 const submit = () => {
     copyToken(submission.value.token);
     openIssue(submission.value.issue_url);
+    markSubmitted(props.run.id);
+    props.run.submission_opened_at ??= new Date().toISOString();
     close();
 };
 

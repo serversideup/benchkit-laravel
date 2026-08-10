@@ -189,8 +189,12 @@ class SubmissionIssue
     {
         $rows = [];
 
+        // Cast: a run that measured no routes carries an empty stdClass here,
+        // so that it encodes as `{}` rather than `[]` for the gallery.
+        $routes = (array) ($document['benchmarks']['http']['routes'] ?? []);
+
         foreach (self::ROUTE_LABELS as $key => $label) {
-            $route = $document['benchmarks']['http']['routes'][$key] ?? null;
+            $route = $routes[$key] ?? null;
 
             if (! is_array($route) || ! isset($route['requests_per_second'])) {
                 continue;

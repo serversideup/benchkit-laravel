@@ -8,6 +8,7 @@ use App\Actions\Runs\DeleteRun;
 use App\Actions\Runs\EncodeSubmissionToken;
 use App\Actions\Runs\FindRun;
 use App\Actions\Runs\ListRuns;
+use App\Actions\Runs\MarkRunSubmitted;
 use App\Actions\Runs\UpdateRunMeta;
 use App\Http\Requests\Runs\StoreRunRequest;
 use App\Http\Requests\Runs\UpdateRunRequest;
@@ -108,6 +109,25 @@ class RunController extends Controller
             // knows to ask for a paste instead of promising a one-click file.
             'prefill' => $issue['prefill'],
             'document' => $document,
+        ]);
+    }
+
+    /**
+     * Record that the submitter opened a submission for this run, so the app
+     * can warn before they spend a GitHub round trip finding out the bot
+     * already has it.
+     */
+    public function markSubmitted(string $id): JsonResponse
+    {
+        $snapshot = (new MarkRunSubmitted)->execute($id);
+
+        abort_if($snapshot === null, 404);
+
+        return response()->json([
+            'run' => [
+                'id' => $snapshot['id'],
+                'submission_opened_at' => $snapshot['submission_opened_at'],
+            ],
         ]);
     }
 

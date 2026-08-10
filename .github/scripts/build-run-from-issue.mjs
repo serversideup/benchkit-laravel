@@ -28,14 +28,25 @@ const setOutput = (key, value) => {
     }
 };
 
-// bail: report a human-readable failure but exit 0 — the workflow reads `valid`
-// and comments on the issue; a non-zero exit would just look like a crash.
-const bail = (...messages) => {
+// Report a human-readable failure but exit 0 — the workflow reads `valid` and
+// comments on the issue; a non-zero exit would just look like a crash.
+const finish = (retryable, messages) => {
     console.error(messages.join('\n'));
     setOutput('valid', 'false');
+    setOutput('retryable', retryable ? 'true' : 'false');
     setOutput('errors', messages.join('\n'));
     process.exit(0);
 };
+
+/** Something the submitter can fix and try again. */
+const bail = (...messages) => finish(true, messages);
+
+/**
+ * Nothing about this submission can succeed on a retry, so the comment must not
+ * end by inviting one. Telling someone to try again when trying again cannot
+ * work is worse than saying nothing.
+ */
+const bailFinal = (...messages) => finish(false, messages);
 
 /**
  * Read whichever shape this app build produced. Three are accepted, newest
@@ -114,7 +125,7 @@ const path = runsPathFor(run.id);
 // resubmission, not a new data point. Without this the branch force-pushes over
 // itself and `gh pr create` fails on an existing head, which reads as a crash.
 if (existsSync(path)) {
-    bail(`Run ${run.id} is already in the gallery — re-run the benchmark to submit a fresh result.`);
+    bailFinal(`Run ${run.id} already exists in the results gallery. You'll need to run a new test in order to submit your results to the gallery.`);
 }
 
 const doc = await buildDocument(run, {
