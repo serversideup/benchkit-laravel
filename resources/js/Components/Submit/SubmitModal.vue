@@ -23,83 +23,77 @@
                         leave-from="opacity-100 translate-y-0 sm:scale-100"
                         leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
                         <DialogPanel class="w-full max-w-md rounded-2xl border border-[#22262F] bg-[#0C0E12] p-6 sm:p-7">
-                            <div class="flex items-center justify-between">
-                                <DialogTitle class="text-lg font-semibold text-[#F7F7F7]">
-                                    {{ reviewing ? 'Review what gets published' : 'Add your result to the gallery' }}
-                                </DialogTitle>
-                                <button class="p-2 cursor-pointer -mr-2 text-[#61656C] hover:text-[#CECFD2] transition-colors" @click="close">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="min-w-0">
+                                    <DialogTitle class="text-lg font-semibold text-[#F7F7F7]">Add your result to the gallery</DialogTitle>
+                                    <!-- Which run, stated as its numbers: the identity that
+                                         matters here isn't the label, it's the result. -->
+                                    <p class="mt-1 truncate font-mono text-xs text-[#61656C] tabular-nums">{{ identity }}</p>
+                                </div>
+                                <button class="-mt-1 -mr-2 shrink-0 cursor-pointer p-2 text-[#61656C] transition-colors hover:text-[#CECFD2]" @click="close">
                                     <span class="sr-only">Close</span>
                                     <IconClose :size="20" />
                                 </button>
                             </div>
 
-                            <!-- Step 1: host & plan, the one thing only the submitter knows,
-                                 and what makes runs comparable. Auto-detected specs already
-                                 ride along. -->
-                            <template v-if="!reviewing">
-                                <p class="mt-2 text-sm text-[#94979C]">
-                                    Submitting <span class="text-[#CECFD2]">{{ run.meta?.label || 'this run' }}</span> &mdash;
-                                    your specs are detected automatically.
+                            <!-- The only thing on this screen that needs a decision. Everything
+                                 below it is confirmation, so it gets the top of the modal and
+                                 the only visible inputs. -->
+                            <div class="mt-6">
+                                <div class="flex items-baseline justify-between gap-3">
+                                    <h3 class="text-[11px] font-medium tracking-wide text-[#94979C] uppercase">Where did this run?</h3>
+                                    <Transition
+                                        enter-active-class="transition duration-200" enter-from-class="opacity-0"
+                                        leave-active-class="transition duration-300" leave-to-class="opacity-0">
+                                        <span v-if="metaSaved" class="shrink-0 text-xs text-[#47CD89]">Saved</span>
+                                    </Transition>
+                                </div>
+                                <HostDetailsFields class="mt-3" :host="host" :history="history" id-prefix="submit" />
+                            </div>
+
+                            <div class="mt-6 border-t border-[#22262F] pt-5">
+                                <p class="flex items-start gap-2 text-xs leading-relaxed text-[#94979C]">
+                                    <IconShield :size="14" class="mt-px shrink-0 text-[#47CD89]" />
+                                    <span>Your specs, settings, and results are published. Your IP, domain, and logs are stripped out first.</span>
                                 </p>
 
-                                <div class="mt-5">
-                                    <div class="flex items-baseline justify-between gap-3">
-                                        <p class="text-sm font-medium text-[#F7F7F7]">Where did this run? <span class="text-[#61656C] font-normal">&mdash; helps others compare</span></p>
-                                        <span v-if="metaSaved" class="text-xs text-[#47CD89] shrink-0">Saved</span>
-                                    </div>
-                                    <HostDetailsFields class="mt-3" :host="host" :history="history" id-prefix="submit" />
-                                </div>
-
-                                <button @click="review" type="button"
-                                    class="mt-5 w-full rounded-lg py-3.5 flex items-center justify-center text-base font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] transition-colors duration-200 cursor-pointer">
-                                    Continue
-                                    <IconArrowUpRight class="ml-2" :size="18" />
+                                <!-- Progressive disclosure rather than a second step: the
+                                     detail is one click away for anyone who wants it, and
+                                     costs nothing to everyone who doesn't. -->
+                                <button type="button" :disabled="!submission" :aria-expanded="expanded"
+                                    class="mt-2.5 -mx-1 flex w-[calc(100%+0.5rem)] cursor-pointer items-center gap-1.5 rounded px-1 py-1 text-xs text-[#CECFD2] transition-colors hover:text-[#F7F7F7] disabled:cursor-default disabled:opacity-40"
+                                    @click="expanded = !expanded">
+                                    <IconChevronDown :size="14" class="shrink-0 transition-transform duration-200" :class="expanded ? '' : '-rotate-90'" />
+                                    {{ expanded ? 'Hide what gets sent' : 'See exactly what gets sent' }}
                                 </button>
 
-                                <p class="mt-6 pt-5 border-t border-[#22262F] text-sm text-[#94979C] text-center">
-                                    Prefer social? <button @click="$emit('share')" type="button" class="text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] cursor-pointer">Share on X instead &rarr;</button>
-                                </p>
-                            </template>
-
-                            <!-- Step 2: the document as the gallery will hold it, so nothing
-                                 about this is a surprise after the fact. -->
-                            <template v-else>
-                                <p class="mt-2 text-sm text-[#94979C]">
-                                    This is everything BenchKit will send. Nothing leaves your machine until you continue.
-                                </p>
-
-                                <div v-if="loading" class="mt-5 h-64 rounded-xl border border-[#22262F] bg-[#13161B] animate-pulse" />
-
-                                <div v-else-if="error" class="mt-5 rounded-xl border border-[#373A41] bg-[#13161B] px-4 py-3">
-                                    <p class="text-sm text-[#F7F7F7]">Couldn't prepare the submission</p>
-                                    <p class="mt-1 text-xs text-[#94979C]">{{ error }}</p>
-                                    <button @click="review" type="button" class="mt-3 text-xs text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] cursor-pointer">Try again</button>
+                                <div v-if="expanded && submission" class="mt-3 rounded-xl border border-[#22262F] bg-[#0C0E12] p-4">
+                                    <SubmissionPreview :document="submission.document" />
                                 </div>
+                            </div>
 
-                                <SubmissionPreview v-else-if="submission" class="mt-5" :document="submission.document" />
+                            <p v-if="error" class="mt-4 text-xs leading-relaxed text-[#F97066]">
+                                {{ error }} <button type="button" class="cursor-pointer underline underline-offset-2" @click="load">Try again</button>
+                            </p>
 
-                                <!-- Only shown when the token is too large to ride in the URL.
-                                     It is copied either way, but promising a one-click file
-                                     when the submitter has to paste would be a lie. -->
-                                <p v-if="submission && !submission.prefill" class="mt-4 flex items-start gap-1.5 text-xs text-[#F79009] leading-relaxed">
-                                    <IconShield :size="14" class="shrink-0 mt-px" />
-                                    <span>This result is too large to pre-fill. It's been copied to your clipboard &mdash; paste it into the code block GitHub opens.</span>
-                                </p>
+                            <p v-else-if="submission && !submission.prefill" class="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[#F79009]">
+                                <IconShield :size="14" class="mt-px shrink-0" />
+                                <span>This result is too large to pre-fill. It's copied to your clipboard &mdash; paste it into the block GitHub opens.</span>
+                            </p>
 
-                                <button @click="submit" type="button" :disabled="!submission"
-                                    class="mt-5 w-full rounded-lg py-3.5 flex items-center justify-center text-base font-medium shadow-sm text-white bg-[#E62E05] border border-[#E62E05] hover:bg-[#F13D12] hover:border-[#F13D12] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-200 cursor-pointer">
-                                    Continue to GitHub
-                                    <IconArrowUpRight class="ml-2" :size="18" />
-                                </button>
+                            <button @click="submit" type="button" :disabled="!ready"
+                                class="mt-5 flex w-full cursor-pointer items-center justify-center rounded-lg border border-[#E62E05] bg-[#E62E05] py-3.5 text-base font-medium text-white shadow-sm transition-colors duration-200 hover:border-[#F13D12] hover:bg-[#F13D12] disabled:cursor-wait disabled:border-[#22262F] disabled:bg-[#13161B] disabled:text-[#61656C]">
+                                {{ ready ? 'Submit result' : 'Preparing…' }}
+                                <IconArrowUpRight v-if="ready" class="ml-2" :size="18" />
+                            </button>
 
-                                <p class="mt-3 text-xs text-[#61656C] text-center leading-relaxed">
-                                    A bot files this into the gallery, credited to your GitHub account.
-                                </p>
+                            <p class="mt-3 text-center text-xs leading-relaxed text-[#61656C]">
+                                Opens a pre-filled GitHub issue. A bot files the pull request, credited to your account.
+                            </p>
 
-                                <p class="mt-5 pt-5 border-t border-[#22262F] text-sm text-[#94979C] text-center">
-                                    <button @click="reviewing = false" type="button" class="text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] cursor-pointer">&larr; Back to host details</button>
-                                </p>
-                            </template>
+                            <p class="mt-5 border-t border-[#22262F] pt-5 text-center text-sm text-[#94979C]">
+                                Prefer social? <button @click="$emit('share')" type="button" class="cursor-pointer text-[#CECFD2] underline decoration-[#373A41] underline-offset-4 hover:decoration-[#94979C]">Share on X instead &rarr;</button>
+                            </p>
                         </DialogPanel>
                     </TransitionChild>
                 </div>
@@ -109,15 +103,17 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue';
 import IconClose from '@/Components/Icons/IconClose.vue';
 import IconArrowUpRight from '@/Components/Icons/IconArrowUpRight.vue';
+import IconChevronDown from '@/Components/Icons/IconChevronDown.vue';
 import IconShield from '@/Components/Icons/IconShield.vue';
 import HostDetailsFields from '@/Components/Runs/HostDetailsFields.vue';
 import SubmissionPreview from '@/Components/Submit/SubmissionPreview.vue';
 import { copyToken, fetchSubmission, openIssue } from '@/Composables/useSubmitResults';
 import { useHostEditor } from '@/Composables/useHostDetails';
+import { formatMs, serverLabelFor } from '@/Composables/useRunSummary';
 
 const props = defineProps({
     open: {
@@ -132,7 +128,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'share']);
 
-const reviewing = ref(false);
+const expanded = ref(false);
 const loading = ref(false);
 const error = ref(null);
 const submission = ref(null);
@@ -142,36 +138,30 @@ const {
     host,
     history,
     saved: metaSaved,
+    pending,
     seed,
     flush,
 } = useHostEditor({
     runId: () => props.run.id,
     active: () => props.open,
-    onSaved: (meta) => Object.assign(props.run.meta, meta),
-});
-
-watch(() => props.open, (open) => {
-    if( open ) {
-        seed(props.run.meta ?? {});
-        metaSaved.value = false;
-        reviewing.value = false;
-        submission.value = null;
-        error.value = null;
-    }
+    onSaved: (meta) => {
+        Object.assign(props.run.meta, meta);
+        // The stored run just changed, so the token built from it is stale.
+        load();
+    },
 });
 
 /**
- * The server builds the submission from the *stored* run, so a host detail
- * still sitting in the autosave debounce has to be committed first or it
- * simply wouldn't be in the document.
+ * The submission is built server-side from the stored run, so it's fetched up
+ * front and refreshed whenever the host details land. That's what lets this be
+ * one screen instead of two: by the time anyone reaches the button, the thing
+ * it opens is already prepared.
  */
-const review = async () => {
-    reviewing.value = true;
+const load = async () => {
     loading.value = true;
     error.value = null;
 
     try {
-        await flush();
         submission.value = await fetchSubmission(props.run.id);
     } catch (problem) {
         error.value = problem.message;
@@ -180,14 +170,47 @@ const review = async () => {
     }
 };
 
+// Disabled while an edit is still in the autosave debounce: a token built a
+// keystroke early would publish a half-typed host name.
+const ready = computed(() => Boolean(submission.value) && !loading.value && !pending.value && !error.value);
+
+const identity = computed(() => {
+    const summary = props.run.summary ?? {};
+
+    return [
+        serverLabelFor(props.run) ?? props.run.meta?.label,
+        summary.http_rps != null ? `${Math.round(summary.http_rps).toLocaleString()} req/s` : null,
+        summary.http_p95_ms != null ? `p95 ${formatMs(summary.http_p95_ms)}` : null,
+    ].filter(Boolean).join(' · ');
+});
+
+watch(() => props.open, (open) => {
+    if( open ) {
+        seed(props.run.meta ?? {});
+        metaSaved.value = false;
+        expanded.value = false;
+        submission.value = null;
+        error.value = null;
+        load();
+    }
+});
+
 const close = () => emit('close');
 
-// Both the clipboard write and the popup want a live user gesture, so neither
-// may be awaited first — the document was already fetched when this step
-// opened, so there is nothing to wait for anyway.
+// Neither the clipboard write nor the popup may be awaited first — both want a
+// live user gesture. Nothing here needs awaiting anyway; that's the point of
+// preparing the submission on open.
 const submit = () => {
     copyToken(submission.value.token);
     openIssue(submission.value.issue_url);
     close();
 };
+
+// A pending edit resolves on its own; catch the case where it settles after a
+// failed load so the button doesn't stay stuck on "Preparing…".
+watch(pending, (isPending) => {
+    if( !isPending && props.open && !submission.value && !loading.value ) {
+        load();
+    }
+});
 </script>

@@ -159,10 +159,14 @@ export const useHostEditor = ({ runId, meta = {}, active = () => true, onFlush =
     };
 
     let timer = null;
-    let pending = false;
+
+    // Reactive so a caller can hold off on work that depends on the stored run
+    // — the submit flow rebuilds its token from the server, and doing that
+    // against a half-typed host name would publish a half-typed host name.
+    const pending = ref(false);
 
     const persist = async () => {
-        pending = false;
+        pending.value = false;
         clearTimeout(timer);
         timer = null;
 
@@ -190,7 +194,7 @@ export const useHostEditor = ({ runId, meta = {}, active = () => true, onFlush =
             return;
         }
 
-        pending = true;
+        pending.value = true;
         clearTimeout(timer);
         timer = setTimeout(persist, 600);
     });
@@ -201,12 +205,12 @@ export const useHostEditor = ({ runId, meta = {}, active = () => true, onFlush =
      * still sitting in the timer would simply be missing from it.
      */
     const flush = async () => {
-        if( pending ) {
+        if( pending.value ) {
             await persist();
         }
     };
 
-    return { host, history, saved, hasAnyValue, clearHost, seed, costPayload, flush };
+    return { host, history, saved, pending, hasAnyValue, clearHost, seed, costPayload, flush };
 };
 
 export const saveHostDetails = (details) => {
