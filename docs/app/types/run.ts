@@ -206,8 +206,12 @@ export function formatNumber(n: number | null | undefined): string {
     return Math.round(n).toLocaleString('en-US')
 }
 
+/**
+ * "cores", not "vCPU": the count comes from what the OS reports, and BenchKit
+ * runs on bare metal as readily as on a VPS, where calling them vCPUs is wrong.
+ */
 export function coresLabel(v: string | number): string {
-    return `${v} vCPU`
+    return `${v} cores`
 }
 
 export function ramLabel(ram: string): string {

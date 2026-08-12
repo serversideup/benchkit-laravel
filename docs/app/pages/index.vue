@@ -1,21 +1,18 @@
 <template>
-    <UContainer class="mx-auto max-w-[1024px]">
-        <ContentRenderer
-            v-if="page"
-            :value="page"
-            :prose="false"
-        />
-    </UContainer>
+    <div>
+        <HomeHero />
+        <HomeTooling />
+        <HomeWorkload />
+        <HomeSandbox />
+        <HomeCommunity />
+        <HomeQuestions />
+        <HomeClosing />
+    </div>
 </template>
 
 <script setup lang="ts">
-const { data: page } = await useAsyncData('index', () => queryCollection('landing').path('/').first())
-if (!page.value) {
-    throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
-}
-
-const title = page.value.seo?.title || page.value.title
-const description = page.value.seo?.description || page.value.description
+const title = 'BenchKit: benchmark your Laravel stack'
+const description = 'BenchKit is a free and open source benchmark for Laravel. Run it on your own hardware to see what your host, your hardware, and your PHP configuration are really doing, then share what you learn with the community.'
 
 useSeoMeta({
     titleTemplate: '',

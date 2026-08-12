@@ -9,10 +9,9 @@ import { defineContentConfig, defineCollection, z } from '@nuxt/content'
 
 export default defineContentConfig({
     collections: {
-        landing: defineCollection({
-            type: 'page',
-            source: 'index.md'
-        }),
+        // The home page is not a collection: it's built from components in
+        // app/components/home/ and reads live run data, so there is no prose
+        // for the content pipeline to own.
         docs: defineCollection({
             type: 'page',
             source: {

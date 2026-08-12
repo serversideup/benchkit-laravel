@@ -38,9 +38,56 @@
   --ui-container: var(--container-8xl);
 }
 
-/* BenchKit signature: mono headings echo the app's JetBrains Mono aesthetic. */
-h1, h2, h3, .font-brand {
-  font-family: var(--font-mono);
+/* BenchKit signature: mono headings echo the app's JetBrains Mono aesthetic.
+   Declared in @layer base so a `font-sans` utility can still override it —
+   unlayered CSS wins over layered utilities regardless of specificity. */
+@layer base {
+  h1, h2, h3, .font-brand {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  /* Entrance for content that is already on screen at load. A CSS animation
+     rather than a JS-driven class: it completes even if hydration is slow or
+     JavaScript never runs, so nothing can be left invisible. `both` holds the
+     opening frame through animation-delay, which is what staggers a group. */
+  @keyframes benchkit-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .enter {
+    animation: benchkit-enter 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter {
+      animation: none;
+    }
+  }
+
+  /* Scroll reveal, driven by the element's own position rather than by
+     JavaScript guessing where the fold is. An element barely peeking in at
+     load sits near 0% and still animates; one fully in view is already at
+     100%. No styles outside this block, so unsupported browsers (and any
+     no-JS visit) simply get the content. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .reveal {
+        animation: benchkit-enter linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 45%;
+      }
+    }
+  }
 }
 
 ul li a:after {
