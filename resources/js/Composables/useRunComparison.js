@@ -80,6 +80,21 @@ export const METRICS = {
     ],
 };
 
+const CRUD_OPERATIONS = ['create', 'read', 'update', 'delete'];
+
+// Two runs' CRUD numbers can only be subtracted if both measured the same unit
+// of work, which is what `statements` records. Before schema 3, read was a
+// single query returning 100 rows while create, update and delete each ran 100
+// statements, and create and update timed PHP datetime work the other two
+// didn't. Those runs carry no statement count, and a delta against one of them
+// would be arithmetic on two different measurements.
+const crudComparable = (runA, runB) => CRUD_OPERATIONS.every((key) => {
+    const a = runA.benchmarks?.php?.headline?.[key]?.statements ?? null;
+    const b = runB.benchmarks?.php?.headline?.[key]?.statements ?? null;
+
+    return a !== null && a === b;
+});
+
 const get = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
 
 const formatValue = (value) => {
@@ -191,5 +206,14 @@ export const compareRuns = (runA, runB) => {
         }
     });
 
-    return { commonStages, exclusiveStages, settingsDiff, environmentDiff, metricDeltas };
+    // Dropping rows silently would read as "nothing changed here". Say what
+    // was withheld and why, in the same place the deltas would have been.
+    const notes = [];
+
+    if( commonStages.includes('php') && !crudComparable(runA, runB) ) {
+        delete metricDeltas.php;
+        notes.push('One of these runs measured the database benchmarks before BenchKit made the four CRUD operations comparable — read was a single query returning 100 rows, and create and update timed PHP datetime work alongside the query. Those numbers describe different work, so they are not subtracted here.');
+    }
+
+    return { commonStages, exclusiveStages, settingsDiff, environmentDiff, metricDeltas, notes };
 };

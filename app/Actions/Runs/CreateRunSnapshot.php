@@ -67,7 +67,7 @@ class CreateRunSnapshot
         $id = $createdAt->format('Ymd-His').'-'.Str::lower(Str::random(4));
 
         return [
-            'schema_version' => 2,
+            'schema_version' => AssembleResultsDocument::SCHEMA_VERSION,
             'type' => 'benchkit-run',
             'id' => $id,
             'created_at' => $createdAt->toIso8601String(),

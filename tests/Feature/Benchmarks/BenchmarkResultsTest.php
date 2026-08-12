@@ -39,11 +39,11 @@ class BenchmarkResultsTest extends TestCase
     {
         File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
             'benchmark,subject,revs,its,mem_peak,best,mean,mode,worst,stdev,rstdev',
-            'InsertBenchmark,benchDbFacadeInsertIndividual,10,5,100,90000,95500,95000,99000,100,1.0',
-            'QueryBenchmark,benchSelectWithLimit,1000,5,100,900,1250,1200,1400,10,1.0',
-            'QueryBenchmark,benchSimpleSelect,1000,5,100,9000,12500,12000,14000,10,1.0',
-            'UpdateBenchmark,benchQueryBuilderIndividual,10,5,100,80000,84200,84000,89000,100,1.0',
-            'DeleteBenchmark,benchQueryBuilderIndividual,5,5,100,220000,233400,232000,239000,100,1.0',
+            'InsertBenchmark,benchDbFacadeInsertIndividual,1,5,100,90000,95500,95000,99000,100,1.0',
+            'QueryBenchmark,benchSelectIndividualById,1,5,100,900,1250,1200,1400,10,1.0',
+            'QueryBenchmark,benchSelectWithLimit,1000,5,100,200,265,260,280,10,1.0',
+            'UpdateBenchmark,benchQueryBuilderIndividual,1,5,100,80000,84200,84000,89000,100,1.0',
+            'DeleteBenchmark,benchQueryBuilderIndividual,1,5,100,220000,233400,232000,239000,100,1.0',
         ]));
 
         $response = $this->getJson('/php/results')->assertOk();
@@ -55,11 +55,73 @@ class BenchmarkResultsTest extends TestCase
         $response->assertJsonPath('phpbench_results.create.records', 100);
     }
 
+    /**
+     * benchSelectWithLimit is one SELECT returning 100 rows, so it cannot be
+     * the read tile sitting next to three 100-statement operations. It stays
+     * in the suite, but only as a raw subject.
+     */
+    public function test_php_results_does_not_read_the_headline_from_the_single_query_select(): void
+    {
+        File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
+            'benchmark,subject,revs,its,mem_peak,best,mean,mode,worst,stdev,rstdev',
+            'QueryBenchmark,benchSelectWithLimit,1000,5,100,200,265,260,280,10,1.0',
+        ]));
+
+        $response = $this->getJson('/php/results')->assertOk();
+
+        $this->assertNull($response->json('phpbench_results.read.milliseconds'));
+    }
+
+    public function test_php_results_records_every_headline_as_the_same_unit_of_work(): void
+    {
+        File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
+            'benchmark,subject,revs,its,mem_peak,best,mean,mode,worst,stdev,rstdev',
+            'InsertBenchmark,benchDbFacadeInsertIndividual,1,5,100,90000,95500,95000,99000,100,1.0',
+        ]));
+
+        $response = $this->getJson('/php/results')->assertOk();
+
+        foreach (['create', 'read', 'update', 'delete'] as $operation) {
+            $this->assertSame(100, $response->json("phpbench_results.{$operation}.statements"));
+            $this->assertSame(100, $response->json("phpbench_results.{$operation}.records"));
+        }
+    }
+
+    public function test_php_results_carries_the_spread_behind_each_headline_mean(): void
+    {
+        File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
+            'benchmark,subject,revs,its,mem_peak,best,mean,mode,worst,stdev,rstdev',
+            'InsertBenchmark,benchDbFacadeInsertIndividual,1,5,100,90000,95500,95000,99000,3000,3.14159',
+        ]));
+
+        $response = $this->getJson('/php/results')->assertOk();
+
+        $response->assertJsonPath('phpbench_results.create.best_ms', 90);
+        $response->assertJsonPath('phpbench_results.create.worst_ms', 99);
+        $response->assertJsonPath('phpbench_results.create.rstdev', 3.14);
+        $response->assertJsonPath('phpbench_results.create.iterations', 5);
+        $response->assertJsonPath('phpbench_results.create.revolutions', 1);
+    }
+
+    public function test_php_results_reads_a_csv_written_without_the_spread_columns(): void
+    {
+        File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
+            'benchmark,subject,mean',
+            'InsertBenchmark,benchDbFacadeInsertIndividual,95500',
+        ]));
+
+        $response = $this->getJson('/php/results')->assertOk();
+
+        $response->assertJsonPath('phpbench_results.create.milliseconds', 95.5);
+        $this->assertNull($response->json('phpbench_results.create.rstdev'));
+        $this->assertNull($response->json('phpbench_results.create.best_ms'));
+    }
+
     public function test_php_results_returns_null_metrics_when_a_subject_is_missing(): void
     {
         File::put($this->resultsPath.'/phpbench_results.csv', implode("\n", [
             'benchmark,subject,revs,its,mem_peak,best,mean,mode,worst,stdev,rstdev',
-            'InsertBenchmark,benchDbFacadeInsertIndividual,10,5,100,90000,95500,95000,99000,100,1.0',
+            'InsertBenchmark,benchDbFacadeInsertIndividual,1,5,100,90000,95500,95000,99000,100,1.0',
         ]));
 
         $response = $this->getJson('/php/results')->assertOk();

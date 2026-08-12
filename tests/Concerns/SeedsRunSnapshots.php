@@ -23,7 +23,7 @@ trait SeedsRunSnapshots
     protected function seedRun(string $id, array $overrides = []): string
     {
         Storage::disk('runs')->put("{$id}.json", json_encode(array_merge([
-            'schema_version' => 2,
+            'schema_version' => 3,
             'type' => 'benchkit-run',
             'id' => $id,
             'created_at' => '2026-07-08T16:52:31+00:00',

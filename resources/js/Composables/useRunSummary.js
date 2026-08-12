@@ -101,12 +101,60 @@ export const serverLabelFor = (run) => {
 // value wins whenever it exists
 const HEADLINE_SUBJECTS = {
     create: ['InsertBenchmark', 'benchDbFacadeInsertIndividual'],
-    read: ['QueryBenchmark', 'benchSelectWithLimit'],
+    read: ['QueryBenchmark', 'benchSelectIndividualById'],
     update: ['UpdateBenchmark', 'benchQueryBuilderIndividual'],
     delete: ['DeleteBenchmark', 'benchQueryBuilderIndividual'],
 };
 
 export const headlineMilliseconds = (php, key) => headlineOperation(php ?? {}, key).milliseconds ?? null;
+
+// Above this relative standard deviation, in percent, the iterations behind a
+// mean disagreed enough that the mean stops describing them, and the number
+// gets shown as the estimate it is. Mirrors
+// PhpBenchmarkResults::HIGH_VARIANCE_RSTDEV.
+export const HIGH_VARIANCE_RSTDEV = 10;
+
+export const isHighVariance = (rstdev) => typeof rstdev === 'number' && rstdev > HIGH_VARIANCE_RSTDEV;
+
+const CRUD_OPERATIONS = [
+    { key: 'create', label: 'Create', detail: 'INSERT per record' },
+    { key: 'read', label: 'Read', detail: 'SELECT per record, by id' },
+    { key: 'update', label: 'Update', detail: 'UPDATE per record, by id' },
+    { key: 'delete', label: 'Delete', detail: 'DELETE per record, by id' },
+];
+
+/**
+ * The four CRUD tiles, and whether they may share a bar scale.
+ *
+ * They may only when they measured the same unit of work, which is what
+ * `statements` records. Runs from before schema 3 measured read as one SELECT
+ * returning 100 rows while the other three ran 100 statements — roughly a
+ * hundredth of the work, and it looked proportionally faster. Those runs carry
+ * no statement count, so they get no shared scale and say why.
+ */
+export const crudHeadlines = (php) => {
+    const entries = CRUD_OPERATIONS
+        .map((operation) => ({ ...operation, data: headlineOperation(php ?? {}, operation.key) }))
+        .filter((operation) => operation.data.milliseconds != null);
+
+    const statements = entries.map((operation) => operation.data.statements);
+    const comparable = entries.length > 0 && statements.every((count) => count != null && count === statements[0]);
+    const maxMs = Math.max(1, ...entries.map((operation) => operation.data.milliseconds));
+
+    return {
+        comparable,
+        records: entries[0]?.data.records ?? 100,
+        operations: entries.map((operation) => ({
+            key: operation.key,
+            label: operation.label,
+            detail: operation.detail,
+            milliseconds: operation.data.milliseconds,
+            rstdev: operation.data.rstdev ?? null,
+            iterations: operation.data.iterations ?? null,
+            percent: comparable ? Math.max(2, (operation.data.milliseconds / maxMs) * 100) : null,
+        })),
+    };
+};
 
 // How the load test reached the app (recorded in http-meta.json). Loopback
 // is the standard, comparable path; the other modes are disclosed so a

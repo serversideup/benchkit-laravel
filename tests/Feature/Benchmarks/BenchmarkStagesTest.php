@@ -71,7 +71,7 @@ class BenchmarkStagesTest extends TestCase
     public static function phpModes(): array
     {
         return [
-            'quick limits the suite' => ['quick', '--iterations=2'],
+            'quick limits the suite' => ['quick', '--iterations=5'],
             'full runs everything' => ['full', '--report=comparison'],
             'omitted defaults to full' => [null, '--report=comparison'],
         ];

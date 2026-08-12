@@ -8,44 +8,65 @@ use League\Csv\Reader;
 class PhpBenchmarkResults extends BenchmarkResults
 {
     /**
-     * The phpbench subjects surfaced as headline CRUD metrics. Every subject
-     * operates on 100 records so the four numbers are comparable — which holds
-     * only while each one measures its operation and nothing else. A subject
-     * that sets up or restores state inside its timed body breaks the
-     * comparison silently: delete used to rebuild the rows it removed, so it
-     * reported 2.4x its real cost and read as the slowest operation.
+     * Above this relative standard deviation, a mean stops describing the
+     * distribution it came from and the UI says so rather than printing it to
+     * four significant figures. Kept in step with HIGH_VARIANCE_RSTDEV in
+     * resources/js/Composables/useRunSummary.js and its twin on the docs site.
+     */
+    public const HIGH_VARIANCE_RSTDEV = 10.0;
+
+    /**
+     * The phpbench subjects surfaced as headline CRUD metrics.
      *
-     * @var array<string, array{benchmark: string, subject: string, records: int, label: string}>
+     * The four tiles share a bar scale, so they have to measure the same unit
+     * of work: 100 statements, one row each, addressed the same way. Two
+     * things have broken that in the past and both are worth stating, because
+     * neither is visible in a number.
+     *
+     * A subject that sets up or restores state inside its timed body reports
+     * work it did not do — delete used to rebuild the rows it removed, and
+     * read as the slowest operation at 2.4x its real cost.
+     *
+     * A subject that measures a different shape of work is worse, because it
+     * looks right. Read was benchSelectWithLimit: one SELECT returning 100
+     * rows, roughly a hundredth of the work of 100 individual statements,
+     * printed on the same scale as them. It is now one SELECT per record.
+     *
+     * @var array<string, array{benchmark: string, subject: string, records: int, statements: int, label: string}>
      */
     protected const HEADLINE_SUBJECTS = [
         'create' => [
             'benchmark' => 'InsertBenchmark',
             'subject' => 'benchDbFacadeInsertIndividual',
             'records' => 100,
-            'label' => 'Insert 100 records (individual queries)',
+            'statements' => 100,
+            'label' => 'Insert 100 records (one INSERT per record)',
         ],
         'read' => [
             'benchmark' => 'QueryBenchmark',
-            'subject' => 'benchSelectWithLimit',
+            'subject' => 'benchSelectIndividualById',
             'records' => 100,
-            'label' => 'Select 100 records (indexed where + limit)',
+            'statements' => 100,
+            'label' => 'Select 100 records (one SELECT per record, by id)',
         ],
         'update' => [
             'benchmark' => 'UpdateBenchmark',
             'subject' => 'benchQueryBuilderIndividual',
             'records' => 100,
-            'label' => 'Update 100 records (individual queries)',
+            'statements' => 100,
+            'label' => 'Update 100 records (one UPDATE per record, by id)',
         ],
         'delete' => [
             'benchmark' => 'DeleteBenchmark',
             'subject' => 'benchQueryBuilderIndividual',
             'records' => 100,
-            'label' => 'Delete 100 records (individual queries)',
+            'statements' => 100,
+            'label' => 'Delete 100 records (one DELETE per record, by id)',
         ],
     ];
 
     /**
-     * @return array<string, array{benchmark: string, subject: string, records: int, label: string}>
+     * @return array<string, array{benchmark: string, subject: string, records: int, statements: int, label: string}>
      */
     public static function headlineSubjects(): array
     {
@@ -58,7 +79,7 @@ class PhpBenchmarkResults extends BenchmarkResults
     }
 
     /**
-     * @return array{headline: array<string, array{milliseconds: float|null, records: int, label: string}>, subjects: array<int, array{benchmark: string, subject: string, mean_us: float}>}|null
+     * @return array{headline: array<string, array<string, mixed>>, subjects: array<int, array<string, mixed>>}|null
      */
     public function execute(): ?array
     {
@@ -72,7 +93,13 @@ class PhpBenchmarkResults extends BenchmarkResults
             $headline[$key] = [
                 'milliseconds' => null,
                 'records' => $spec['records'],
+                'statements' => $spec['statements'],
                 'label' => $spec['label'],
+                'best_ms' => null,
+                'worst_ms' => null,
+                'rstdev' => null,
+                'iterations' => null,
+                'revolutions' => null,
             ];
         }
 
@@ -84,15 +111,11 @@ class PhpBenchmarkResults extends BenchmarkResults
             $reader->setEscape('');
 
             foreach ($reader->getRecords() as $record) {
-                $subjects[] = [
-                    'benchmark' => $record['benchmark'],
-                    'subject' => $record['subject'],
-                    'mean_us' => (float) $record['mean'],
-                ];
+                $subjects[] = $this->subjectFrom($record);
 
                 foreach (self::HEADLINE_SUBJECTS as $key => $spec) {
                     if ($record['benchmark'] === $spec['benchmark'] && $record['subject'] === $spec['subject']) {
-                        $headline[$key]['milliseconds'] = round($record['mean'] / 1000, 3);
+                        $headline[$key] = array_merge($headline[$key], $this->headlineFrom($record));
                     }
                 }
             }
@@ -104,5 +127,85 @@ class PhpBenchmarkResults extends BenchmarkResults
             'headline' => $headline,
             'subjects' => $subjects,
         ];
+    }
+
+    /**
+     * One row of the phpbench comparison report, in the microseconds per
+     * revolution it was measured in. The spread columns travel with the mean
+     * because a mean on its own cannot be checked: quick mode averages a
+     * handful of iterations, and one stalled iteration moves the headline
+     * without leaving a trace anywhere else in the document.
+     *
+     * @param  array<string, string>  $record
+     * @return array<string, mixed>
+     */
+    protected function subjectFrom(array $record): array
+    {
+        return [
+            'benchmark' => $record['benchmark'],
+            'subject' => $record['subject'],
+            'mean_us' => (float) $record['mean'],
+            'best_us' => $this->numeric($record, 'best'),
+            'worst_us' => $this->numeric($record, 'worst'),
+            'stdev_us' => $this->numeric($record, 'stdev'),
+            'rstdev' => $this->rounded($this->numeric($record, 'rstdev'), 2),
+            'revolutions' => $this->integer($record, 'revs'),
+            'iterations' => $this->integer($record, 'its'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $record
+     * @return array<string, mixed>
+     */
+    protected function headlineFrom(array $record): array
+    {
+        return [
+            'milliseconds' => $this->rounded((float) $record['mean'] / 1000, 3),
+            'best_ms' => $this->rounded($this->milliseconds($record, 'best'), 3),
+            'worst_ms' => $this->rounded($this->milliseconds($record, 'worst'), 3),
+            'rstdev' => $this->rounded($this->numeric($record, 'rstdev'), 2),
+            'iterations' => $this->integer($record, 'its'),
+            'revolutions' => $this->integer($record, 'revs'),
+        ];
+    }
+
+    /**
+     * Columns are read defensively: the report is configured in phpbench.json,
+     * and a results file written by an older configuration is still worth
+     * reading for the means it does have.
+     *
+     * @param  array<string, string>  $record
+     */
+    protected function numeric(array $record, string $column): ?float
+    {
+        $value = $record[$column] ?? null;
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    /**
+     * @param  array<string, string>  $record
+     */
+    protected function integer(array $record, string $column): ?int
+    {
+        $value = $this->numeric($record, $column);
+
+        return $value === null ? null : (int) $value;
+    }
+
+    /**
+     * @param  array<string, string>  $record
+     */
+    protected function milliseconds(array $record, string $column): ?float
+    {
+        $value = $this->numeric($record, $column);
+
+        return $value === null ? null : $value / 1000;
+    }
+
+    protected function rounded(?float $value, int $precision): ?float
+    {
+        return $value === null ? null : round($value, $precision);
     }
 }

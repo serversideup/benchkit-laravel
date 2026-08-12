@@ -219,8 +219,19 @@
                     <ResultsChip>{{ phpOps[0]?.records }} records per operation</ResultsChip>
                 </template>
 
-                <p class="mt-2 text-xs text-[#94979C]">
-                    ↓ Lower is better — total time per operation
+                <p
+                    v-if="phpOps[0]?.comparable"
+                    class="mt-2 text-xs text-[#94979C]"
+                >
+                    ↓ Lower is better — time to run {{ phpOps[0]?.records }} statements, one record each
+                </p>
+                <p
+                    v-else
+                    class="mt-2 text-xs text-[#94979C]"
+                >
+                    Recorded before these four were measured the same way — read was a single query returning
+                    {{ phpOps[0]?.records }} rows rather than {{ phpOps[0]?.records }} separate reads, so it is not
+                    comparable with the other three and they share no scale here.
                 </p>
 
                 <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-10 gap-y-6">
@@ -240,9 +251,28 @@
                             {{ formatMs(op.milliseconds) }}
                         </p>
                         <ResultsBar
+                            v-if="op.percent !== null"
                             class="mt-3.5 h-2"
                             :percent="op.percent"
                         />
+                        <p class="mt-2 text-xs text-[#61656C] leading-snug">
+                            {{ op.detail }}
+                        </p>
+                        <!-- A mean is only worth its digits if the iterations
+                             behind it agreed. When they didn't, say so on the
+                             number rather than in a footnote nobody reads. -->
+                        <p
+                            v-if="op.rstdev !== null"
+                            class="mt-1 text-xs font-mono leading-snug"
+                            :class="isHighVariance(op.rstdev) ? 'text-[#F79009]' : 'text-[#61656C]'"
+                        >
+                            ±{{ op.rstdev }}%<template v-if="op.iterations">
+                                over {{ op.iterations }} runs
+                            </template>
+                            <template v-if="isHighVariance(op.rstdev)">
+                                — unstable
+                            </template>
+                        </p>
                     </div>
                 </div>
             </ResultsPanel>
@@ -516,22 +546,44 @@ const routes = computed(() => {
         })
 })
 
+// Above this relative standard deviation, in percent, the iterations behind a
+// mean disagreed enough that the mean stops describing them. Kept in step with
+// PhpBenchmarkResults::HIGH_VARIANCE_RSTDEV in the app.
+const HIGH_VARIANCE_RSTDEV = 10
+
+const isHighVariance = (rstdev?: number | null) => typeof rstdev === 'number' && rstdev > HIGH_VARIANCE_RSTDEV
+
+/**
+ * The four CRUD tiles, and whether they may share a bar scale.
+ *
+ * They may only when they measured the same unit of work, which is what
+ * `statements` records. Runs from before schema 3 measured read as one SELECT
+ * returning 100 rows while the other three ran 100 statements — roughly a
+ * hundredth of the work, sat on the same scale and looking proportionally
+ * faster for it. Those runs carry no statement count, so they get no bars.
+ */
 const phpOps = computed(() => {
     const h = run.value.benchmarks.php?.headline
     if (!h) return []
     const entries = [
-        { key: 'create', label: 'Create', data: h.create },
-        { key: 'read', label: 'Read', data: h.read },
-        { key: 'update', label: 'Update', data: h.update },
-        { key: 'delete', label: 'Delete', data: h.delete }
+        { key: 'create', label: 'Create', detail: 'INSERT per record', data: h.create },
+        { key: 'read', label: 'Read', detail: 'SELECT per record, by id', data: h.read },
+        { key: 'update', label: 'Update', detail: 'UPDATE per record, by id', data: h.update },
+        { key: 'delete', label: 'Delete', detail: 'DELETE per record, by id', data: h.delete }
     ].filter(o => o.data?.milliseconds != null)
+    const statements = entries.map(o => o.data!.statements)
+    const comparable = entries.length > 0 && statements.every(n => n != null && n === statements[0])
     const maxMs = Math.max(1, ...entries.map(o => o.data!.milliseconds))
     return entries.map(o => ({
         key: o.key,
         label: o.label,
+        detail: o.detail,
         milliseconds: o.data!.milliseconds,
         records: o.data!.records ?? 100,
-        percent: Math.max(2, (o.data!.milliseconds / maxMs) * 100)
+        rstdev: o.data!.rstdev ?? null,
+        iterations: o.data!.iterations ?? null,
+        comparable,
+        percent: comparable ? Math.max(2, (o.data!.milliseconds / maxMs) * 100) : null
     }))
 })
 
@@ -581,7 +633,12 @@ const stackFacts = computed(() => {
         { label: 'PHP', value: e.php.php_version },
         { label: 'Laravel', value: e.laravel.environment.laravel_version },
         { label: 'Octane', value: e.php.octane != null ? bool(e.php.octane) : null },
-        { label: 'Database', value: e.laravel.drivers?.database as string | undefined },
+        { label: 'Database', value: databaseLabel.value ?? e.laravel.drivers?.database as string | undefined },
+        // The CRUD subjects commit one statement at a time, so whether a commit
+        // waits for the disk moves them by orders of magnitude. Without these,
+        // a slow write result can't be told apart from a slow disk.
+        { label: 'Durability', value: durabilityLabel.value },
+        { label: 'DB filesystem', value: e.database?.filesystem },
         { label: 'OPcache', value: e.php.op_cache != null ? bool(opcacheOn(e.php.op_cache)) : null },
         // The knobs that explain more of the gap between two runs than the
         // hardware often does.
@@ -592,6 +649,20 @@ const stackFacts = computed(() => {
         { label: 'SAPI', value: e.php.php_server_api },
         { label: 'BenchKit', value: e.build_version }
     ].filter(f => f.value != null && f.value !== '')
+})
+
+const databaseLabel = computed(() => {
+    const database = run.value.environment.database
+    if (!database?.driver) return null
+    return database.version ? `${database.driver} ${database.version}` : database.driver
+})
+
+// "journal_mode=wal · synchronous=normal" — named as the engine names them,
+// so the value can be looked up rather than interpreted.
+const durabilityLabel = computed(() => {
+    const durability = run.value.environment.database?.durability ?? {}
+    const settings = Object.entries(durability).filter(([, value]) => value != null)
+    return settings.length ? settings.map(([key, value]) => `${key}=${value}`).join(' · ') : null
 })
 
 const ini = computed(() => run.value.environment.php.ini ?? {})

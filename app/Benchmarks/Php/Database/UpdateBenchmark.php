@@ -32,7 +32,7 @@ class UpdateBenchmark extends BaseBenchmark
     public function setUp(): void
     {
         parent::setUp();
-        $this->ensureTestTable('benchmark_products', function ($table) {
+        $this->resetTestTable('benchmark_products', function ($table) {
             $table->id();
             $table->string('name');
             $table->decimal('price', 10, 2);
@@ -50,8 +50,8 @@ class UpdateBenchmark extends BaseBenchmark
                 'price' => ($i % 990) + 10,
                 'stock' => $i % 100,
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ];
         }
 
@@ -81,7 +81,7 @@ class UpdateBenchmark extends BaseBenchmark
                 ->where('id', $id)
                 ->update([
                     'price' => (($id * 7) % 990) + 10,
-                    'updated_at' => now(),
+                    'updated_at' => $this->now,
                 ]);
         }
     }
@@ -103,7 +103,7 @@ class UpdateBenchmark extends BaseBenchmark
             if ($model) {
                 $model->update([
                     'price' => (($id * 7) % 990) + 10,
-                    'updated_at' => now(),
+                    'updated_at' => $this->now,
                 ]);
             }
         }
@@ -124,7 +124,7 @@ class UpdateBenchmark extends BaseBenchmark
             ->whereIn('id', $idsToUpdate)
             ->update([
                 'price' => 99.99,
-                'updated_at' => now(),
+                'updated_at' => $this->now,
             ]);
     }
 
@@ -141,7 +141,7 @@ class UpdateBenchmark extends BaseBenchmark
             ->where('stock', '<', 10)
             ->update([
                 'is_active' => false,
-                'updated_at' => now(),
+                'updated_at' => $this->now,
             ]);
     }
 
@@ -226,7 +226,7 @@ class UpdateBenchmark extends BaseBenchmark
                     ->whereIn('id', $ids)
                     ->update([
                         'price' => DB::raw('price * 1.1'), // 10% price increase
-                        'updated_at' => now(),
+                        'updated_at' => $this->now,
                     ]);
             });
     }

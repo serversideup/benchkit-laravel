@@ -32,7 +32,7 @@ class PhpBenchCommandTest extends TestCase
             );
         }
 
-        $this->assertStringContainsString('--iterations=2', $command);
+        $this->assertStringContainsString('--iterations=5', $command);
         $this->assertStringContainsString('--warmup=1', $command);
     }
 

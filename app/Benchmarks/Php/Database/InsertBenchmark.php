@@ -39,7 +39,7 @@ class InsertBenchmark extends BaseBenchmark
     {
         $this->setUp();
 
-        $this->ensureTestTable(self::TABLE_NAME, function ($table) {
+        $this->resetTestTable(self::TABLE_NAME, function ($table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
@@ -48,8 +48,6 @@ class InsertBenchmark extends BaseBenchmark
             $table->rememberToken();
             $table->timestamps();
         });
-
-        $this->truncateTable(self::TABLE_NAME);
     }
 
     /**
@@ -57,7 +55,7 @@ class InsertBenchmark extends BaseBenchmark
      */
     public function tearDownDatabase(): void
     {
-        $this->truncateTable(self::TABLE_NAME);
+        $this->dropTestTable(self::TABLE_NAME);
 
         $this->tearDown();
     }
@@ -88,8 +86,8 @@ class InsertBenchmark extends BaseBenchmark
                 'name' => "User {$i}",
                 'email' => $this->uniqueEmail($i),
                 'password' => 'password',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ]);
         }
     }
@@ -110,8 +108,8 @@ class InsertBenchmark extends BaseBenchmark
                 'name' => "User {$i}",
                 'email' => $this->uniqueEmail($i),
                 'password' => 'password',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ]);
         }
     }
@@ -134,8 +132,8 @@ class InsertBenchmark extends BaseBenchmark
                 'name' => "User {$i}",
                 'email' => $this->uniqueEmail($i),
                 'password' => 'password',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ];
         }
 
@@ -161,8 +159,8 @@ class InsertBenchmark extends BaseBenchmark
                 'name' => "User {$i}",
                 'email' => $this->uniqueEmail($i),
                 'password' => 'password',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ];
 
             if (count($records) >= self::CHUNK_SIZE) {

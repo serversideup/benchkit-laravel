@@ -9,8 +9,19 @@
 
 import { CURRENCIES, findPrivacyLeaks, indexFields, measurementDigest, runsPathFor } from './run-document.mjs'
 
-// Keep in step with AssembleResultsDocument::execute() in the app.
-export const SCHEMA_VERSION = 2
+// Keep in step with AssembleResultsDocument::SCHEMA_VERSION in the app.
+export const SCHEMA_VERSION = 3
+
+/**
+ * Why each superseded version is rejected rather than warned about. A bump
+ * here always means a measurement changed, so its runs cannot be read on the
+ * same axis as current ones — and a gallery that quietly mixes them is worse
+ * than one that is missing a row.
+ */
+const SUPERSEDED_SCHEMAS = {
+    1: 'CRUD subjects rebuilt their own state inside the timed body, so delete reported about 2.4x its real cost',
+    2: 'create and update timed PHP datetime work that read and delete did not, and read measured one query returning 100 rows against the other three running 100 statements'
+}
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/
 const GITHUB_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
@@ -78,11 +89,10 @@ export async function validateSubmission(doc, filepath = null) {
     } else if (filepath && filepath.replaceAll('\\', '/') !== runsPathFor(run.id)) {
         err(`file must live at ${runsPathFor(run.id)}, got ${filepath}`)
     }
-    // v1 CRUD timings included per-subject state rebuilds in the measurement —
-    // delete reported ~2.4x its real cost — so v1 numbers can't sit in the same
-    // gallery as v2 ones. Reject rather than warn; the run has to be redone.
-    if (run.schema_version === 1) {
-        err('schema_version 1 runs were produced before a benchmark timing fix and are not comparable with current results — please re-run the benchmark and submit again')
+    if (typeof run.schema_version !== 'number') {
+        err('run.schema_version is required and must be a number')
+    } else if (SUPERSEDED_SCHEMAS[run.schema_version]) {
+        err(`schema_version ${run.schema_version} runs are not comparable with current results — ${SUPERSEDED_SCHEMAS[run.schema_version]}. Please re-run the benchmark and submit again.`)
     } else if (run.schema_version !== SCHEMA_VERSION) {
         warn(`schema_version is ${run.schema_version} (validator knows version ${SCHEMA_VERSION})`)
     }
@@ -154,9 +164,31 @@ export async function validateSubmission(doc, filepath = null) {
 
     const phpBench = benchmarks.php
     if (phpBench?.headline != null) {
+        // The four tiles are rendered on one bar scale, so they have to have
+        // measured the same unit of work. `statements` is what makes that
+        // checkable here rather than taken on trust from the run's own version.
+        const statements = new Set()
+
         for (const op of ['create', 'read', 'update', 'delete']) {
             const cell = phpBench.headline[op]
-            if (cell != null) isNum(cell.milliseconds, `php.headline.${op}.milliseconds`, { min: 0, max: MAX_MS })
+            if (cell == null) continue
+            isNum(cell.milliseconds, `php.headline.${op}.milliseconds`, { min: 0, max: MAX_MS })
+            isNum(cell.statements, `php.headline.${op}.statements`, { min: 1, max: 1_000_000 })
+            statements.add(cell.statements)
+            for (const key of ['best_ms', 'worst_ms']) {
+                if (cell[key] != null) isNum(cell[key], `php.headline.${op}.${key}`, { min: 0, max: MAX_MS })
+            }
+            if (cell.rstdev != null) isNum(cell.rstdev, `php.headline.${op}.rstdev`, { min: 0, max: 1000 })
+            if (cell.iterations != null) isNum(cell.iterations, `php.headline.${op}.iterations`, { min: 1, max: 100_000 })
+            // A mean over one iteration has no spread to report and no way to
+            // be checked. Not fatal — it is a real measurement — but it should
+            // not sit unlabelled beside runs that were measured repeatedly.
+            if (cell.iterations === 1) warn(`php.headline.${op} is a single iteration, so its mean has no spread behind it`)
+            if (cell.rstdev > 10) warn(`php.headline.${op} varied by ±${cell.rstdev}% across iterations, so its mean is an estimate rather than a measurement`)
+        }
+
+        if (statements.size > 1) {
+            err(`php.headline operations report different statement counts (${[...statements].join(', ')}) — the four CRUD tiles share a scale and must measure the same unit of work`)
         }
     }
 
@@ -240,7 +272,40 @@ export async function validateSubmission(doc, filepath = null) {
             if (!/^[A-Za-z0-9_]{1,60}$/.test(row?.benchmark ?? '')) err('php.subjects[].benchmark has an unexpected shape')
             if (!/^[A-Za-z0-9_]{1,60}$/.test(row?.subject ?? '')) err('php.subjects[].subject has an unexpected shape')
             isNum(row?.mean_us, 'php.subjects[].mean_us', { min: 0, max: 1e12 })
+            for (const key of ['best_us', 'worst_us', 'stdev_us']) {
+                if (row?.[key] != null) isNum(row[key], `php.subjects[].${key}`, { min: 0, max: 1e12 })
+            }
+            if (row?.rstdev != null) isNum(row.rstdev, 'php.subjects[].rstdev', { min: 0, max: 1000 })
+            for (const key of ['revolutions', 'iterations']) {
+                if (row?.[key] != null) isNum(row[key], `php.subjects[].${key}`, { min: 1, max: 1_000_000 })
+            }
         }
+    }
+
+    // The settings that decide whether a commit waits for durable storage.
+    // They move the CRUD write numbers by orders of magnitude, so a run that
+    // reports them can be read and one that doesn't can only be guessed at.
+    const database = env.database
+    if (database != null) {
+        if (typeof database !== 'object' || Array.isArray(database)) {
+            err('environment.database must be an object')
+        } else {
+            if (database.driver != null) isText(database.driver, 'environment.database.driver', { max: 20 })
+            if (database.version != null) isText(database.version, 'environment.database.version', { max: 40 })
+            if (database.filesystem != null) isText(database.filesystem, 'environment.database.filesystem', { max: 20 })
+            if (database.durability != null) {
+                if (typeof database.durability !== 'object' || Array.isArray(database.durability)) {
+                    err('environment.database.durability must be an object of setting => value')
+                } else {
+                    for (const [key, value] of Object.entries(database.durability)) {
+                        if (!/^[a-z_]{1,40}$/.test(key)) err(`environment.database.durability key "${key}" has an unexpected shape`)
+                        if (value != null) isText(String(value), `environment.database.durability["${key}"]`, { max: 20 })
+                    }
+                }
+            }
+        }
+    } else if (phpBench != null) {
+        warn('this run has database benchmarks but does not report the database durability settings behind them, so its write numbers cannot be interpreted')
     }
 
     // ---- privacy ----

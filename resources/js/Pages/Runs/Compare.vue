@@ -82,7 +82,13 @@
                     </div>
                 </section>
 
-                <section v-if="!Object.keys(comparison.metricDeltas).length" class="py-7">
+                <section v-if="comparison.notes.length" class="py-7">
+                    <p v-for="note in comparison.notes" :key="note" class="text-sm text-[#F79009] leading-relaxed">
+                        {{ note }}
+                    </p>
+                </section>
+
+                <section v-if="!Object.keys(comparison.metricDeltas).length && !comparison.notes.length" class="py-7">
                     <p class="text-sm text-[#94979C]">
                         These runs have no completed stages in common, so there are no metrics to compare.
                     </p>

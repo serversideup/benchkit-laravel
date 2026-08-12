@@ -3,26 +3,39 @@
         <template #aside>
             <span class="flex flex-wrap items-center gap-2">
                 <Chip v-if="mode">{{ mode }} suite</Chip>
-                <Chip>{{ records }} records per operation</Chip>
+                <Chip>{{ crud.records }} records per operation</Chip>
             </span>
         </template>
 
-        <p class="mt-2 text-xs text-[#94979C]">
-            &darr; Lower is better &mdash; time to run each operation over {{ records }} records, one query per record.
+        <p v-if="crud.comparable" class="mt-2 text-xs text-[#94979C]">
+            &darr; Lower is better &mdash; time to run {{ crud.records }} statements, one record each.
+        </p>
+        <p v-else class="mt-2 text-xs text-[#94979C]">
+            Recorded before these four were measured the same way &mdash; read was a single query returning
+            {{ crud.records }} rows rather than {{ crud.records }} separate reads, so it is not comparable with the
+            other three and they share no scale here.
         </p>
 
         <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-10 gap-y-6">
-            <div v-for="operation in operations" :key="operation.key">
+            <div v-for="operation in crud.operations" :key="operation.key">
                 <p class="flex items-center gap-1.5">
                     <img :src="`/images/results/${operation.key}.png`" :alt="operation.label" class="w-4 h-4">
                     <span class="text-sm font-medium text-[#94979C]">{{ operation.label }}</span>
                 </p>
-                <p class="mt-1.5 text-4xl text-[#F7F7F7] font-mono font-medium leading-none">{{ formatMs(operation.data.milliseconds) }}</p>
-                <BarMeter class="mt-3.5 block h-2" :percent="operation.percent" />
-                <!-- The bars share one scale, so the tiles have to be genuinely
-                     comparable. Naming each operation's query keeps that claim
-                     checkable in a screenshot, where the tooltip isn't. -->
+                <p class="mt-1.5 text-4xl text-[#F7F7F7] font-mono font-medium leading-none">{{ formatMs(operation.milliseconds) }}</p>
+                <!-- The bars share one scale, so they only appear when the
+                     tiles are genuinely comparable. Naming each operation's
+                     query keeps that claim checkable in a screenshot, where
+                     the tooltip isn't. -->
+                <BarMeter v-if="operation.percent !== null" class="mt-3.5 block h-2" :percent="operation.percent" />
                 <p class="mt-2 text-xs text-[#61656C] leading-snug">{{ operation.detail }}</p>
+                <!-- A mean is only worth its digits if the iterations behind
+                     it agreed. When they didn't, say so on the number rather
+                     than in a footnote nobody screenshots. -->
+                <p v-if="operation.rstdev !== null" class="mt-1 text-xs font-mono leading-snug" :class="isHighVariance(operation.rstdev) ? 'text-[#F79009]' : 'text-[#61656C]'">
+                    &plusmn;{{ operation.rstdev }}%<template v-if="operation.iterations"> over {{ operation.iterations }} runs</template>
+                    <template v-if="isHighVariance(operation.rstdev)"> &mdash; unstable</template>
+                </p>
             </div>
         </div>
 
@@ -39,6 +52,7 @@
                             <th class="px-4 py-2 font-normal">Benchmark</th>
                             <th class="px-4 py-2 font-normal">Subject</th>
                             <th class="px-4 py-2 font-normal text-right">Mean</th>
+                            <th class="px-4 py-2 font-normal text-right">Spread</th>
                         </tr>
                     </thead>
                     <tbody class="font-mono">
@@ -46,6 +60,9 @@
                             <td class="px-4 py-2 text-[#94979C]">{{ subject.benchmark }}</td>
                             <td class="px-4 py-2 text-[#CECFD2]">{{ subject.subject }}</td>
                             <td class="px-4 py-2 text-right text-[#F7F7F7]">{{ formatMean(subject.mean_us) }}</td>
+                            <td class="px-4 py-2 text-right" :class="isHighVariance(subject.rstdev) ? 'text-[#F79009]' : 'text-[#61656C]'">
+                                {{ subject.rstdev != null ? `±${subject.rstdev}%` : '—' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -60,7 +77,7 @@ import BarMeter from '@/Components/BarMeter.vue';
 import Chip from '@/Components/Chip.vue';
 import PanelSection from '@/Components/PanelSection.vue';
 import IconChevronDown from '@/Components/Icons/IconChevronDown.vue';
-import { formatMs } from '@/Composables/useRunSummary';
+import { crudHeadlines, formatMs, isHighVariance } from '@/Composables/useRunSummary';
 import { suiteTotalMs } from '@/Composables/useRunComparison';
 
 const props = defineProps({
@@ -76,33 +93,7 @@ const props = defineProps({
 
 const showSubjects = ref(false);
 
-// Each tile measures its operation and nothing else — no seeding, no cleanup,
-// no restoring rows. That is what lets the four share a bar scale.
-const DETAILS = {
-    create: 'INSERT per row',
-    read: 'SELECT, indexed where + limit',
-    update: 'UPDATE per row by id',
-    delete: 'DELETE per row by id',
-};
-
-const operations = computed(() => {
-    const entries = [
-        { key: 'create', label: 'Create', data: props.php.create ?? {} },
-        { key: 'read', label: 'Read', data: props.php.read ?? {} },
-        { key: 'update', label: 'Update', data: props.php.update ?? {} },
-        { key: 'delete', label: 'Delete', data: props.php.delete ?? {} },
-    ].filter((operation) => operation.data.milliseconds != null);
-
-    const maxMs = Math.max(1, ...entries.map((operation) => operation.data.milliseconds));
-
-    return entries.map((operation) => ({
-        ...operation,
-        detail: DETAILS[operation.key] ?? '',
-        percent: Math.max(2, (operation.data.milliseconds / maxMs) * 100),
-    }));
-});
-
-const records = computed(() => operations.value[0]?.data.records ?? 100);
+const crud = computed(() => crudHeadlines(props.php));
 
 // Quick mode only measures the CRUD headline, where a suite total would
 // just restate it — suiteTotalMs returns null there.

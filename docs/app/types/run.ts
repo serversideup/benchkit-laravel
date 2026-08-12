@@ -12,7 +12,46 @@ export interface HttpRoute {
 export interface PhpHeadline {
     milliseconds: number
     records?: number
+    // Statements the operation ran, one record each. The four CRUD tiles may
+    // only share a bar scale when this matches across them; runs from before
+    // schema 3 measured read as a single query returning `records` rows and
+    // carry no statement count at all.
+    statements?: number
     label?: string
+    // The spread behind the mean. A mean over a handful of iterations can be
+    // moved by one stalled iteration, and without these there is no way to
+    // tell that happened.
+    best_ms?: number | null
+    worst_ms?: number | null
+    rstdev?: number | null
+    iterations?: number | null
+    revolutions?: number | null
+}
+
+export interface PhpSubject {
+    benchmark: string
+    subject: string
+    mean_us: number
+    best_us?: number | null
+    worst_us?: number | null
+    stdev_us?: number | null
+    rstdev?: number | null
+    revolutions?: number | null
+    iterations?: number | null
+}
+
+/**
+ * What the database guaranteed while the CRUD benchmarks ran. These settings
+ * decide whether a commit waits for the disk, which moves write results by
+ * orders of magnitude — without them a slow write number can't be told apart
+ * from a slow disk. The filesystem is recorded because a database on tmpfs is
+ * measuring RAM; the path is not, because it identifies the machine.
+ */
+export interface DatabaseSpecs {
+    driver: string | null
+    version: string | null
+    filesystem: string | null
+    durability: Record<string, string | null>
 }
 
 /**
@@ -108,6 +147,7 @@ export interface RunEntry extends RunIndex {
                 environment: { laravel_version: string }
                 drivers?: Record<string, unknown>
             }
+            database?: DatabaseSpecs | null
         }
         benchmarks: {
             http?: {
@@ -131,7 +171,7 @@ export interface RunEntry extends RunIndex {
                     update?: PhpHeadline
                     delete?: PhpHeadline
                 }
-                subjects?: Array<{ benchmark: string, subject: string, mean_us: number }>
+                subjects?: PhpSubject[]
             } | null
             cfspeedtest?: {
                 latency_ms?: number | null

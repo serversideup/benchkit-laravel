@@ -18,7 +18,7 @@ class UnifiedResultsTest extends TestCase
 
         $response = $this->getJson('/results')->assertOk();
 
-        $response->assertJsonPath('schema_version', 2);
+        $response->assertJsonPath('schema_version', 3);
         $response->assertJsonStructure([
             'schema_version',
             'generated_at',
@@ -26,6 +26,7 @@ class UnifiedResultsTest extends TestCase
                 'server',
                 'php' => ['php_version', 'php_server_api', 'php_variation', 'octane', 'memory_limit', 'op_cache', 'op_cache_jit', 'op_cache_jit_buffer_size'],
                 'laravel',
+                'database' => ['driver', 'version', 'filesystem', 'durability'],
                 'php_variation',
                 'build_version',
             ],

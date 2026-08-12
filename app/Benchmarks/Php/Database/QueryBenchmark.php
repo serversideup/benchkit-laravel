@@ -18,13 +18,19 @@ class QueryBenchmark extends BaseBenchmark
     private const RECORDS_COUNT = 10000;
 
     /**
+     * Rows the headline read subject fetches, one query each. Matches the
+     * record count the insert, update, and delete headlines operate on.
+     */
+    private const HEADLINE_READ_RECORDS = 100;
+
+    /**
      * Set up the test database table with sample data.
      */
     public function setUpDatabase(): void
     {
         $this->setUp();
 
-        $this->ensureTestTable(self::TABLE_NAME, function ($table) {
+        $this->resetTestTable(self::TABLE_NAME, function ($table) {
             $table->id();
             $table->string('name');
             $table->text('description');
@@ -38,19 +44,20 @@ class QueryBenchmark extends BaseBenchmark
             $table->index(['price', 'is_active']);
         });
 
-        $this->truncateTable(self::TABLE_NAME);
-
-        // Seed deterministic data so query row counts are identical across runs and hosts
+        // Seed deterministic data so query row counts are identical across runs
+        // and hosts. Ids are explicit so the read-by-id subject asks for rows
+        // that exist without depending on where the sequence happens to start.
         $records = [];
         for ($i = 0; $i < self::RECORDS_COUNT; $i++) {
             $records[] = [
+                'id' => $i + 1,
                 'name' => "Product {$i}",
                 'description' => "Description for product {$i}",
                 'price' => ($i % 990) + 10,
                 'stock' => $i % 500,
                 'is_active' => $i % 2 === 0,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $this->now,
+                'updated_at' => $this->now,
             ];
 
             if (count($records) >= 1000) {
@@ -72,6 +79,29 @@ class QueryBenchmark extends BaseBenchmark
         $this->dropTestTable(self::TABLE_NAME);
 
         $this->tearDown();
+    }
+
+    /**
+     * The headline read: one SELECT per record, looked up by primary key.
+     *
+     * The four CRUD tiles share a bar scale, which only means something if
+     * they measure the same unit of work. Insert, update, and delete each run
+     * 100 statements against one row apiece; the read headline used to be
+     * benchSelectWithLimit — a single SELECT returning 100 rows, so roughly a
+     * hundredth of the work, reported next to them as though it were the same.
+     * This runs the same shape they do, against the same `where id = ?`.
+     */
+    #[Bench\Revs(1)]
+    #[Bench\Iterations(15)]
+    #[Bench\Warmup(2)]
+    #[Bench\Groups(['database', 'query', 'select'])]
+    public function benchSelectIndividualById(): void
+    {
+        for ($id = 1; $id <= self::HEADLINE_READ_RECORDS; $id++) {
+            DB::table(self::TABLE_NAME)
+                ->where('id', $id)
+                ->first();
+        }
     }
 
     /**

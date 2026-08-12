@@ -3,7 +3,6 @@
 namespace App\Benchmarks\Php\Database;
 
 use App\Benchmarks\Php\BaseBenchmark;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpBench\Attributes as Bench;
 
@@ -32,10 +31,21 @@ class DeleteBenchmark extends BaseBenchmark
 
     private int $totalRecords = 2000; // More records since we're deleting them
 
+    /** Resolved in setUp() so benchDeleteOldRecords() times only the DELETE. */
+    private string $cutoffDate;
+
+    /** The "older than 30 days" side of the seed, on the far side of the cutoff. */
+    private string $archivedDate;
+
     public function setUp(): void
     {
         parent::setUp();
-        $this->ensureTestTable('benchmark_products', function ($table) {
+
+        $format = DB::connection()->getQueryGrammar()->getDateFormat();
+        $this->cutoffDate = now()->subDays(30)->format($format);
+        $this->archivedDate = now()->subDays(60)->format($format);
+
+        $this->resetTestTable('benchmark_products', function ($table) {
             $table->id();
             $table->string('name');
             $table->decimal('price', 10, 2);
@@ -70,10 +80,12 @@ class DeleteBenchmark extends BaseBenchmark
     }
 
     /**
-     * Build a deterministic record for the given seed index. Explicit ids
-     * keep the dataset identical across revolutions and runs.
+     * Build a deterministic record for the given seed index. Explicit ids and
+     * timestamps resolved once per iteration keep the dataset identical across
+     * revolutions and runs — a clock read per row can straddle a second
+     * boundary and move how many rows the date-based subjects match.
      *
-     * @return array{id: int, name: string, price: int, stock: int, is_active: bool, created_at: Carbon, updated_at: Carbon}
+     * @return array{id: int, name: string, price: int, stock: int, is_active: bool, created_at: string, updated_at: string}
      */
     private function makeRecord(int $index): array
     {
@@ -83,8 +95,8 @@ class DeleteBenchmark extends BaseBenchmark
             'price' => ($index % 990) + 10,
             'stock' => intdiv($index, 2) % 100,
             'is_active' => $index % 2 === 0, // Half active, half inactive
-            'created_at' => $index % 4 === 0 ? now()->subDays(60) : now(),
-            'updated_at' => now(),
+            'created_at' => $index % 4 === 0 ? $this->archivedDate : $this->now,
+            'updated_at' => $this->now,
         ];
     }
 
@@ -159,11 +171,9 @@ class DeleteBenchmark extends BaseBenchmark
     #[Bench\Groups(['delete', 'database'])]
     public function benchDeleteOldRecords(): void
     {
-        // Delete records "older than 30 days" — a quarter of the seed data
-        $cutoffDate = now()->subDays(30);
-
+        // Deletes records "older than 30 days" — a quarter of the seed data
         DB::table('benchmark_products')
-            ->where('created_at', '<', $cutoffDate)
+            ->where('created_at', '<', $this->cutoffDate)
             ->delete();
     }
 
