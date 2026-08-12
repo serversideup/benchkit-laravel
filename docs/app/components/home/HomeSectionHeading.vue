@@ -4,13 +4,25 @@ withDefaults(defineProps<{ eyebrow: string, centered?: boolean }>(), { centered:
 
 <template>
     <div :class="centered ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'">
-        <p class="text-sm text-neutral-500">
-            {{ eyebrow }}
-        </p>
+        <!-- The tracked mono eyebrow is a signature, so it marks structure only:
+             section openings and panel groups. Data labels inside tables and
+             cards stay sentence-case sans. -->
+        <div
+            class="flex items-center gap-3"
+            :class="centered ? 'justify-center' : ''"
+        >
+            <span
+                aria-hidden="true"
+                class="h-px w-6 bg-flame-500/70"
+            />
+            <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-neutral-500">
+                {{ eyebrow }}
+            </span>
+        </div>
 
         <!-- font-sans overrides the global mono heading rule: mono is BenchKit's
-             voice for numbers, not for display type or labels. -->
-        <h2 class="mt-3 text-balance font-sans text-3xl font-semibold leading-[1.12] tracking-[-0.025em] text-white sm:text-4xl">
+             voice for numbers, not for display type. -->
+        <h2 class="mt-5 text-balance font-sans text-3xl font-semibold leading-[1.12] tracking-[-0.025em] text-white sm:text-4xl">
             <slot name="title" />
         </h2>
 

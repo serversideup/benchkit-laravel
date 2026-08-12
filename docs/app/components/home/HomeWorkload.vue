@@ -75,7 +75,7 @@ const GROUPS = [
                             :class="groupIndex ? 'border-t border-white/[0.08]' : ''"
                         >
                             <div class="flex items-center justify-between gap-4 border-b border-white/[0.06] px-6 py-4">
-                                <span class="text-xs text-neutral-500">
+                                <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-neutral-500">
                                     {{ group.label }}
                                 </span>
                                 <span

@@ -6,12 +6,14 @@
         <UContainer class="pb-12 pt-16 lg:pb-16 lg:pt-20">
             <div class="grid items-center gap-14 xl:grid-cols-[1.4fr_1fr] xl:gap-20">
                 <div>
-                    <div class="enter flex items-center gap-2.5">
+                    <div class="enter inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] py-1 pl-2.5 pr-3">
                         <span
                             aria-hidden="true"
                             class="size-1.5 rounded-full bg-flame-500"
                         />
-                        <span class="text-sm text-neutral-400">Free and open source</span>
+                        <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+                            Free and open source
+                        </span>
                     </div>
 
                     <!-- font-sans overrides the global mono heading rule: mono is

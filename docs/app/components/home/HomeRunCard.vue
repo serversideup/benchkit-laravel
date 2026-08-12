@@ -74,7 +74,7 @@ const submittedOn = computed(() => new Date(props.summary.submitted_at).toLocale
         />
 
         <div class="flex items-center justify-between gap-4">
-            <span class="text-xs text-neutral-500">
+            <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-neutral-500">
                 Shared run
             </span>
 

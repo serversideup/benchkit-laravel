@@ -121,28 +121,22 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                         <table class="w-full min-w-[52rem] table-fixed text-left">
                             <thead>
                                 <tr class="border-b border-white/[0.06] text-xs text-neutral-600">
-                                    <th class="w-[26%] px-6 py-3 font-normal">
+                                    <th class="w-[30%] px-6 py-3 font-normal">
                                         Run
                                     </th>
-                                    <th class="w-[13%] px-4 py-3 font-normal">
-                                        Image
+                                    <th class="w-[16%] px-4 py-3 font-normal">
+                                        Stack
                                     </th>
-                                    <th class="w-[9%] px-4 py-3 font-normal">
-                                        PHP
-                                    </th>
-                                    <th class="w-[9%] px-4 py-3 text-right font-normal">
-                                        Cores
-                                    </th>
-                                    <th class="w-[10%] px-4 py-3 text-right font-normal">
+                                    <th class="w-[14%] px-4 py-3 text-right font-normal">
                                         Req/s
                                     </th>
                                     <th class="w-[11%] px-4 py-3 text-right font-normal">
                                         p95
                                     </th>
-                                    <th class="w-[9%] px-4 py-3 text-right font-normal">
+                                    <th class="w-[10%] px-4 py-3 text-right font-normal">
                                         Cost
                                     </th>
-                                    <th class="w-[13%] px-6 py-3 font-normal">
+                                    <th class="w-[14%] px-6 py-3 font-normal">
                                         Shared by
                                     </th>
                                 </tr>
@@ -150,7 +144,7 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                             <tbody>
                                 <tr v-if="!sorted.length">
                                     <td
-                                        colspan="8"
+                                        colspan="6"
                                         class="px-6 py-10 text-center text-sm text-neutral-500"
                                     >
                                         No maintainer runs shared yet.
@@ -180,20 +174,21 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                                             />
                                         </div>
                                         <div class="mt-0.5 truncate text-xs text-neutral-600">
-                                            {{ entry.provider }}
+                                            {{ entry.provider }}<template v-if="entry.cpu_cores">
+                                                · {{ entry.cpu_cores }} cores
+                                            </template>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4">
-                                        <span class="font-mono text-xs text-neutral-400">{{ entry.php_variation }}</span>
+                                    <td class="px-4 py-5">
+                                        <div class="font-mono text-xs text-flame-400/90">
+                                            {{ entry.php_variation }}
+                                        </div>
+                                        <div class="mt-0.5 font-mono text-xs text-neutral-600">
+                                            PHP {{ entry.php_version }}
+                                        </div>
                                     </td>
-                                    <td class="px-4 py-4 font-mono text-xs text-neutral-400">
-                                        {{ entry.php_version }}
-                                    </td>
-                                    <td class="px-4 py-4 text-right font-mono text-xs text-neutral-400 tabular-nums">
-                                        {{ entry.cpu_cores ?? '—' }}
-                                    </td>
-                                    <td class="px-4 py-4 text-right">
-                                        <div class="font-mono text-sm text-white tabular-nums">
+                                    <td class="px-4 py-5 text-right">
+                                        <div class="font-mono text-base text-white tabular-nums">
                                             {{ formatNumber(primaryMetric(entry)?.rps) }}
                                         </div>
                                         <!-- primaryMetric falls back JSON, static, DB read, so the
@@ -202,13 +197,13 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                                             {{ primaryMetric(entry)?.label ?? '—' }}
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-right font-mono text-xs text-neutral-400 tabular-nums">
+                                    <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
                                         {{ primaryMetric(entry)?.p95_ms ?? '—' }}<span class="text-neutral-600">ms</span>
                                     </td>
-                                    <td class="px-4 py-4 text-right font-mono text-xs text-neutral-400 tabular-nums">
+                                    <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
                                         {{ monthlyCostLabel(entry.cost_amount, entry.cost_currency) ?? '—' }}
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-5">
                                         <div class="flex items-center gap-2">
                                             <img
                                                 v-if="entry.github"
