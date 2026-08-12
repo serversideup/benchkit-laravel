@@ -1,0 +1,214 @@
+{
+  "run_id": "20260812-174334-wifz",
+  "label": "fpm-nginx (Quick)",
+  "provider": "Vultr",
+  "php_variation": "fpm-nginx",
+  "php_version": "8.5.9",
+  "cpu_cores": 64,
+  "json_rps": 11752.5,
+  "json_p95_ms": 4.74,
+  "static_rps": 11830.7,
+  "static_p95_ms": 4.72,
+  "db_read_rps": 9336,
+  "db_read_p95_ms": 5.97,
+  "php_read_ms": 0.134,
+  "cost_amount": 1450,
+  "cost_currency": "USD",
+  "github": "jaydrogers",
+  "submitted_at": "2026-08-12",
+  "verified": false,
+  "run": {
+    "schema_version": 2,
+    "id": "20260812-174334-wifz",
+    "created_at": "2026-08-12T17:43:34+00:00",
+    "meta": {
+      "label": "fpm-nginx (Quick)",
+      "provider": "Vultr",
+      "plan": "vbm-32c-755gb-amd",
+      "datacenter": "Miami",
+      "cost": {
+        "amount": 1450,
+        "currency": "USD",
+        "period": "monthly"
+      }
+    },
+    "settings_preset": "quick",
+    "stages_completed": [
+      "cfspeedtest",
+      "http",
+      "php"
+    ],
+    "environment": {
+      "server": {
+        "cpu_model": "AMD EPYC 9354P 32-Core Processor",
+        "cpu_cores": "64",
+        "cpu_frequency": "3803.410",
+        "os": "Debian GNU/Linux 13 (trixie)",
+        "ram": "773198.547 MB"
+      },
+      "php": {
+        "php_version": "8.5.9",
+        "php_variation": "fpm-nginx",
+        "php_server_api": "cli",
+        "octane": false,
+        "op_cache": "1",
+        "memory_limit": "256M",
+        "ini": {
+          "opcache.enable": "1",
+          "opcache.enable_cli": "1",
+          "opcache.jit": "off",
+          "opcache.jit_buffer_size": "0",
+          "opcache.memory_consumption": "256",
+          "opcache.max_accelerated_files": "20000",
+          "opcache.validate_timestamps": "0",
+          "opcache.revalidate_freq": "2",
+          "memory_limit": "256M",
+          "max_execution_time": "0",
+          "realpath_cache_size": "4096K",
+          "realpath_cache_ttl": "120",
+          "zend.assertions": "-1",
+          "opcache.preload_enabled": false
+        },
+        "serving": {
+          "fpm_pm": "ondemand",
+          "fpm_max_children": 20
+        }
+      },
+      "laravel": {
+        "environment": {
+          "laravel_version": "13.19.0"
+        },
+        "drivers": {
+          "broadcasting": "log",
+          "cache": "file",
+          "database": "sqlite",
+          "logs": [
+            "single"
+          ],
+          "mail": "log",
+          "octane": "roadrunner",
+          "queue": "sync",
+          "session": "file"
+        }
+      },
+      "build_version": "git-84c8b05-31222457547"
+    },
+    "benchmarks": {
+      "http": {
+        "mode": "loopback",
+        "duration_seconds": 10,
+        "connections": 50,
+        "io_ms": 100,
+        "fpm_max_children": 20,
+        "pool_limited": true,
+        "routes": {
+          "static": {
+            "path": "/bench/static",
+            "requests_per_second": 11830.7,
+            "success_rate": 1,
+            "p50_ms": 4.19,
+            "p95_ms": 4.72,
+            "p99_ms": 4.94,
+            "total_requests": 118294,
+            "status_codes": {
+              "200": 118294
+            }
+          },
+          "json": {
+            "path": "/bench/json",
+            "requests_per_second": 11752.5,
+            "success_rate": 1,
+            "p50_ms": 4.22,
+            "p95_ms": 4.74,
+            "p99_ms": 4.97,
+            "total_requests": 117516,
+            "status_codes": {
+              "200": 117516
+            }
+          },
+          "db_read": {
+            "path": "/bench/db-read",
+            "requests_per_second": 9336,
+            "success_rate": 1,
+            "p50_ms": 5.32,
+            "p95_ms": 5.97,
+            "p99_ms": 6.27,
+            "total_requests": 93341,
+            "status_codes": {
+              "200": 93341
+            }
+          },
+          "io": {
+            "path": "/bench/io",
+            "requests_per_second": 194,
+            "success_rate": 1,
+            "p50_ms": 296.62,
+            "p95_ms": 307.81,
+            "p99_ms": 436.75,
+            "total_requests": 1890,
+            "status_codes": {
+              "200": 1890
+            }
+          }
+        }
+      },
+      "php": {
+        "headline": {
+          "create": {
+            "milliseconds": 2294.355,
+            "records": 100,
+            "label": "Insert 100 records (individual queries)"
+          },
+          "read": {
+            "milliseconds": 0.134,
+            "records": 100,
+            "label": "Select 100 records (indexed where + limit)"
+          },
+          "update": {
+            "milliseconds": 839.249,
+            "records": 100,
+            "label": "Update 100 records (individual queries)"
+          },
+          "delete": {
+            "milliseconds": 3.59,
+            "records": 100,
+            "label": "Delete 100 records (individual queries)"
+          }
+        },
+        "subjects": [
+          {
+            "benchmark": "DeleteBenchmark",
+            "subject": "benchQueryBuilderIndividual",
+            "mean_us": 3589.5
+          },
+          {
+            "benchmark": "QueryBenchmark",
+            "subject": "benchSelectWithLimit",
+            "mean_us": 133.9545
+          },
+          {
+            "benchmark": "InsertBenchmark",
+            "subject": "benchDbFacadeInsertIndividual",
+            "mean_us": 2294354.5
+          },
+          {
+            "benchmark": "UpdateBenchmark",
+            "subject": "benchQueryBuilderIndividual",
+            "mean_us": 839249
+          }
+        ]
+      },
+      "cfspeedtest": {
+        "latency_ms": 28.43,
+        "download_mbps": 2540.35,
+        "upload_mbps": 825.6
+      },
+      "geekbench": null,
+      "disk": null
+    },
+    "integrity": {
+      "algorithm": "sha256",
+      "digest": "80faeb22433e600365c354000feab4575f6177023d027da6474ca79da1b2190a"
+    }
+  }
+}
