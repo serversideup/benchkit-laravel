@@ -107,6 +107,70 @@ class BenchmarkSubjectIsolationTest extends TestCase
     }
 
     /**
+     * One revolution per iteration means "measure this once, against exactly
+     * what the before-method built". A warmup revolution breaks that promise:
+     * phpbench runs the before-methods once and then calls the subject body to
+     * warm up, so a destructive subject eats its own fixture before the
+     * measurement starts. The delete headline spent two schema versions
+     * reporting 100 DELETEs that matched no rows.
+     *
+     * The warming itself is not the problem and is still wanted — it just has
+     * to happen somewhere that does not touch the data, which is what
+     * BaseBenchmark::prime() is for.
+     */
+    #[DataProvider('subjects')]
+    public function test_a_single_revolution_subject_declares_no_warmup(string $class, string $subject): void
+    {
+        $method = new ReflectionMethod($class, $subject);
+
+        $measuresAFixtureOnce = $this->attributeArgument($method, Bench\Revs::class) === 1
+            && (new ReflectionClass($class))->getAttributes(Bench\BeforeMethods::class) !== [];
+
+        $warmup = $this->attributeArgument($method, Bench\Warmup::class) ?? 0;
+
+        $this->assertTrue(
+            ! $measuresAFixtureOnce || $warmup === 0,
+            "{$class}::{$subject}() runs one revolution against a fixture built by a before-method, but declares Warmup({$warmup}). ".
+            'phpbench calls the body to warm up without rebuilding that fixture, so the measurement sees data the warmup already changed. '.
+            'Declare Warmup(0) and let BaseBenchmark::prime() do the warming.'
+        );
+    }
+
+    /**
+     * The four tiles share a scale, so they have to be measured under the same
+     * conditions as well as over the same work — a subject averaged over 15
+     * iterations sitting next to one averaged over 5 is not a like comparison.
+     */
+    public function test_the_headline_subjects_are_measured_under_identical_conditions(): void
+    {
+        $conditions = [];
+
+        foreach (PhpBenchmarkResults::headlineSubjects() as $spec) {
+            $method = new ReflectionMethod("App\\Benchmarks\\Php\\Database\\{$spec['benchmark']}", $spec['subject']);
+
+            $conditions[] = sprintf(
+                'revs=%s its=%s warmup=%s',
+                $this->attributeArgument($method, Bench\Revs::class) ?? 'default',
+                $this->attributeArgument($method, Bench\Iterations::class) ?? 'default',
+                $this->attributeArgument($method, Bench\Warmup::class) ?? 0,
+            );
+        }
+
+        $this->assertCount(1, array_unique($conditions), 'The headline subjects do not share revs/iterations/warmup: '.implode(', ', array_unique($conditions)));
+    }
+
+    /**
+     * The first argument of a phpbench attribute, or null when the subject does
+     * not declare it and phpbench's own default applies.
+     */
+    protected function attributeArgument(ReflectionMethod $method, string $attribute): int|string|null
+    {
+        $found = $method->getAttributes($attribute);
+
+        return $found === [] ? null : ($found[0]->getArguments()[0] ?? null);
+    }
+
+    /**
      * @return array<string, array{0: string, 1: string}>
      */
     public static function subjects(): array

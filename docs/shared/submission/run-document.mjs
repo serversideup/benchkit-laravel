@@ -236,7 +236,7 @@ export const indexFields = (run) => {
  * measurements are sealed last, after that normalization, so the seal covers
  * exactly what lands in the repo.
  */
-export const buildDocument = async (run, { github, submittedAt, verified = false }) => {
+export const buildDocument = async (run, { github, submittedAt, verified = false, issue = null }) => {
     const meta = { ...(run.meta ?? {}) }
     meta.provider = canonicalProvider(meta.provider)
     meta.plan = cleanText(meta.plan)
@@ -251,6 +251,15 @@ export const buildDocument = async (run, { github, submittedAt, verified = false
         github,
         submitted_at: submittedAt,
         verified,
+        // The issue this run arrived in, so a reader who wants to ask about a
+        // result has somewhere to ask. It sits beside `run` rather than inside
+        // it for two reasons: the seal covers everything in `run`, and the
+        // number does not exist until after the app has produced the document
+        // — nothing the submitter runs can know it.
+        //
+        // It is also not an index field. Those are recomputed from `run` and
+        // diffed by the validator, and this one has no source there.
+        ...(Number.isInteger(issue) && issue > 0 ? { issue } : {}),
         run: normalized
     }
 }

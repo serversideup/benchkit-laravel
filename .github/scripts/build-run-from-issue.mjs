@@ -4,7 +4,7 @@
 // the body — so it can't be spoofed. Nothing here executes issue content; it
 // only decodes and JSON-parses it, so running on arbitrary issues is safe.
 //
-// Env: ISSUE_BODY, ISSUE_AUTHOR
+// Env: ISSUE_BODY, ISSUE_AUTHOR, ISSUE_NUMBER
 // Outputs (to $GITHUB_OUTPUT): valid=true|false, id, path, errors
 
 import { writeFileSync, mkdirSync, appendFileSync, existsSync } from 'node:fs';
@@ -17,6 +17,9 @@ const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/;
 
 const body = process.env.ISSUE_BODY ?? '';
 const author = (process.env.ISSUE_AUTHOR ?? '').trim();
+// Recorded so the gallery can link a result back to the conversation it
+// arrived in. Comes from the event payload, never from the body.
+const issue = Number.parseInt(process.env.ISSUE_NUMBER ?? '', 10);
 const out = process.env.GITHUB_OUTPUT;
 
 const setOutput = (key, value) => {
@@ -132,6 +135,7 @@ const doc = await buildDocument(run, {
     github: author,
     submittedAt: (run.created_at ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10),
     verified: false,
+    issue: Number.isInteger(issue) ? issue : null,
 });
 
 const { errors } = await validateSubmission(doc, path);

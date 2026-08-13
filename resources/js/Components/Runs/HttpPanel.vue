@@ -6,16 +6,19 @@
                 <Chip v-if="http.duration_seconds">{{ http.duration_seconds }}s</Chip>
                 <Chip v-if="http.connections">{{ http.connections }} connections</Chip>
                 <Chip v-if="http.io_ms != null">I/O {{ http.io_ms }}ms</Chip>
-                <Chip v-if="http.fpm_max_children">{{ http.fpm_max_children }} FPM workers</Chip>
+                <Chip v-if="http.workers">{{ http.workers }} workers</Chip>
                 <Chip v-if="targetLabel">{{ targetLabel }}</Chip>
             </span>
         </template>
 
-        <!-- The page-level RunCaveats banner says this run is pool-bound; here
-             the useful addition is the arithmetic, next to the route it caps. -->
+        <!-- Only the I/O route has a ceiling that can be computed, so it is the
+             only one where "the pool was the limit" is a claim rather than a
+             guess. It belongs here, next to the number it explains, rather than
+             in the page-level banner where it read as a verdict on the run. -->
         <p v-if="http.pool_limited && ioCeiling" class="mt-3 text-sm text-[#F79009]">
-            Pool-bound: {{ http.connections }} connections against {{ http.fpm_max_children }} FPM workers caps the I/O route near
-            <span class="font-mono">{{ ioCeiling.toLocaleString() }} req/s</span> at {{ http.io_ms }}ms, whatever the hardware does.
+            The I/O route hit this server's limit. Each of the {{ http.workers }} workers is held for the full
+            {{ http.io_ms }}ms, so no hardware can push this route past
+            <span class="font-mono">~{{ ioCeiling.toLocaleString() }} req/s</span> — more workers would raise it, a faster CPU would not.
         </p>
 
         <p class="mt-2 text-xs text-[#61656C]">
@@ -106,11 +109,13 @@ const props = defineProps({
 
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 
-// The I/O route's hard ceiling under FPM: each worker can serve at most
-// 1000/io_ms requests per second, so the pool multiplies out to this and no
-// tuning below it matters.
+// The I/O route's hard ceiling: a request occupies a worker for its whole
+// duration, so each worker serves at most 1000/io_ms requests per second and
+// the pool multiplies out to this. No tuning below it matters. This is as true
+// of FrankenPHP threads and Octane workers as it is of FPM children, which is
+// why the count is no longer named after any one of them.
 const ioCeiling = computed(() => {
-    const workers = props.http.fpm_max_children;
+    const workers = props.http.workers;
     const ioMs = props.http.io_ms;
 
     if (!workers || !ioMs) {
@@ -123,9 +128,9 @@ const ioCeiling = computed(() => {
 // Ordered by real-world representativeness: DB read is the closest thing to an
 // actual Laravel page, static is the framework ceiling, and io models a request
 // dominated by one outbound call, where per-request bootstrap shrinks to a small
-// fraction of the total. Under FPM that route is also bounded by pm.max_children
-// (see the pool_limited warning above), so read it against the pool size rather
-// than as a clean framework comparison. (io's description carries the actual
+// fraction of the total. That route is also bounded by the server's worker
+// count (see the pool_limited warning above), so read it against that ceiling
+// rather than as a clean framework comparison. (io's description carries the actual
 // delay, added in `routes`.)
 const ROUTES = {
     db_read: { label: 'DB read', description: '20 rows queried per request' },

@@ -24,26 +24,35 @@ class BuildSubmissionDocument
     /**
      * php.ini directives BenchKit records but does not publish.
      *
-     * opcache.preload is a filesystem path, which would expose the submitter's
-     * directory layout and often a project or company name. Whether preloading
-     * is on is the part that explains the number, and that ships as
-     * opcache.preload_enabled below. Everything else in PhpSpecs::INI_KEYS is
-     * published — read from that constant rather than retyped, so a directive
-     * added to the specs snapshot can't quietly start or stop being public
-     * without someone editing this list.
+     * The list itself lives on PhpSpecs, next to the snapshot it applies to, so
+     * the endpoint that serves the runtime and the document that publishes it
+     * cannot disagree about what is private. Everything else in
+     * PhpSpecs::INI_KEYS is published — read from that constant rather than
+     * retyped, so a directive added to the specs snapshot can't quietly start
+     * or stop being public without someone editing that list.
+     *
+     * opcache.preload is withheld because it is a filesystem path; whether
+     * preloading is on is the part that explains the number, and that ships as
+     * opcache.preload_enabled below.
      *
      * @var array<int, string>
      */
-    protected const WITHHELD_INI_KEYS = ['opcache.preload'];
+    protected const WITHHELD_INI_KEYS = PhpSpecs::PRIVATE_INI_KEYS;
 
     /**
-     * pm is one of three words and max_children is digits (PhpSpecs extracts
-     * them with those exact shapes), so anything else means we misread a pool
-     * file and the safe answer is to publish nothing.
+     * The runtimes ServingRuntime can identify. Anything outside this list means
+     * detection produced something we did not write, and the safe answer is to
+     * publish nothing rather than a value the gallery will filter on.
      *
      * @var array<int, string>
      */
-    protected const FPM_MODES = ['static', 'dynamic', 'ondemand'];
+    protected const KNOWN_SERVERS = ['php-fpm', 'frankenphp', 'swoole', 'roadrunner', 'mod_php', 'cli-server', 'litespeed'];
+
+    /** Whether the application stays in memory between requests. */
+    protected const SERVING_MODES = ['worker', 'process-per-request'];
+
+    /** Server-specific tuning is a handful of directives, not a config dump. */
+    protected const MAX_RUNTIME_SETTINGS = 25;
 
     /** The HTTP routes the gallery compares, in display order. */
     protected const ROUTES = ['static', 'json', 'db_read', 'io'];
@@ -123,16 +132,95 @@ class BuildSubmissionDocument
                 // and worker counts explain more of the spread between two runs
                 // than the hardware often does.
                 'ini' => $this->ini($php['ini'] ?? null),
-                'serving' => $this->serving($php['serving'] ?? null),
+                'runtime' => $this->runtime($php['runtime'] ?? null),
             ]),
+            // Which process the php block above describes. A run assembled
+            // without the HTTP stage reports the CLI's opcache and memory
+            // limit, which are not the ones that served anything.
+            'php_environment_source' => $this->environmentSource($environment['php_environment_source'] ?? null),
             'laravel' => $this->present([
                 'environment' => $this->present([
                     'laravel_version' => $laravel['environment']['laravel_version'] ?? null,
+                    // Debug mode turns every request into a stack-trace-ready
+                    // one. A run measured with it on is not measuring the
+                    // configuration anybody deploys, and the difference is
+                    // large enough that publishing the numbers without the flag
+                    // beside them is misleading.
+                    'debug_mode' => $this->boolean($laravel['environment']['debug_mode'] ?? null),
+                    'app_env' => $this->identifier($laravel['environment']['environment'] ?? null, 20),
                 ]),
                 'drivers' => $laravel['drivers'] ?? null,
             ]),
+            // Write numbers cannot be read without knowing whether the database
+            // was durably committing them. Collected since schema 3 and, until
+            // now, dropped on the way out — so every submission tripped the
+            // validator's "does not report its durability settings" warning.
+            'database' => $this->database($environment['database'] ?? null),
             'build_version' => $this->buildVersion($environment['build_version'] ?? null),
         ]);
+    }
+
+    /**
+     * @return 'cli'|'web'|null
+     */
+    protected function environmentSource(mixed $source): ?string
+    {
+        return in_array($source, ['cli', 'web'], true) ? $source : null;
+    }
+
+    protected function boolean(mixed $value): ?bool
+    {
+        return is_bool($value) ? $value : null;
+    }
+
+    /**
+     * Driver names, versions, and durability settings, each a short identifier
+     * or number the probe read back from the database itself. The SQLite branch
+     * also reports a filesystem type; the path it was read from never leaves
+     * DatabaseSpecs.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function database(mixed $database): ?array
+    {
+        if (! is_array($database)) {
+            return null;
+        }
+
+        $durability = [];
+
+        foreach (is_array($database['durability'] ?? null) ? $database['durability'] : [] as $setting => $value) {
+            if (is_string($setting) && preg_match('/^[a-z_]+$/', $setting)) {
+                $durability[$setting] = $this->identifier($value, 30);
+            }
+        }
+
+        return $this->present([
+            'driver' => $this->identifier($database['driver'] ?? null, 20),
+            'version' => $this->identifier($database['version'] ?? null, 30),
+            'filesystem' => $this->identifier($database['filesystem'] ?? null, 20),
+            'durability' => $durability === [] ? null : $durability,
+        ]);
+    }
+
+    /**
+     * A short, self-describing value — a driver name, a version, a pragma
+     * setting. Anything with a space, a slash, or a length is not one of those
+     * and is dropped rather than published on a guess.
+     */
+    protected function identifier(mixed $value, int $max): ?string
+    {
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return preg_match('/^[A-Za-z0-9._+-]{1,'.$max.'}$/', $value) === 1 ? $value : null;
     }
 
     /**
@@ -157,12 +245,22 @@ class BuildSubmissionDocument
 
         return [
             'mode' => $http['mode'] ?? null,
+            // "loopback" covers both the plaintext and the TLS container port,
+            // and a handshake plus per-request encryption is a large difference
+            // to leave undisclosed between two otherwise identical-looking runs.
+            'tls' => $this->boolean($http['tls'] ?? null),
             'duration_seconds' => $http['duration_seconds'] ?? null,
             'connections' => $http['connections'] ?? null,
             'io_ms' => $http['io_ms'] ?? null,
-            // Pool size is config, not identity, and without it a reader can't
-            // tell a framework result from one bounded by pm.max_children.
-            'fpm_max_children' => $http['fpm_max_children'] ?? null,
+            // The concurrency ceiling is config, not identity, and without it a
+            // reader cannot tell a framework result from one bounded by how the
+            // server was sized.
+            'workers' => $http['workers'] ?? null,
+            // Whether the load offered more concurrency than the server can
+            // take (a property of the test) and whether the worker count is
+            // demonstrably what capped it (a claim needing evidence — see
+            // HttpBenchmarkResults::isPoolLimited).
+            'oversubscribed' => $this->boolean($http['oversubscribed'] ?? null),
             'pool_limited' => $http['pool_limited'] ?? null,
             'routes' => $this->object($routes),
         ];
@@ -177,6 +275,10 @@ class BuildSubmissionDocument
         return $this->present([
             'path' => $route['path'] ?? null,
             'requests_per_second' => $route['requests_per_second'] ?? null,
+            // Observed, against the requested duration_seconds on the parent.
+            // A throughput figure is a count divided by a time, and this is the
+            // time it was actually divided by.
+            'elapsed_seconds' => $route['elapsed_seconds'] ?? null,
             'success_rate' => $route['success_rate'] ?? null,
             'p50_ms' => $route['p50_ms'] ?? null,
             'p95_ms' => $route['p95_ms'] ?? null,
@@ -225,10 +327,47 @@ class BuildSubmissionDocument
             return null;
         }
 
+        $kept = [];
+
+        foreach (['create', 'read', 'update', 'delete'] as $operation) {
+            if (is_array($headline[$operation] ?? null)) {
+                $kept[$operation] = $this->headlineOperation($headline[$operation]);
+            }
+        }
+
         return $this->present([
-            'headline' => $headline,
+            'headline' => $kept === [] ? null : $kept,
             'subjects' => $this->subjects($benchmarks['php']['subjects'] ?? null),
         ]);
+    }
+
+    /**
+     * One CRUD tile. This was the last branch passing a nested array straight
+     * through, which made it the one place a field added upstream would have
+     * started publishing itself without anyone choosing to publish it.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<string, mixed>
+     */
+    protected function headlineOperation(array $operation): array
+    {
+        return $this->present([
+            'milliseconds' => $this->number($operation['milliseconds'] ?? null),
+            'records' => $this->number($operation['records'] ?? null),
+            // What makes the four tiles safe to draw on one scale: same count,
+            // or no shared scale. The gallery checks it rather than trusting
+            // the run's own schema version.
+            'statements' => $this->number($operation['statements'] ?? null),
+            'best_ms' => $this->number($operation['best_ms'] ?? null),
+            'worst_ms' => $this->number($operation['worst_ms'] ?? null),
+            'rstdev' => $this->number($operation['rstdev'] ?? null),
+            'iterations' => $this->number($operation['iterations'] ?? null),
+        ]);
+    }
+
+    protected function number(mixed $value): int|float|null
+    {
+        return is_int($value) || is_float($value) ? $value : null;
     }
 
     /**
@@ -256,7 +395,19 @@ class BuildSubmissionDocument
             $mean = $row['mean_us'] ?? null;
 
             if ($this->isIdentifier($benchmark) && $this->isIdentifier($subject) && (is_int($mean) || is_float($mean))) {
-                $kept[] = ['benchmark' => $benchmark, 'subject' => $subject, 'mean_us' => $mean];
+                // The spread travels with the mean here as well as on the
+                // headline. A mean on its own cannot be judged, and these rows
+                // are the ones a reader opens when a headline looks wrong.
+                $kept[] = $this->present([
+                    'benchmark' => $benchmark,
+                    'subject' => $subject,
+                    'mean_us' => $mean,
+                    'best_us' => $this->number($row['best_us'] ?? null),
+                    'worst_us' => $this->number($row['worst_us'] ?? null),
+                    'rstdev' => $this->number($row['rstdev'] ?? null),
+                    'iterations' => $this->number($row['iterations'] ?? null),
+                    'revolutions' => $this->number($row['revolutions'] ?? null),
+                ]);
             }
         }
 
@@ -363,27 +514,46 @@ class BuildSubmissionDocument
     }
 
     /**
+     * How the application was served. The three normalized fields are what make
+     * two runs comparable across images; `settings` is whatever that particular
+     * server exposes, published as a plain map so a runtime BenchKit has never
+     * seen still contributes something readable rather than nothing.
+     *
+     * Keys and values are both shape-checked. This block is assembled from
+     * environment variables and a config file on the submitter's machine, and
+     * an operator can put anything in either.
+     *
      * @return array<string, mixed>|null
      */
-    protected function serving(mixed $serving): ?array
+    protected function runtime(mixed $runtime): ?array
     {
-        if (! is_array($serving)) {
+        if (! is_array($runtime)) {
             return null;
         }
 
-        $trimmed = [];
+        $settings = [];
 
-        if (in_array($serving['fpm_pm'] ?? null, self::FPM_MODES, true)) {
-            $trimmed['fpm_pm'] = $serving['fpm_pm'];
+        foreach (is_array($runtime['settings'] ?? null) ? $runtime['settings'] : [] as $key => $value) {
+            if (count($settings) >= self::MAX_RUNTIME_SETTINGS) {
+                break;
+            }
+
+            if (is_string($key) && preg_match('/^[a-z_]+(?:\.[a-z_]+)*$/', $key) && ($clean = $this->identifier($value, 30))) {
+                $settings[$key] = $clean;
+            }
         }
 
-        $children = filter_var($serving['fpm_max_children'] ?? null, FILTER_VALIDATE_INT);
+        $workers = filter_var($runtime['workers'] ?? null, FILTER_VALIDATE_INT);
 
-        if ($children !== false && $children > 0) {
-            $trimmed['fpm_max_children'] = $children;
-        }
-
-        return $trimmed === [] ? null : $trimmed;
+        return $this->present([
+            'server' => in_array($runtime['server'] ?? null, self::KNOWN_SERVERS, true) ? $runtime['server'] : null,
+            'mode' => in_array($runtime['mode'] ?? null, self::SERVING_MODES, true) ? $runtime['mode'] : null,
+            'workers' => $workers !== false && $workers > 0 ? $workers : null,
+            'workers_source' => $this->identifier($runtime['workers_source'] ?? null, 30),
+            'front_end' => $this->identifier($runtime['front_end'] ?? null, 30),
+            'front_end_version' => $this->identifier($runtime['front_end_version'] ?? null, 20),
+            'settings' => $settings === [] ? null : $settings,
+        ]);
     }
 
     /**

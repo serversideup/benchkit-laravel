@@ -32,6 +32,12 @@ abstract class BaseBenchmark
     protected string $now;
 
     /**
+     * A scratch table used only to warm the query paths. Named distinctly so it
+     * can never collide with a fixture a subject measures against.
+     */
+    private const PRIME_TABLE = 'benchmark_prime';
+
+    /**
      * Runs per iteration, outside the measured body. Anything a subject needs
      * set up or torn down belongs here rather than in the subject itself.
      */
@@ -41,11 +47,55 @@ abstract class BaseBenchmark
         DB::connection()->flushQueryLog();
 
         $this->now = now()->format(DB::connection()->getQueryGrammar()->getDateFormat());
+
+        $this->prime();
     }
 
     public function tearDown(): void
     {
         DB::connection()->enableQueryLog();
+    }
+
+    /**
+     * Warm the query paths a measured body will use, against a throwaway table.
+     *
+     * The CRUD subjects run one revolution per iteration, so the measurement is
+     * the *first* time that code path executes in the process. Without this it
+     * would also be paying for one-time work — autoloading the query builder
+     * and grammar, preparing the first statement on the connection — and the
+     * operation that happened to touch a class first would be charged for
+     * loading it.
+     *
+     * phpbench's own warmup revolutions cannot do this job: they run after the
+     * before-methods and call the subject body itself, so on a destructive
+     * subject they consume the fixture the measurement was supposed to see. A
+     * warmed-up delete measured 100 DELETEs against rows its warmup had already
+     * removed. Priming here keeps the warming and drops the side effect.
+     */
+    protected function prime(): void
+    {
+        Schema::dropIfExists(self::PRIME_TABLE);
+
+        Schema::create(self::PRIME_TABLE, function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->integer('stock');
+            $table->timestamps();
+        });
+
+        DB::table(self::PRIME_TABLE)->insert([
+            'id' => 1,
+            'name' => 'prime',
+            'stock' => 1,
+            'created_at' => $this->now,
+            'updated_at' => $this->now,
+        ]);
+
+        DB::table(self::PRIME_TABLE)->where('id', 1)->first();
+        DB::table(self::PRIME_TABLE)->where('id', 1)->update(['stock' => 2]);
+        DB::table(self::PRIME_TABLE)->where('id', 1)->delete();
+
+        Schema::dropIfExists(self::PRIME_TABLE);
     }
 
     /**

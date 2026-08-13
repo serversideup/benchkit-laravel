@@ -51,7 +51,12 @@
 
             <div class="rise-in mt-8 rounded-xl border border-[#22262F] bg-[#0C0E12] px-6 sm:px-8 divide-y divide-[#22262F]" style="animation-delay: 180ms;">
                 <HttpPanel v-if="display.http" :http="display.http" />
-                <PhpCrudPanel v-if="display.php" :php="display.php" :mode="run.settings?.php_mode" />
+                <!-- The raw benchmarks.php, not display.php: this panel calls
+                     crudHeadlines() and suiteTotalMs(), which read `headline`
+                     and the per-subject spread. runDisplay has already
+                     flattened those away, so passing it silently cost the
+                     comparability check, the bars, and the variance line. -->
+                <PhpCrudPanel v-if="run.benchmarks.php" :php="run.benchmarks.php" :mode="run.settings?.php_mode" />
                 <NetworkPanel v-if="display.network" :network="display.network" :provider="meta.provider" />
                 <HardwarePanel v-if="display.hardware && (display.geekbench || display.hardware.fio?.length)" :hardware="display.hardware" :geekbench="display.geekbench" />
                 <EnvironmentPanel :environment="run.environment" :hardware="display.hardware" />

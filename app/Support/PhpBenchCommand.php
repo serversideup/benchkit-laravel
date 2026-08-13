@@ -7,9 +7,12 @@ use App\Actions\Results\PhpBenchmarkResults;
 /**
  * Builds the phpbench command line for the PHP benchmark stage. Quick mode
  * limits the run to the headline CRUD subjects with fewer iterations so it
- * finishes in about a minute instead of the full ~30 minute suite, while
- * keeping the per-subject revs untouched so per-operation means stay
- * comparable between quick and full runs.
+ * finishes in about a minute instead of the full ~30 minute suite.
+ *
+ * Iterations are the only thing it changes. Revs and warmup stay at whatever
+ * the subject declares, because those two decide what a measurement *is* — a
+ * quick run that measured different work than a full one would be worse than
+ * no quick run, since both land in the same gallery under the same numbers.
  */
 class PhpBenchCommand
 {
@@ -25,8 +28,6 @@ class PhpBenchCommand
      */
     public const QUICK_ITERATIONS = 5;
 
-    public const QUICK_WARMUP = 1;
-
     public function build(string $mode): string
     {
         $command = sprintf(
@@ -39,7 +40,11 @@ class PhpBenchCommand
                 $command .= sprintf(' --filter=%s', escapeshellarg("{$spec['benchmark']}::{$spec['subject']}$"));
             }
 
-            $command .= sprintf(' --iterations=%d --warmup=%d', self::QUICK_ITERATIONS, self::QUICK_WARMUP);
+            // Iterations only. Warmup is deliberately left at the subject's own
+            // Warmup(0) — overriding it made quick and full measure different
+            // work, because a warmup revolution mutates the fixture the
+            // measurement is supposed to see. See BaseBenchmark::prime().
+            $command .= sprintf(' --iterations=%d', self::QUICK_ITERATIONS);
         }
 
         return sprintf('%s > %s', $command, escapeshellarg((new PhpBenchmarkResults)->path()));

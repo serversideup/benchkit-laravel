@@ -54,14 +54,24 @@ class SubmissionTest extends TestCase
                         'memory_limit' => '256M',
                         'zend.assertions' => false,
                     ],
-                    'serving' => ['fpm_pm' => 'dynamic', 'fpm_max_children' => '24'],
+                    'runtime' => ['server' => 'php-fpm', 'mode' => 'process-per-request', 'workers' => 24, 'workers_source' => 'pm.max_children', 'front_end' => 'nginx', 'front_end_version' => '1.27.3', 'settings' => ['pm' => 'dynamic', 'pm.max_children' => '24', 'BAD KEY' => 'x']],
                 ],
+                'php_environment_source' => 'web',
                 'laravel' => [
                     'environment' => [
                         'laravel_version' => '13.0.1',
+                        'environment' => 'production',
+                        'debug_mode' => false,
                         'url' => 'https://bench.acme-corp.internal',
                     ],
                     'drivers' => ['database' => 'sqlite'],
+                ],
+                'database' => [
+                    'driver' => 'sqlite',
+                    'version' => '3.46.1',
+                    'filesystem' => 'ext2/ext3',
+                    'durability' => ['journal_mode' => 'wal', 'synchronous' => 'normal'],
+                    'path' => '/home/acme/benchkit/database.sqlite',
                 ],
                 'build_version' => '1.4.2',
             ],
@@ -72,12 +82,14 @@ class SubmissionTest extends TestCase
                     'duration_seconds' => 10,
                     'connections' => 50,
                     'io_ms' => 50,
-                    'fpm_max_children' => 24,
+                    'tls' => true,
+                    'workers' => 24,
                     'pool_limited' => false,
                     'routes' => [
                         'json' => [
                             'path' => '/bench/json',
                             'requests_per_second' => 12481.42,
+                            'elapsed_seconds' => 10.03,
                             'success_rate' => 1.0,
                             'p50_ms' => 1.8,
                             'p95_ms' => 2.14,
@@ -169,6 +181,7 @@ class SubmissionTest extends TestCase
         $this->assertStringNotContainsString('acme-corp.internal', $encoded, 'the internal hostname leaked');
         $this->assertStringNotContainsString('Acme Broadband', $encoded, 'the ISP from yabs ip_info leaked');
         $this->assertStringNotContainsString('/var/www/html/preload.php', $encoded, 'the opcache.preload path leaked');
+        $this->assertStringNotContainsString('/home/acme/benchkit', $encoded, 'the sqlite database path leaked');
 
         $this->assertArrayNotHasKey('logs', $document);
         $this->assertArrayNotHasKey('target', $document['benchmarks']['http']);
@@ -176,6 +189,101 @@ class SubmissionTest extends TestCase
         $this->assertArrayNotHasKey('opcache.preload', $document['environment']['php']['ini']);
         $this->assertArrayNotHasKey('asn', $document['benchmarks']['cfspeedtest']);
         $this->assertArrayNotHasKey('colo', $document['benchmarks']['cfspeedtest']);
+        $this->assertArrayNotHasKey('path', $document['environment']['database']);
+    }
+
+    /**
+     * DatabaseSpecs has collected this since schema 3 and the gallery has
+     * rendered a row for it since schema 3, but the allow-list never copied it
+     * across — so every submission arrived without the durability settings its
+     * own validator warns about the absence of, and three rows on the results
+     * page were permanently blank.
+     */
+    public function test_the_document_publishes_the_database_behind_the_write_numbers(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $database = $this->getJson("/runs/{$id}/submission")->json('document.environment.database');
+
+        $this->assertSame('sqlite', $database['driver']);
+        $this->assertSame('3.46.1', $database['version']);
+        $this->assertSame(['journal_mode' => 'wal', 'synchronous' => 'normal'], $database['durability']);
+    }
+
+    /**
+     * Debug mode changes what every request costs, and a run measured with it
+     * on is not describing a configuration anyone deploys.
+     */
+    public function test_the_document_publishes_whether_debug_mode_was_on(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $environment = $this->getJson("/runs/{$id}/submission")->json('document.environment.laravel.environment');
+
+        $this->assertFalse($environment['debug_mode']);
+        $this->assertSame('production', $environment['app_env']);
+    }
+
+    /**
+     * Both container ports call themselves "loopback", so without this a TLS
+     * run and a plaintext one are indistinguishable in the gallery.
+     */
+    public function test_the_document_publishes_transport_and_observed_duration(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $http = $this->getJson("/runs/{$id}/submission")->json('document.benchmarks.http');
+
+        $this->assertTrue($http['tls']);
+        $this->assertSame(10.03, $http['routes']['json']['elapsed_seconds']);
+    }
+
+    /**
+     * The three normalized fields are what let a FrankenPHP thread count and an
+     * FPM pool size be compared at all; `settings` carries whatever else that
+     * particular server exposes, so a runtime BenchKit has never seen still
+     * contributes something readable.
+     */
+    public function test_the_document_publishes_a_runtime_any_server_can_describe_itself_with(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $runtime = $this->getJson("/runs/{$id}/submission")->json('document.environment.php.runtime');
+
+        $this->assertSame('php-fpm', $runtime['server']);
+        $this->assertSame('process-per-request', $runtime['mode']);
+        $this->assertSame(24, $runtime['workers']);
+        $this->assertSame('pm.max_children', $runtime['workers_source']);
+        $this->assertSame('nginx', $runtime['front_end']);
+        $this->assertSame('1.27.3', $runtime['front_end_version']);
+        $this->assertSame('dynamic', $runtime['settings']['pm']);
+    }
+
+    /**
+     * The settings map is read out of environment variables and a config file
+     * on the submitter's machine, so it is the one part of the runtime an
+     * operator can put anything into.
+     */
+    public function test_the_runtime_settings_map_drops_keys_it_did_not_expect(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $settings = $this->getJson("/runs/{$id}/submission")->json('document.environment.php.runtime.settings');
+
+        $this->assertArrayNotHasKey('BAD KEY', $settings);
+        $this->assertSame(['pm', 'pm.max_children'], array_keys($settings));
+    }
+
+    /**
+     * A CLI-sourced environment describes the process that assembled the
+     * document, not the one that served the load test. The gallery needs to be
+     * able to tell them apart.
+     */
+    public function test_the_document_says_which_process_the_environment_describes(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $this->assertSame('web', $this->getJson("/runs/{$id}/submission")->json('document.environment.php_environment_source'));
     }
 
     public function test_preloading_is_published_as_a_flag_rather_than_a_path(): void

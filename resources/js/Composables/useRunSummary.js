@@ -194,10 +194,18 @@ export const runDisplay = (run) => {
             json_rps: http.routes?.json?.requests_per_second ?? null,
             db_rps: http.routes?.db_read?.requests_per_second ?? null,
             mode: http.mode ?? null,
+            tls: http.tls ?? null,
             octane: run.environment?.php?.octane ?? false,
             duration_seconds: http.duration_seconds ?? null,
             connections: http.connections ?? null,
             io_ms: http.io_ms ?? null,
+            // Both of these are read off the display object by HttpPanel and
+            // RunCaveats. Leaving them out of the mapping meant the worker
+            // count chip and the pool-bound warning could never appear, even
+            // on runs whose snapshot recorded them.
+            workers: http.workers ?? null,
+            oversubscribed: http.oversubscribed ?? null,
+            pool_limited: http.pool_limited ?? null,
             routes: http.routes ?? {},
         } : null,
         php: php ? {

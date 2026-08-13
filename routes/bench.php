@@ -18,3 +18,11 @@ Route::get('/bench/static', [BenchTargetController::class, 'staticResponse']);
 Route::get('/bench/json', [BenchTargetController::class, 'json']);
 Route::get('/bench/db-read', [BenchTargetController::class, 'dbRead']);
 Route::get('/bench/io', [BenchTargetController::class, 'io']);
+
+/*
+ * Not a load-test target. This is how the run finds out what PHP looks like in
+ * the process that serves requests, rather than in the CLI process assembling
+ * the results. It lives here because it has to answer on the same origin the
+ * load test measures — that is the whole point of it.
+ */
+Route::get('/bench/env', [BenchTargetController::class, 'environment']);

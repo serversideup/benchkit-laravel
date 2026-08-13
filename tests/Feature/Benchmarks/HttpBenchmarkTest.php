@@ -240,7 +240,7 @@ class HttpBenchmarkTest extends TestCase
     /**
      * @param  array<string, mixed>  $overrides
      */
-    protected function seedMetaAndOneRoute(array $overrides = []): void
+    protected function seedMetaAndOneRoute(array $overrides = [], ?float $ioRequestsPerSecond = null): void
     {
         File::put($this->resultsPath.'/http-meta.json', json_encode(array_merge([
             'target' => 'http://localhost:8080',
@@ -255,38 +255,117 @@ class HttpBenchmarkTest extends TestCase
             'latencyPercentiles' => ['p50' => 0.010],
             'statusCodeDistribution' => ['200' => 12345],
         ]));
+
+        if ($ioRequestsPerSecond !== null) {
+            File::put($this->resultsPath.'/http-io.json', json_encode([
+                'summary' => ['successRate' => 1.0, 'requestsPerSec' => $ioRequestsPerSecond, 'totalData' => 40000],
+                'latencyPercentiles' => ['p50' => 0.105],
+                'statusCodeDistribution' => ['200' => (int) $ioRequestsPerSecond * 10],
+            ]));
+        }
     }
 
-    public function test_http_results_flag_a_run_whose_concurrency_exceeds_the_fpm_pool(): void
+    /**
+     * Holding more connections open than the server has workers is what a
+     * saturation test is for, so this is recorded as a property of the load
+     * rather than as a fault. What it changes is how the latency figures read:
+     * they include time spent queued.
+     */
+    public function test_http_results_record_that_the_load_exceeded_the_worker_count(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.workers', 20);
+        $response->assertJsonPath('http_results.oversubscribed', true);
+    }
+
+    public function test_http_results_do_not_record_oversubscription_when_the_load_fits(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 20, 'workers' => 50]);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.oversubscribed', false);
+    }
+
+    /**
+     * The claim "the worker pool was the ceiling" needs evidence, and the I/O
+     * route is the only place it can be had: its service time is a known sleep,
+     * so workers x (1000/io_ms) is a real limit. 20 workers at 100ms caps it at
+     * 200 req/s, and 190 is at that cap.
+     */
+    public function test_http_results_flag_a_pool_ceiling_the_io_route_actually_reached(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20], ioRequestsPerSecond: 190.0);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.pool_limited', true);
+    }
+
+    /**
+     * The regression this replaced: `connections > workers` compares two
+     * settings and is evidence of nothing. On a two-core box with twenty
+     * workers it reported every run as pool-bound while the actual ceiling was
+     * the CPU — advising more workers, which would have made latency worse and
+     * throughput no better. An I/O route far below its computed limit is a run
+     * that was capped by something else.
+     */
+    public function test_http_results_do_not_blame_the_pool_when_the_io_route_is_nowhere_near_it(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20], ioRequestsPerSecond: 60.0);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.oversubscribed', true);
+        $response->assertJsonPath('http_results.pool_limited', false);
+    }
+
+    /**
+     * A managed platform may expose no worker count at all, and a run without
+     * the I/O route has nothing to compute a ceiling from. Either way that
+     * reads as unknown, not as "fits comfortably".
+     */
+    public function test_http_results_report_pool_limited_as_unknown_without_evidence(): void
+    {
+        $this->seedMetaAndOneRoute(['workers' => null]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.workers', null);
+        $response->assertJsonPath('http_results.pool_limited', null);
+    }
+
+    public function test_http_results_report_pool_limited_as_unknown_without_the_io_route(): void
+    {
+        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20]);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.pool_limited', null);
+    }
+
+    /**
+     * The worker ceiling used to be recorded under an FPM-specific name. A
+     * results directory written by an older build is still worth reading.
+     */
+    public function test_http_results_read_the_worker_ceiling_from_the_previous_meta_key(): void
     {
         $this->seedMetaAndOneRoute(['connections' => 50, 'fpm_max_children' => 20]);
 
         $response = $this->getJson('/http/results')->assertOk();
 
-        $response->assertJsonPath('http_results.fpm_max_children', 20);
-        $response->assertJsonPath('http_results.pool_limited', true);
-    }
-
-    public function test_http_results_do_not_flag_a_run_that_fits_inside_the_fpm_pool(): void
-    {
-        $this->seedMetaAndOneRoute(['connections' => 20, 'fpm_max_children' => 50]);
-
-        $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.pool_limited', false);
+        $response->assertJsonPath('http_results.workers', 20);
+        $response->assertJsonPath('http_results.oversubscribed', true);
     }
 
     /**
-     * Octane and worker-mode images have no FPM pool, so there is nothing to
-     * compare the connection count against — that reads as unknown, not as
-     * "fits comfortably".
+     * Both container-internal ports call themselves "loopback", so a TLS run
+     * and a plaintext one describe themselves identically without this.
      */
-    public function test_http_results_report_pool_limited_as_unknown_without_a_detected_pool(): void
+    public function test_http_results_record_whether_the_target_used_tls(): void
     {
-        $this->seedMetaAndOneRoute(['fpm_max_children' => null]);
+        $this->seedMetaAndOneRoute(['tls' => true]);
 
-        $response = $this->getJson('/http/results')->assertOk();
-
-        $response->assertJsonPath('http_results.fpm_max_children', null);
-        $response->assertJsonPath('http_results.pool_limited', null);
+        $this->getJson('/http/results')->assertOk()->assertJsonPath('http_results.tls', true);
     }
 }

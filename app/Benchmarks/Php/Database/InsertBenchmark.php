@@ -19,6 +19,13 @@ use PhpBench\Attributes as Bench;
  * Hence one revolution per iteration: setUpDatabase() runs per iteration, so
  * every measurement is exactly RECORDS_COUNT inserts into an empty table. More
  * iterations replace the lost revolutions and hold relative stdev near 1%.
+ *
+ * And hence no warmup. phpbench runs before-methods once and then calls the
+ * subject body for each warmup revolution, so warmup here left 100 rows per
+ * revolution behind: the measured insert ran against a populated table and a
+ * grown unique index, and quick mode (one warmup) and full (two) did not even
+ * measure the same thing. BaseBenchmark::prime() does the warming instead,
+ * untimed and against a throwaway table.
  */
 #[Bench\BeforeMethods('setUpDatabase')]
 #[Bench\AfterMethods('tearDownDatabase')]
@@ -77,7 +84,7 @@ class InsertBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['database', 'insert', 'eloquent'])]
     public function benchEloquentInsertIndividual(): void
     {
@@ -99,7 +106,7 @@ class InsertBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['database', 'insert', 'db-facade'])]
     public function benchDbFacadeInsertIndividual(): void
     {
@@ -122,7 +129,7 @@ class InsertBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['database', 'insert', 'bulk'])]
     public function benchDbFacadeBulkInsert(): void
     {
@@ -148,7 +155,7 @@ class InsertBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['database', 'insert', 'chunked'])]
     public function benchDbFacadeChunkedInsert(): void
     {

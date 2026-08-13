@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Benchmarks;
 
+use App\Actions\Specs\PhpSpecs;
 use App\Http\Controllers\Controller;
 use App\Support\BenchmarkHttpItems;
 use Illuminate\Database\QueryException;
@@ -31,6 +32,29 @@ class BenchTargetController extends Controller
         return response(self::STATIC_BODY);
     }
 
+    /**
+     * What PHP looks like *here*, in the process that answers requests.
+     *
+     * Everything else about a run is assembled by `php artisan benchmark:run`,
+     * which is the CLI SAPI: it reads opcache.enable_cli, the CLI memory limit,
+     * and reports php_sapi_name() as "cli". None of that describes the FPM or
+     * FrankenPHP worker that served the load test, so a results page showing
+     * OPcache and JIT next to a throughput figure was describing the wrong
+     * process. The HTTP stage already has a target URL it has proved reachable,
+     * so it asks that URL instead.
+     *
+     * This is also the only place the front-end web server is visible:
+     * php_sapi_name() is "fpm-fcgi" for nginx and Apache alike, and the
+     * SERVER_SOFTWARE that tells them apart exists only on a real request.
+     *
+     * The payload is the same curated snapshot the landing page already renders
+     * and the run document already publishes, minus PhpSpecs::PRIVATE_INI_KEYS.
+     */
+    public function environment(): JsonResponse
+    {
+        return response()->json((new PhpSpecs)->publicSnapshot());
+    }
+
     public function json(): JsonResponse
     {
         $items = [];
@@ -48,13 +72,27 @@ class BenchTargetController extends Controller
         ]);
     }
 
+    /**
+     * The table is seeded once by the HTTP stage before the load test starts
+     * (BenchmarkStages::httpStage), never from here.
+     *
+     * This used to create and seed it on a failed query, which is fine for a
+     * single request and wrong for the thing this route exists to do: under
+     * load a missing table means every request in flight races to run the same
+     * CREATE TABLE and 50 inserts, inside the window being measured. Answering
+     * 503 instead puts the failure in the status-code distribution, where it
+     * reads as "this run is invalid" rather than as an unexplained latency
+     * spike in an otherwise publishable number.
+     */
     public function dbRead(): JsonResponse
     {
         try {
             $items = $this->queryItems();
         } catch (QueryException) {
-            BenchmarkHttpItems::ensure();
-            $items = $this->queryItems();
+            return response()->json([
+                'status' => 'unavailable',
+                'message' => 'The benchmark table is missing. It is prepared when the HTTP stage starts.',
+            ], 503);
         }
 
         return response()->json([

@@ -32,6 +32,19 @@ class PhpSpecs
     ];
 
     /**
+     * Directives BenchKit records for its own use but never hands out.
+     *
+     * opcache.preload is a filesystem path, which would expose the operator's
+     * directory layout and often a project or company name. Whether preloading
+     * is on is the part that explains a number, and that ships separately as a
+     * boolean. Kept here rather than at each consumer so that a directive added
+     * to INI_KEYS above cannot start leaking through one caller that forgot.
+     *
+     * @var array<int, string>
+     */
+    public const PRIVATE_INI_KEYS = ['opcache.preload'];
+
+    /**
      * @return array<string, mixed>
      */
     public function execute(): array
@@ -46,8 +59,24 @@ class PhpSpecs
             'op_cache_jit' => ini_get('opcache.jit'),
             'op_cache_jit_buffer_size' => ini_get('opcache.jit_buffer_size'),
             'ini' => $this->iniSnapshot(),
-            'serving' => $this->servingConfig(),
+            'runtime' => (new ServingRuntime)->execute(),
         ];
+    }
+
+    /**
+     * The same snapshot with the private directives removed, for anywhere it
+     * leaves this process — the /bench/env endpoint on a live instance, and the
+     * run document that reaches the public gallery.
+     *
+     * @return array<string, mixed>
+     */
+    public function publicSnapshot(): array
+    {
+        $specs = $this->execute();
+
+        $specs['ini'] = array_diff_key($specs['ini'], array_flip(self::PRIVATE_INI_KEYS));
+
+        return $specs;
     }
 
     /**
@@ -78,51 +107,4 @@ class PhpSpecs
         return $snapshot;
     }
 
-    /**
-     * Best-effort serving-daemon config. Unlike the php.ini snapshot above
-     * (read via ini_get(), so available on every platform — Railway, Laravel
-     * Cloud, bare metal, any image), FPM pool sizing lives in a pool .conf
-     * file whose path differs by image and distro. We probe the common
-     * layouts — plain php:fpm, Forge/Ploi (Debian), RHEL, and our serversideup
-     * images alike — plus the serversideup env vars. A missing value means
-     * "not detected" (a FrankenPHP/Octane image has no FPM pool; a fully
-     * managed PaaS may not expose one), never a fabricated default.
-     *
-     * @return array<string, string>
-     */
-    protected function servingConfig(): array
-    {
-        $config = array_filter([
-            'fpm_pm' => getenv('PHP_FPM_PM_CONTROL') ?: null,
-            'fpm_max_children' => getenv('PHP_FPM_PM_MAX_CHILDREN') ?: null,
-        ], fn ($value) => $value !== null);
-
-        $pools = array_merge([
-            '/usr/local/etc/php-fpm.d/docker-php-serversideup-pool.conf',
-            '/usr/local/etc/php-fpm.d/www.conf',
-            '/etc/php-fpm.d/www.conf',
-        ], glob('/etc/php/*/fpm/pool.d/www.conf') ?: []);
-
-        foreach ($pools as $pool) {
-            if (isset($config['fpm_pm'], $config['fpm_max_children'])) {
-                break;
-            }
-
-            if (! is_readable($pool)) {
-                continue;
-            }
-
-            $contents = (string) file_get_contents($pool);
-
-            if (! isset($config['fpm_pm']) && preg_match('/^\s*pm\s*=\s*(\S+)/m', $contents, $matches)) {
-                $config['fpm_pm'] = $matches[1];
-            }
-
-            if (! isset($config['fpm_max_children']) && preg_match('/^\s*pm\.max_children\s*=\s*(\d+)/m', $contents, $matches)) {
-                $config['fpm_max_children'] = $matches[1];
-            }
-        }
-
-        return $config;
-    }
 }

@@ -6,6 +6,8 @@ export interface HttpRoute {
     p95_ms: number
     p99_ms: number
     total_requests?: number
+    /** Wall time the load generator observed, against the requested duration. */
+    elapsed_seconds?: number | null
     status_codes?: Record<string, number>
 }
 
@@ -17,7 +19,6 @@ export interface PhpHeadline {
     // schema 3 measured read as a single query returning `records` rows and
     // carry no statement count at all.
     statements?: number
-    label?: string
     // The spread behind the mean. A mean over a handful of iterations can be
     // moved by one stalled iteration, and without these there is no way to
     // tell that happened.
@@ -76,6 +77,11 @@ export interface RunIndex {
     github: string
     submitted_at: string
     verified: boolean
+    /**
+     * The issue this result was submitted in, when it came through the bot.
+     * Absent on runs filed before it was recorded, and on any added by hand.
+     */
+    issue?: number | null
     run_id: string
     label: string | null
     provider: string
@@ -141,10 +147,34 @@ export interface RunEntry extends RunIndex {
                 // Performance-relevant php.ini values only, and never a path —
                 // opcache.preload ships as opcache.preload_enabled.
                 ini?: Record<string, string | number | boolean>
-                serving?: { fpm_pm?: string, fpm_max_children?: number }
+                /**
+                 * How the application was served. server/mode/workers are
+                 * normalized so an FPM pool size and a FrankenPHP thread count
+                 * can sit in the same column; workers_source names what the
+                 * number counts so they are never silently equated. `settings`
+                 * is whatever that particular server exposes, rendered as
+                 * label/value — which is what lets an unfamiliar runtime show
+                 * up at all rather than showing up as blanks.
+                 */
+                runtime?: {
+                    server?: string | null
+                    mode?: 'worker' | 'process-per-request' | null
+                    workers?: number | null
+                    workers_source?: string | null
+                    front_end?: string | null
+                    front_end_version?: string | null
+                    settings?: Record<string, string>
+                }
             }
+            /** Which process the `php` block describes — see /bench/env. */
+            php_environment_source?: 'web' | 'cli' | null
             laravel: {
-                environment: { laravel_version: string }
+                environment: {
+                    laravel_version: string
+                    /** APP_DEBUG. A run measured with it on is a development configuration. */
+                    debug_mode?: boolean | null
+                    app_env?: string | null
+                }
                 drivers?: Record<string, unknown>
             }
             database?: DatabaseSpecs | null
@@ -155,7 +185,13 @@ export interface RunEntry extends RunIndex {
                 duration_seconds?: number
                 connections?: number
                 io_ms?: number
-                fpm_max_children?: number | null
+                /** Concurrency ceiling, whatever this server calls it. */
+                workers?: number | null
+                /** Both container ports report mode "loopback"; this separates them. */
+                tls?: boolean | null
+                /** The load held more connections open than the server has workers. */
+                oversubscribed?: boolean | null
+                /** The I/O route reached the ceiling its worker count implies. */
                 pool_limited?: boolean | null
                 routes: {
                     static?: HttpRoute

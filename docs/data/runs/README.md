@@ -58,14 +58,22 @@ A stored run is **summary fields plus the run itself**.
   "github": "your-github-username", // the authenticated issue author, stamped by the bot
   "submitted_at": "2026-08-05",
   "verified": false,                // true only for maintainer-run reference anchors
+  "issue": 412,                     // where it was submitted, so a reader can go and ask
+                                    // about it. Stamped by the bot from the event payload;
+                                    // absent on runs added by hand. Deliberately outside
+                                    // `run` — the seal covers everything in there, and the
+                                    // number doesn't exist until after the app has finished.
 
   // ---- the run itself ----
   "run": {
     // A trimmed BenchKit run document (app/Actions/Results/AssembleResultsDocument.php).
     // Logs, ini dumps, phpbench subjects, and settings are stripped before submission.
-    // v1 runs timed per-subject state rebuilds along with the operation and are
-    // rejected by the validator; they are not comparable with v2 numbers.
-    "schema_version": 2,
+    // The validator rejects superseded versions rather than warning about them: a
+    // bump always means a measurement changed, so those runs cannot be read on the
+    // same axis as current ones. Each one's reason is in SUPERSEDED_SCHEMAS in
+    // shared/submission/validate.mjs — v3 and earlier let phpbench warmup consume
+    // the fixture, so delete reported roughly half its real cost.
+    "schema_version": 4,
     "id": "20260805-152622-l9ft",
     "created_at": "2026-08-05T15:26:22+00:00",
     "meta": {

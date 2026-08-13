@@ -22,6 +22,13 @@ use PhpBench\Attributes as Bench;
  * charged it to the delete — a 100-row delete was really timing a 100-row
  * delete plus a 100-row insert. One revolution per iteration moves the rebuild
  * into setUp(), which runs untimed, so a delete measures only the delete.
+ *
+ * That fix is only half of it, and the other half is why there is no warmup
+ * here. phpbench runs before-methods once and then calls the subject body for
+ * each warmup revolution, so warmup deleted the rows setUp() had just seeded
+ * and the measured revolution issued 100 DELETEs matching nothing. The suite
+ * reported that as the cost of deleting 100 rows. BaseBenchmark::prime() warms
+ * the query paths instead, untimed and against a throwaway table.
  */
 #[Bench\BeforeMethods('setUp')]
 #[Bench\AfterMethods('tearDown')]
@@ -105,7 +112,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchQueryBuilderIndividual(): void
     {
@@ -123,7 +130,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchConditionalDelete(): void
     {
@@ -137,7 +144,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchMultiConditionDelete(): void
     {
@@ -152,7 +159,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database', 'raw'])]
     public function benchRawDelete(): void
     {
@@ -167,7 +174,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchDeleteOldRecords(): void
     {
@@ -182,7 +189,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database', 'truncate'])]
     public function benchTruncate(): void
     {
@@ -194,7 +201,7 @@ class DeleteBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['delete', 'database'])]
     public function benchDeleteWithSubquery(): void
     {

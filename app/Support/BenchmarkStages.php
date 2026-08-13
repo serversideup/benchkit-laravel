@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Actions\Results\CloudflareSpeedTestResults;
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Actions\Specs\PhpSpecs;
+use App\Actions\Specs\WebRuntimeSpecs;
 use RuntimeException;
 
 /**
@@ -111,7 +112,13 @@ class BenchmarkStages
 
         BenchmarkHttpItems::ensure();
 
-        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs, $this->fpmMaxChildren());
+        // Ask the target what PHP looks like over there before loading it. This
+        // is the only moment a run can see the serving process rather than the
+        // CLI one assembling the results, and it has to happen while the target
+        // is known-good and idle.
+        $webRuntime = (new WebRuntimeSpecs)->capture($target['url']);
+
+        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs, $this->workerCeiling($webRuntime));
 
         return [
             'command' => (new HttpBenchCommand)->build($target, $duration, $connections, $ioMs),
@@ -120,15 +127,29 @@ class BenchmarkStages
     }
 
     /**
-     * The FPM pool size, when this environment has one to detect. Recorded with
-     * the load settings so the results can flag a run whose concurrency exceeds
-     * the pool. Returns null on Octane/worker images, which have no pool.
+     * How many requests this server will process at once — an FPM pool size, a
+     * FrankenPHP thread count, an Octane worker count — when the environment
+     * exposes one. Recorded with the load settings so the results can flag a run
+     * whose concurrency exceeded it, because past that point the throughput
+     * figure describes the ceiling rather than the application.
+     *
+     * Taken from the serving process when it could be reached, because that is
+     * the pool the load test is about to run against. The local probe is the
+     * fallback: it reads the same pool file from the CLI, which is right often
+     * enough to be worth having and is all that was ever available before.
+     *
+     * Null when nothing could be detected, which is a real answer on a managed
+     * platform and never a fabricated default.
+     *
+     * @param  array<string, mixed>|null  $webRuntime
      */
-    protected function fpmMaxChildren(): ?int
+    protected function workerCeiling(?array $webRuntime): ?int
     {
-        $maxChildren = (new PhpSpecs)->execute()['serving']['fpm_max_children'] ?? null;
+        $workers = $webRuntime['runtime']['workers']
+            ?? (new PhpSpecs)->execute()['runtime']['workers']
+            ?? null;
 
-        return is_numeric($maxChildren) ? (int) $maxChildren : null;
+        return is_numeric($workers) ? (int) $workers : null;
     }
 
     /**

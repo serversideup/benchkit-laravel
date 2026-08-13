@@ -32,7 +32,13 @@ class PhpBenchmarkResults extends BenchmarkResults
      * rows, roughly a hundredth of the work of 100 individual statements,
      * printed on the same scale as them. It is now one SELECT per record.
      *
-     * @var array<string, array{benchmark: string, subject: string, records: int, statements: int, label: string}>
+     * There is deliberately no display label here. Every surface that renders
+     * these builds its own — the run page and the community gallery each hold
+     * their own table of names, because a label belongs to the page showing it,
+     * not to the measurement. Carrying one in the document meant shipping a
+     * sentence per operation, in every submission, that nothing ever read.
+     *
+     * @var array<string, array{benchmark: string, subject: string, records: int, statements: int}>
      */
     protected const HEADLINE_SUBJECTS = [
         'create' => [
@@ -40,33 +46,29 @@ class PhpBenchmarkResults extends BenchmarkResults
             'subject' => 'benchDbFacadeInsertIndividual',
             'records' => 100,
             'statements' => 100,
-            'label' => 'Insert 100 records (one INSERT per record)',
         ],
         'read' => [
             'benchmark' => 'QueryBenchmark',
             'subject' => 'benchSelectIndividualById',
             'records' => 100,
             'statements' => 100,
-            'label' => 'Select 100 records (one SELECT per record, by id)',
         ],
         'update' => [
             'benchmark' => 'UpdateBenchmark',
             'subject' => 'benchQueryBuilderIndividual',
             'records' => 100,
             'statements' => 100,
-            'label' => 'Update 100 records (one UPDATE per record, by id)',
         ],
         'delete' => [
             'benchmark' => 'DeleteBenchmark',
             'subject' => 'benchQueryBuilderIndividual',
             'records' => 100,
             'statements' => 100,
-            'label' => 'Delete 100 records (one DELETE per record, by id)',
         ],
     ];
 
     /**
-     * @return array<string, array{benchmark: string, subject: string, records: int, statements: int, label: string}>
+     * @return array<string, array{benchmark: string, subject: string, records: int, statements: int}>
      */
     public static function headlineSubjects(): array
     {
@@ -94,7 +96,6 @@ class PhpBenchmarkResults extends BenchmarkResults
                 'milliseconds' => null,
                 'records' => $spec['records'],
                 'statements' => $spec['statements'],
-                'label' => $spec['label'],
                 'best_ms' => null,
                 'worst_ms' => null,
                 'rstdev' => null,

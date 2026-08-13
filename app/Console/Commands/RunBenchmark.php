@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\Runs\SaveRunFromState;
+use App\Actions\Specs\WebRuntimeSpecs;
 use App\Support\BenchmarkProcess;
 use App\Support\BenchmarkStages;
 use App\Support\RunState;
@@ -35,6 +36,11 @@ class RunBenchmark extends Command
         }
 
         $state->claim(getmypid());
+
+        // The results directory survives between runs, so a web runtime
+        // recorded by an earlier run would otherwise be read as this one's.
+        // Only the HTTP stage can write it, and only for the run it belongs to.
+        (new WebRuntimeSpecs)->forget();
 
         $settings = $run['settings'] ?? [];
 

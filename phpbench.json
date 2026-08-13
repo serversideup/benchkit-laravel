@@ -3,7 +3,6 @@
     "runner.bootstrap": "phpbench-bootstrap.php",
     "runner.path": "app/Benchmarks/Php",
     "runner.progress": "verbose",
-    "runner.retry_threshold": 3,
     "report.generators": {
         "benchmark_summary": {
             "extends": "aggregate",

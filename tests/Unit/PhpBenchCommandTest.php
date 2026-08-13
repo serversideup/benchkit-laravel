@@ -33,7 +33,17 @@ class PhpBenchCommandTest extends TestCase
         }
 
         $this->assertStringContainsString('--iterations=5', $command);
-        $this->assertStringContainsString('--warmup=1', $command);
+    }
+
+    /**
+     * Quick mode may spend less time on a measurement than full mode, but it
+     * must not measure something else. Overriding warmup did exactly that: a
+     * warmup revolution runs the subject body without rebuilding the fixture,
+     * so one warmup and two left the CRUD subjects looking at different data.
+     */
+    public function test_quick_mode_never_overrides_warmup(): void
+    {
+        $this->assertStringNotContainsString('--warmup', (new PhpBenchCommand)->build('quick'));
     }
 
     public function test_both_modes_write_results_to_the_expected_path(): void

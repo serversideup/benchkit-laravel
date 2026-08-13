@@ -54,7 +54,7 @@
                     <span>{{ submitter.submitted_at }}</span>
                     <span class="text-[#61656C]">·</span>
                     <a
-                        :href="`https://github.com/serversideup/benchkit-laravel/blob/main/${sourcePath}`"
+                        :href="`https://github.com/${SUBMISSION_REPO}/blob/main/${sourcePath}`"
                         target="_blank"
                         class="inline-flex items-center gap-1 hover:text-[#F7F7F7]"
                     >
@@ -63,6 +63,21 @@
                             class="size-3.5"
                         /> Source
                     </a>
+                    <!-- Only on runs the bot filed. A number invites questions,
+                         and this is where they can be asked. -->
+                    <template v-if="issueUrl">
+                        <span class="text-[#61656C]">·</span>
+                        <a
+                            :href="issueUrl"
+                            target="_blank"
+                            class="inline-flex items-center gap-1 hover:text-[#F7F7F7]"
+                        >
+                            <UIcon
+                                name="i-lucide-message-square"
+                                class="size-3.5"
+                            /> Discuss
+                        </a>
+                    </template>
                 </div>
             </div>
         </div>
@@ -385,30 +400,37 @@
                 </div>
             </ResultsPanel>
 
-            <!-- Environment -->
+            <!-- Environment. Three groups rather than one list: what served the
+                 requests, what it was tuned with, and what it ran on. Each is
+                 hidden when empty, so a host that exposes no serving config
+                 renders a shorter panel instead of a column of blanks. -->
             <ResultsPanel title="Environment">
-                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm">
-                    <div class="flex flex-col gap-3">
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-8 text-sm">
+                    <div
+                        v-for="group in environmentGroups"
+                        :key="group.title"
+                        class="flex flex-col gap-3"
+                    >
+                        <p class="text-xs uppercase tracking-wider text-[#61656C]">{{ group.title }}</p>
                         <div
-                            v-for="fact in stackFacts"
+                            v-for="fact in group.facts"
                             :key="fact.label"
                             class="grid grid-cols-[110px_1fr] gap-3"
                         >
-                            <span class="text-[#94979C]">{{ fact.label }}</span>
-                            <span class="text-[#F7F7F7] font-mono break-words">{{ fact.value }}</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-3">
-                        <div
-                            v-for="fact in machineFacts"
-                            :key="fact.label"
-                            class="grid grid-cols-[110px_1fr] gap-3"
-                        >
-                            <span class="text-[#94979C]">{{ fact.label }}</span>
+                            <span class="text-[#94979C] break-words">{{ fact.label }}</span>
                             <span class="text-[#F7F7F7] font-mono break-words">{{ fact.value }}</span>
                         </div>
                     </div>
                 </div>
+
+                <p
+                    v-if="run.environment.php_environment_source === 'cli'"
+                    class="mt-6 text-xs text-[#94979C] leading-relaxed"
+                >
+                    This run had no web server load test, so the PHP settings above were read from the
+                    command-line process that assembled it rather than from a web server. They are a
+                    different SAPI, with their own OPcache and memory limit.
+                </p>
             </ResultsPanel>
         </div>
     </UContainer>
@@ -446,6 +468,9 @@ const submitter = computed(() => {
 
 // Runs are sharded by month (see shared/submission/run-document.mjs) so the
 // directory stays readable once there are thousands of them.
+/** Where results live and where they are discussed. Mirrors SubmissionIssue::REPO in the app. */
+const SUBMISSION_REPO = 'serversideup/benchkit-laravel'
+
 const sourcePath = computed(() => `docs/data/runs/${id.slice(0, 4)}-${id.slice(4, 6)}/${id}.json`)
 const http = computed(() => run.value.benchmarks.http ?? { routes: {} })
 const cfspeedtest = computed(() => run.value.benchmarks.cfspeedtest ?? null)
@@ -626,30 +651,64 @@ const formatRam = (ram: string) => {
 }
 const opcacheOn = (v: unknown) => v === true || v === '1' || v === 'on'
 
+const present = (facts: { label: string, value: unknown }[]) => facts.filter(f => f.value != null && f.value !== '')
+
+// The runtime that served the requests. Split out from tuning because these
+// answer a different question — "what was this?" rather than "how was it set
+// up?" — and because a host BenchKit has never seen can still fill most of it.
 const stackFacts = computed(() => {
     const e = run.value.environment
-    return [
-        { label: 'Server', value: e.php.php_variation },
+    const r = e.php.runtime ?? {}
+
+    return present([
+        { label: 'Server', value: serverLabel.value },
+        { label: 'Mode', value: r.mode === 'worker' ? 'Worker (persistent)' : r.mode === 'process-per-request' ? 'Process per request' : null },
+        // Named with what it counts. Twenty FPM children and eight FrankenPHP
+        // threads are both "workers" and are not the same quantity.
+        { label: 'Workers', value: r.workers ? `${r.workers}${r.workers_source ? ` (${r.workers_source})` : ''}` : null },
+        { label: 'Web server', value: r.front_end ? [r.front_end, r.front_end_version].filter(Boolean).join(' ') : null },
+        { label: 'SAPI', value: e.php.php_server_api },
         { label: 'PHP', value: e.php.php_version },
         { label: 'Laravel', value: e.laravel.environment.laravel_version },
-        { label: 'Octane', value: e.php.octane != null ? bool(e.php.octane) : null },
         { label: 'Database', value: databaseLabel.value ?? e.laravel.drivers?.database as string | undefined },
         // The CRUD subjects commit one statement at a time, so whether a commit
         // waits for the disk moves them by orders of magnitude. Without these,
         // a slow write result can't be told apart from a slow disk.
         { label: 'Durability', value: durabilityLabel.value },
         { label: 'DB filesystem', value: e.database?.filesystem },
+    ])
+})
+
+// Everything an operator chose, which is what a reader comparing two runs on
+// the same hardware is actually looking for. The server-specific directives
+// render generically, so a runtime nobody has written a template for still
+// shows its tuning instead of showing nothing.
+const tuningFacts = computed(() => {
+    const e = run.value.environment
+
+    return present([
         { label: 'OPcache', value: e.php.op_cache != null ? bool(opcacheOn(e.php.op_cache)) : null },
-        // The knobs that explain more of the gap between two runs than the
-        // hardware often does.
         { label: 'JIT', value: jit.value },
         { label: 'OPcache memory', value: ini.value['opcache.memory_consumption'] ? `${ini.value['opcache.memory_consumption']} MB` : null },
-        { label: 'FPM workers', value: e.php.serving?.fpm_max_children ? `${e.php.serving.fpm_max_children} (${e.php.serving.fpm_pm ?? 'pm'})` : null },
         { label: 'Memory limit', value: e.php.memory_limit },
-        { label: 'SAPI', value: e.php.php_server_api },
-        { label: 'BenchKit', value: e.build_version }
-    ].filter(f => f.value != null && f.value !== '')
+        { label: 'Debug mode', value: e.laravel.environment.debug_mode === true ? 'On' : null },
+        ...Object.entries(e.php.runtime?.settings ?? {}).map(([label, value]) => ({ label, value })),
+    ])
 })
+
+const serverLabel = computed(() => {
+    const e = run.value.environment
+    const variation = e.php.php_variation
+
+    return variation ? (VARIATION_LABELS[variation] ?? variation) : (e.php.runtime?.server ?? null)
+})
+
+/**
+ * The issue this result was submitted in. A published number invites questions
+ * — about the host, the plan, why one figure looks off — and this is where they
+ * already have somewhere to go.
+ */
+const issueUrl = computed(() => entry.value?.issue ? `https://github.com/${SUBMISSION_REPO}/issues/${entry.value.issue}` : null)
 
 const databaseLabel = computed(() => {
     const database = run.value.environment.database
@@ -677,6 +736,12 @@ const jit = computed(() => {
 
     return ['disable', 'off', '0'].includes(String(value)) ? 'Off' : String(value)
 })
+
+const environmentGroups = computed(() => [
+    { title: 'Runtime', facts: stackFacts.value },
+    { title: 'Machine', facts: machineFacts.value },
+    { title: 'Tuning', facts: tuningFacts.value },
+].filter(group => group.facts.length))
 
 const machineFacts = computed(() => {
     const s = run.value.environment.server

@@ -20,6 +20,14 @@ class HttpBenchmarkResults extends BenchmarkResults
         'io' => '/bench/io',
     ];
 
+    /**
+     * How close to a computed ceiling counts as having reached it. A saturating
+     * route never quite touches its theoretical maximum — there is always some
+     * per-request overhead on top of the sleep — so a run landing within this
+     * much of the limit is at it.
+     */
+    protected const AT_CEILING = 0.85;
+
     public function metaPath(): string
     {
         return $this->resultsPath('http-meta.json');
@@ -34,25 +42,33 @@ class HttpBenchmarkResults extends BenchmarkResults
      * Persist the load settings the run actually used so execute() can
      * report them alongside the per-route results.
      *
-     * $fpmMaxChildren is the FPM pool size when one was detected. It belongs
-     * with the load settings because it caps them: under FPM a request occupies
-     * a worker for its whole duration, so /bench/io — which sleeps io_ms to
-     * model an outbound call — can never exceed max_children / io_ms requests
-     * per second no matter how fast the box is. Recording it is what lets a
-     * reader tell a framework measurement from a pool-size measurement.
+     * $workers is how many requests the server will process at once, when the
+     * environment exposes a number — an FPM pool size, a FrankenPHP thread
+     * count, an Octane worker count. It belongs with the load settings because
+     * it caps them: a request occupies a worker for its whole duration, so
+     * /bench/io — which sleeps io_ms to model an outbound call — can never
+     * exceed workers / io_ms requests per second no matter how fast the box is.
+     * Recording it is what lets a reader tell a framework measurement from a
+     * concurrency-ceiling measurement.
      *
      * @param  array{url: string, mode: string}  $target
      */
-    public function writeMeta(array $target, int $duration, int $connections, int $ioMs, ?int $fpmMaxChildren = null): void
+    public function writeMeta(array $target, int $duration, int $connections, int $ioMs, ?int $workers = null): void
     {
         File::ensureDirectoryExists(dirname($this->metaPath()));
         File::put($this->metaPath(), json_encode([
             'target' => $target['url'],
             'mode' => $target['mode'],
+            // Both container-internal ports resolve to mode "loopback", but one
+            // is plaintext on 8080 and the other terminates TLS on 8443. A
+            // handshake and per-request encryption on every one of a hundred
+            // thousand requests is a large, entirely invisible difference
+            // between two runs that otherwise describe themselves identically.
+            'tls' => str_starts_with($target['url'], 'https://'),
             'duration_seconds' => $duration,
             'connections' => $connections,
             'io_ms' => $ioMs,
-            'fpm_max_children' => $fpmMaxChildren,
+            'workers' => $workers,
         ]));
     }
 
@@ -73,6 +89,12 @@ class HttpBenchmarkResults extends BenchmarkResults
             $routes[$key] = [
                 'path' => $path,
                 'requests_per_second' => round($data['summary']['requestsPerSec'] ?? 0, 1),
+                // What the load generator observed, against duration_seconds
+                // below, which is what the run asked for. They come apart when
+                // a route is slow enough that in-flight requests outlive the
+                // window, and a throughput figure divided by the wrong number
+                // of seconds is worth being able to notice.
+                'elapsed_seconds' => $this->rounded($data['summary']['total'] ?? null, 2),
                 'success_rate' => $data['summary']['successRate'] ?? null,
                 'p50_ms' => $this->toMilliseconds($data['latencyPercentiles']['p50'] ?? null),
                 'p95_ms' => $this->toMilliseconds($data['latencyPercentiles']['p95'] ?? null),
@@ -87,35 +109,73 @@ class HttpBenchmarkResults extends BenchmarkResults
         }
 
         $meta = $this->readJson($this->metaPath()) ?? [];
-        $maxChildren = isset($meta['fpm_max_children']) ? (int) $meta['fpm_max_children'] : null;
+        // Runs written before the rename carry the FPM-specific key. Reading
+        // both keeps an existing results directory parseable.
+        $workers = $meta['workers'] ?? $meta['fpm_max_children'] ?? null;
+        $workers = is_numeric($workers) ? (int) $workers : null;
         $connections = isset($meta['connections']) ? (int) $meta['connections'] : null;
+        $ioMs = isset($meta['io_ms']) ? (int) $meta['io_ms'] : null;
 
         return [
             'mode' => $meta['mode'] ?? null,
             'target' => $meta['target'] ?? null,
+            'tls' => $meta['tls'] ?? null,
             'duration_seconds' => $meta['duration_seconds'] ?? null,
             'connections' => $meta['connections'] ?? null,
             'io_ms' => $meta['io_ms'] ?? null,
-            'fpm_max_children' => $maxChildren,
-            'pool_limited' => $this->isPoolLimited($connections, $maxChildren),
+            'workers' => $workers,
+            'oversubscribed' => $this->isOversubscribed($connections, $workers),
+            'pool_limited' => $this->isPoolLimited($routes, $workers, $ioMs),
             'routes' => $routes,
         ];
     }
 
     /**
-     * Whether the load asked for more concurrency than the FPM pool can serve.
-     * When it does, throughput is bounded by the pool rather than by the
-     * application, and the numbers say more about pm.max_children than about
-     * the framework. Null when there is no pool to compare against — Octane
-     * and worker-mode images have none.
+     * Whether the load held open more connections than the server can work on
+     * at once, so requests spent time queued before being served.
+     *
+     * This is a fact about the load, not a defect: a saturation test is meant
+     * to offer more work than the server can take, because that is how a
+     * maximum is found. What it changes is how the latency figures read — they
+     * include the wait, so they describe the queue rather than the work.
      */
-    protected function isPoolLimited(?int $connections, ?int $maxChildren): ?bool
+    protected function isOversubscribed(?int $connections, ?int $workers): ?bool
     {
-        if ($connections === null || $maxChildren === null || $maxChildren <= 0) {
+        if ($connections === null || $workers === null || $workers <= 0) {
             return null;
         }
 
-        return $connections > $maxChildren;
+        return $connections > $workers;
+    }
+
+    /**
+     * Whether the worker count — rather than the CPU — is what actually capped
+     * this run.
+     *
+     * This used to be `connections > workers`, which is a comparison of two
+     * settings and not evidence of anything. On a two-core box with twenty
+     * workers it reported every run as pool-bound while the real ceiling was
+     * the CPU: throughput of 477 req/s across 2 cores is 4ms of CPU per
+     * request against 42ms of worker occupancy, so the workers were mostly
+     * waiting for a core. Adding workers there makes latency worse and
+     * throughput no better, which is the opposite of what the warning advised.
+     *
+     * The I/O route is the one place the ceiling can actually be computed. Its
+     * service time is a known sleep, so a worker can serve at most 1000/io_ms
+     * requests per second and the pool multiplies out to a hard limit. Landing
+     * at that limit is evidence; exceeding a connection count is not.
+     *
+     * @param  array<string, array<string, mixed>>  $routes
+     */
+    protected function isPoolLimited(array $routes, ?int $workers, ?int $ioMs): ?bool
+    {
+        $observed = $routes['io']['requests_per_second'] ?? null;
+
+        if ($workers === null || $workers <= 0 || ! $ioMs || $observed === null) {
+            return null;
+        }
+
+        return $observed >= ($workers * (1000 / $ioMs)) * self::AT_CEILING;
     }
 
     /**
@@ -176,6 +236,11 @@ class HttpBenchmarkResults extends BenchmarkResults
     protected function toMilliseconds(?float $seconds): ?float
     {
         return $seconds === null ? null : round($seconds * 1000, 2);
+    }
+
+    protected function rounded(mixed $value, int $precision): ?float
+    {
+        return is_numeric($value) ? round((float) $value, $precision) : null;
     }
 
     /**

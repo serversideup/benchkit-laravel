@@ -93,7 +93,7 @@ class QueryBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['database', 'query', 'select'])]
     public function benchSelectIndividualById(): void
     {

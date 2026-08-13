@@ -20,6 +20,11 @@ use PhpBench\Attributes as Bench;
  * flips is_active, benchIncrementUpdate moves stock — so under repeated
  * revolutions the second measurement onward ran against data the first had
  * already changed.
+ *
+ * Warmup revolutions did the same damage for the same reason: phpbench calls
+ * the subject body to warm up, without re-running the before-methods, so the
+ * measurement still saw mutated data. BaseBenchmark::prime() warms the query
+ * paths untimed against a throwaway table instead.
  */
 #[Bench\BeforeMethods('setUp')]
 #[Bench\AfterMethods('tearDown')]
@@ -70,7 +75,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database'])]
     public function benchQueryBuilderIndividual(): void
     {
@@ -91,7 +96,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'eloquent'])]
     public function benchEloquentIndividual(): void
     {
@@ -114,7 +119,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchBulkUpdateWhereIn(): void
     {
@@ -133,7 +138,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchConditionalUpdate(): void
     {
@@ -150,7 +155,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database'])]
     public function benchIncrementUpdate(): void
     {
@@ -168,7 +173,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'bulk'])]
     public function benchBulkIncrement(): void
     {
@@ -184,7 +189,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'upsert'])]
     public function benchUpsert(): void
     {
@@ -213,7 +218,7 @@ class UpdateBenchmark extends BaseBenchmark
      */
     #[Bench\Revs(1)]
     #[Bench\Iterations(15)]
-    #[Bench\Warmup(2)]
+    #[Bench\Warmup(0)]
     #[Bench\Groups(['update', 'database', 'chunked'])]
     public function benchChunkedUpdate(): void
     {

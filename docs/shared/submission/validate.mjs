@@ -10,7 +10,9 @@
 import { CURRENCIES, findPrivacyLeaks, indexFields, measurementDigest, runsPathFor } from './run-document.mjs'
 
 // Keep in step with AssembleResultsDocument::SCHEMA_VERSION in the app.
-export const SCHEMA_VERSION = 3
+// SchemaVersionTest asserts the two match, so this is checked rather than
+// remembered.
+export const SCHEMA_VERSION = 4
 
 /**
  * Why each superseded version is rejected rather than warned about. A bump
@@ -20,12 +22,26 @@ export const SCHEMA_VERSION = 3
  */
 const SUPERSEDED_SCHEMAS = {
     1: 'CRUD subjects rebuilt their own state inside the timed body, so delete reported about 2.4x its real cost',
-    2: 'create and update timed PHP datetime work that read and delete did not, and read measured one query returning 100 rows against the other three running 100 statements'
+    2: 'create and update timed PHP datetime work that read and delete did not, and read measured one query returning 100 rows against the other three running 100 statements',
+    3: 'warmup revolutions ran each subject body without rebuilding its fixture, so delete measured 100 statements that matched no rows and reported roughly half its real cost'
 }
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/
 const GITHUB_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i
 const KNOWN_VARIATIONS = ['frankenphp', 'fpm-nginx', 'fpm-apache']
+const KNOWN_SERVERS = ['php-fpm', 'frankenphp', 'swoole', 'roadrunner', 'mod_php', 'cli-server', 'litespeed']
+
+/**
+ * Which web server each image variation should be answering from. php_variation
+ * is a build argument — self-reported, and the thing the gallery filters and
+ * sorts on — while front_end is measured from the serving process. This is what
+ * makes the claim checkable.
+ */
+const FRONT_END_FOR_VARIATION = {
+    'fpm-nginx': 'nginx',
+    'fpm-apache': 'apache',
+    'frankenphp': 'frankenphp'
+}
 const MAX_TEXT = 80
 const MAX_RPS = 5_000_000
 const MAX_MS = 600_000
@@ -82,6 +98,9 @@ export async function validateSubmission(doc, filepath = null) {
     // The Maintainer badge isn't self-serve — flag for the reviewer, don't block.
     if (doc.verified === true) warn('verified is true — the Maintainer badge should only be set on team-added runs')
     if (typeof doc.submitted_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(doc.submitted_at)) err('submitted_at must be a YYYY-MM-DD date')
+    // The issue a result arrived in, added by the bot. Optional, because runs
+    // filed before this existed are still perfectly good runs.
+    if (doc.issue != null && (!Number.isInteger(doc.issue) || doc.issue < 1)) err('issue must be a positive whole number')
 
     // ---- identity ----
     if (typeof run.id !== 'string' || !ID_RE.test(run.id)) {
@@ -137,7 +156,28 @@ export async function validateSubmission(doc, filepath = null) {
         warn('OPcache was disabled for this run, so its numbers are far below a production configuration and are not comparable with the rest of the gallery')
     }
 
+    // Which process the php block above describes. A run assembled without the
+    // HTTP stage reports the CLI's opcache, JIT, and memory limit — real
+    // settings, but not the ones that served anything, so they cannot be read
+    // as the configuration behind a throughput number.
+    if (env.php_environment_source != null && !['web', 'cli'].includes(env.php_environment_source)) {
+        err(`environment.php_environment_source "${env.php_environment_source}" is not one of web, cli`)
+    }
+    if (env.php_environment_source === 'cli') {
+        warn('the PHP settings in this run were read from the command-line process that assembled it, not from the web server that served the load test, so opcache and memory limit describe a different SAPI')
+    }
+
     if (env.laravel?.environment?.laravel_version == null) err('environment.laravel.environment.laravel_version is required')
+
+    // Debug mode collects stack-trace data on every request. The run is real,
+    // but it measures a development configuration, and the gap is wide enough
+    // that it cannot sit unlabelled beside the rest of the gallery.
+    if (env.laravel?.environment?.debug_mode === true) {
+        warn('this run was measured with APP_DEBUG on, so its numbers describe a development configuration rather than a deployed one')
+    }
+    if (env.laravel?.environment?.debug_mode != null && typeof env.laravel.environment.debug_mode !== 'boolean') {
+        err('environment.laravel.environment.debug_mode must be a boolean')
+    }
 
     // ---- benchmarks ----
     const benchmarks = run.benchmarks ?? {}
@@ -154,12 +194,25 @@ export async function validateSubmission(doc, filepath = null) {
             isNum(r.requests_per_second, `http.routes.${key}.requests_per_second`, { min: 0, max: MAX_RPS })
             for (const p of ['p50_ms', 'p95_ms', 'p99_ms']) isNum(r[p], `http.routes.${key}.${p}`, { min: 0, max: MAX_MS })
             if (r.success_rate != null) isNum(r.success_rate, `http.routes.${key}.success_rate`, { min: 0, max: 1 })
+            // Wall time the load generator observed, against the duration the
+            // run asked for below. A throughput figure is a count over a time,
+            // and this is the time it was actually divided by.
+            if (r.elapsed_seconds != null) isNum(r.elapsed_seconds, `http.routes.${key}.elapsed_seconds`, { min: 0, max: 3600 })
         }
-        if (http.fpm_max_children != null) isNum(http.fpm_max_children, 'http.fpm_max_children', { min: 1, max: 100_000 })
+        // Both container-internal ports report mode "loopback", so without this
+        // a run paying for a TLS handshake and per-request encryption looks
+        // identical to a plaintext one.
+        if (http.tls != null && typeof http.tls !== 'boolean') err('http.tls must be a boolean')
+        if (http.workers != null) isNum(http.workers, 'http.workers', { min: 1, max: 100_000 })
         if (http.pool_limited != null && typeof http.pool_limited !== 'boolean') err('http.pool_limited must be a boolean')
+        if (http.oversubscribed != null && typeof http.oversubscribed !== 'boolean') err('http.oversubscribed must be a boolean')
+        // Not a fault — a saturation test is meant to offer more work than the
+        // server can take. It is why the latency figures are queue-dominated,
+        // which is worth stating next to them.
+        if (http.oversubscribed === true) warn('this run held more connections open than the server has workers, so its latency percentiles include time spent queued and describe the queue rather than the work')
         // Not fatal — the run is real, it just isn't a framework comparison.
         // Surfacing it in review is what keeps the gallery interpretable.
-        if (http.pool_limited === true) warn('this run held more connections open than the FPM pool has workers, so its throughput is bounded by pm.max_children rather than by the application')
+        if (http.pool_limited === true) warn("the I/O route reached the ceiling its worker count implies, so that route measures how the server was sized rather than how fast it is")
     }
 
     const phpBench = benchmarks.php
@@ -246,11 +299,44 @@ export async function validateSubmission(doc, filepath = null) {
         }
     }
 
-    if (php.serving != null) {
-        if (php.serving.fpm_pm != null && !['static', 'dynamic', 'ondemand'].includes(php.serving.fpm_pm)) {
-            err(`environment.php.serving.fpm_pm "${php.serving.fpm_pm}" is not a known FPM process manager`)
+    // How the application was served. server/mode/workers are normalized so an
+    // FPM pool size and a FrankenPHP thread count land in the same column;
+    // `settings` is whatever that server exposes, so it is shape-checked rather
+    // than enumerated — the point of it is to carry runtimes this file has
+    // never heard of.
+    if (php.runtime != null) {
+        if (php.runtime.server != null && !KNOWN_SERVERS.includes(php.runtime.server)) {
+            warn(`unknown runtime server "${php.runtime.server}"`)
         }
-        if (php.serving.fpm_max_children != null) isNum(php.serving.fpm_max_children, 'environment.php.serving.fpm_max_children', { min: 1, max: 100_000 })
+        if (php.runtime.mode != null && !['worker', 'process-per-request'].includes(php.runtime.mode)) {
+            err(`environment.php.runtime.mode "${php.runtime.mode}" is not one of worker, process-per-request`)
+        }
+        if (php.runtime.workers != null) isNum(php.runtime.workers, 'environment.php.runtime.workers', { min: 1, max: 100_000 })
+        // A count with no unit cannot be compared with another count. Twenty
+        // FPM children and eight FrankenPHP threads are both "workers".
+        if (php.runtime.workers != null && php.runtime.workers_source == null) {
+            warn('this run reports a worker count without saying what it counts, so it cannot be compared with runs on other servers')
+        }
+        if (php.runtime.front_end != null) isText(php.runtime.front_end, 'environment.php.runtime.front_end', { max: 30, required: false })
+        if (php.runtime.settings != null) {
+            if (typeof php.runtime.settings !== 'object' || Array.isArray(php.runtime.settings)) {
+                err('environment.php.runtime.settings must be an object of setting => value')
+            } else {
+                for (const [key, value] of Object.entries(php.runtime.settings)) {
+                    if (!/^[a-z_]+(?:\.[a-z_]+)*$/.test(key)) err(`environment.php.runtime.settings key "${key}" has an unexpected shape`)
+                    isText(String(value), `environment.php.runtime.settings["${key}"]`, { max: 30, required: false })
+                }
+            }
+        }
+
+        // The build arg says which image this claims to be; SERVER_SOFTWARE says
+        // what actually answered. php_variation is self-reported and the gallery
+        // filters on it, so this is the only check there is that it is true.
+        // A warning, not an error — a custom build can legitimately disagree.
+        const claimed = FRONT_END_FOR_VARIATION[php.php_variation]
+        if (claimed && php.runtime.front_end && claimed !== php.runtime.front_end) {
+            warn(`this run reports php_variation "${php.php_variation}" but was served by ${php.runtime.front_end}`)
+        }
     }
 
     // A registry-style tag would carry someone's org name into a public file.
