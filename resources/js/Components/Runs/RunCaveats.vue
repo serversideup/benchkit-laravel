@@ -51,6 +51,9 @@ const idleCores = computed(() => {
     return Math.max(0, cores.value - workers);
 });
 
+/** Filesystems that are memory pretending to be storage. */
+const MEMORY_FILESYSTEMS = ['tmpfs', 'ramfs', 'memory'];
+
 const TONES = {
     high: { box: 'border-[#F97066]/40 bg-[#F97066]/5', title: 'text-[#F97066]' },
     medium: { box: 'border-[#F79009]/30 bg-[#F79009]/5', title: 'text-[#F79009]' },
@@ -80,6 +83,26 @@ const caveats = computed(() => {
             severity: 'high',
             title: 'This server is faster than these numbers say',
             detail: 'The app was running in debug mode, so Laravel built a stack trace on every single request — something it never does in production. Set APP_DEBUG=false and run again to see what this host really does. Until then, don\'t compare this against other results.',
+        });
+    }
+
+    // Written for someone who has never heard of fsync, because that is who
+    // reads this. The settings behind it (journal_mode, synchronous, and the
+    // filesystem the database sits on) stay in the Environment panel, where
+    // they are config to look up rather than a sentence to read.
+    if (MEMORY_FILESYSTEMS.includes(String(environment.database?.filesystem ?? '').toLowerCase())) {
+        found.push({
+            key: 'memory-database',
+            severity: 'high',
+            title: 'These write speeds came from a database in memory',
+            detail: 'Your database was stored in RAM rather than on a disk. Writing to memory is far faster than writing to any real drive, so the Create, Update, and Delete figures are not what this host would do in production.',
+        });
+    } else if (Object.values(environment.database?.durability ?? {}).some((value) => ['off', '0'].includes(String(value).toLowerCase()))) {
+        found.push({
+            key: 'unsafe-writes',
+            severity: 'medium',
+            title: 'The database was not waiting for writes to reach the disk',
+            detail: 'It was set to report a write as finished before the drive had actually stored it — faster, but recent data is lost in a crash. The Create, Update, and Delete figures are higher than a normally configured database would produce.',
         });
     }
 

@@ -1,24 +1,49 @@
 <template>
-    <section class="py-9 border-t border-[#22262F] first:border-t-0 first:pt-2">
-        <div
-            v-if="$slots.aside"
-            class="flex items-center justify-between gap-4 flex-wrap"
-        >
-            <h2 class="text-base font-semibold text-[#F7F7F7]">
-                {{ title }}
-            </h2>
-            <span class="flex flex-wrap items-center gap-2"><slot name="aside" /></span>
+    <section class="rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+        <div class="flex items-start justify-between gap-x-6 gap-y-4 flex-wrap">
+            <div class="min-w-0">
+                <!-- The tracked mono eyebrow is the site's structural signature.
+                     It marks a panel opening; the title itself is sans, because
+                     mono is BenchKit's voice for numbers and labels rather than
+                     for display type. -->
+                <div
+                    v-if="eyebrow"
+                    class="flex items-center gap-3"
+                >
+                    <span
+                        aria-hidden="true"
+                        class="h-px w-6 bg-flame-500/70"
+                    />
+                    <span class="font-mono text-[11px] uppercase tracking-[0.16em] text-neutral-500">
+                        {{ eyebrow }}
+                    </span>
+                </div>
+
+                <h2
+                    class="font-sans text-xl font-semibold leading-tight tracking-[-0.02em] text-white sm:text-2xl"
+                    :class="eyebrow ? 'mt-3' : ''"
+                >
+                    {{ title }}
+                </h2>
+            </div>
+
+            <span
+                v-if="$slots.aside"
+                class="flex flex-wrap items-center gap-2"
+            ><slot name="aside" /></span>
         </div>
-        <h2
-            v-else
-            class="text-base font-semibold text-[#F7F7F7]"
+
+        <p
+            v-if="$slots.description"
+            class="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-neutral-400"
         >
-            {{ title }}
-        </h2>
+            <slot name="description" />
+        </p>
+
         <slot />
     </section>
 </template>
 
 <script setup lang="ts">
-defineProps<{ title: string }>()
+defineProps<{ title: string, eyebrow?: string }>()
 </script>
