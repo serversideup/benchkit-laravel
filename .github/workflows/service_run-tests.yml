@@ -39,7 +39,7 @@ jobs:
         run: docker compose $COMPOSE_FILES build
 
       - name: Install Composer dependencies
-        run: docker compose $COMPOSE_FILES run --rm -T php composer install --no-interaction --no-progress
+        run: docker compose $COMPOSE_FILES run --rm -e AUTORUN_ENABLED=false -T php composer install --no-interaction --no-progress
 
       # Feature tests hit Inertia pages, which render resources/views/app.blade.php
       # and therefore need a real Vite manifest. Building here also verifies the
