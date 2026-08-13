@@ -14,9 +14,12 @@
   --ui-header-height: --spacing(24);
   --container-8xl: 90rem;
 
-  /* Body prose in Inter; code + brand headings in JetBrains Mono (the
-     BenchKit app's signature). @nuxt/fonts (bundled with @nuxt/ui) provisions
-     both from these declarations — no manual @font-face needed. */
+  /* Inter carries all display type: headlines, body, navigation. JetBrains
+     Mono is the instrument voice and nothing else — eyebrows, uppercase
+     labels, metrics, and code. Mono at headline size reads as a terminal
+     banner rather than a designed page, so headings never use it.
+     @nuxt/fonts (bundled with @nuxt/ui) provisions both from these
+     declarations — no manual @font-face needed. */
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
@@ -36,15 +39,6 @@
 
 :root {
   --ui-container: var(--container-8xl);
-}
-
-/* BenchKit signature: mono headings echo the app's JetBrains Mono aesthetic.
-   Declared in @layer base so a `font-sans` utility can still override it —
-   unlayered CSS wins over layered utilities regardless of specificity. */
-@layer base {
-  h1, h2, h3, .font-brand {
-    font-family: var(--font-mono);
-  }
 }
 
 @layer utilities {
@@ -88,12 +82,4 @@
       }
     }
   }
-}
-
-ul li a:after {
-  margin-left: 6px;
-}
-
-ul ul ul {
-  border: none !important;
 }

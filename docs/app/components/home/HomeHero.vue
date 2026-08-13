@@ -16,10 +16,8 @@
                         </span>
                     </div>
 
-                    <!-- font-sans overrides the global mono heading rule: mono is
-                         BenchKit's voice for numbers and labels, not for display type. -->
                     <h1
-                        class="enter mt-6 text-balance font-sans text-4xl font-semibold leading-[1.06] tracking-[-0.03em] text-white sm:text-5xl"
+                        class="enter mt-6 text-balance text-4xl font-semibold leading-[1.06] tracking-[-0.03em] text-white sm:text-5xl"
                         style="animation-delay: 40ms"
                     >
                         <span class="block">Benchmark your Laravel stack.</span>

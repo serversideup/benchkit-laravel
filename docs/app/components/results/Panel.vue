@@ -20,7 +20,7 @@
                 </div>
 
                 <h2
-                    class="font-sans text-xl font-semibold leading-tight tracking-[-0.02em] text-white sm:text-2xl"
+                    class="text-xl font-semibold leading-tight tracking-[-0.02em] text-white sm:text-2xl"
                     :class="eyebrow ? 'mt-3' : ''"
                 >
                     {{ title }}

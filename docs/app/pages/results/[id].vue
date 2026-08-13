@@ -15,9 +15,7 @@
         <div class="mb-10">
             <div>
                 <div class="flex items-center gap-3 flex-wrap">
-                    <!-- font-sans overrides the global mono heading rule: mono is
-                         BenchKit's voice for numbers and labels, not display type. -->
-                    <h1 class="text-balance font-sans text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-white sm:text-4xl">
+                    <h1 class="text-balance text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-white sm:text-4xl">
                         {{ run.meta.label }}
                     </h1>
                     <UBadge
@@ -121,7 +119,7 @@
                 :key="caveat.key"
                 class="rounded-2xl border border-[#F79009]/30 bg-[#F79009]/[0.06] p-6 sm:p-8"
             >
-                <p class="font-sans text-lg font-semibold tracking-[-0.01em] text-[#F79009]">
+                <p class="text-lg font-semibold tracking-[-0.01em] text-[#F79009]">
                     {{ caveat.title }}
                 </p>
                 <p class="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-neutral-300">
@@ -498,7 +496,7 @@
             class="mt-4 flex flex-col gap-6 rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"
         >
             <div class="max-w-lg">
-                <h2 class="font-sans text-lg font-semibold tracking-[-0.01em] text-white">
+                <h2 class="text-lg font-semibold tracking-[-0.01em] text-white">
                     Discuss this result
                 </h2>
                 <!-- Says nothing about the issue being open or closed: the bot

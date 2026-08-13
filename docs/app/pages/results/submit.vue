@@ -11,10 +11,10 @@
             All results
         </UButton>
 
-        <h1 class="text-2xl sm:text-3xl font-bold text-[#F7F7F7]">
+        <h1 class="text-balance text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-white sm:text-4xl">
             Check a submission
         </h1>
-        <p class="mt-2 text-sm text-[#94979C] max-w-2xl">
+        <p class="mt-3 max-w-2xl text-pretty leading-relaxed text-neutral-400">
             Paste the token BenchKit gave you to see exactly what would be published, and to catch anything
             that would fail review before you open an issue. Nothing is uploaded — the token is unpacked
             here in your browser.
@@ -104,7 +104,7 @@
             </div>
 
             <!-- At-a-glance spec strip, same shape the result page uses -->
-            <h2 class="mt-8 text-lg font-semibold text-[#F7F7F7]">
+            <h2 class="mt-8 text-lg font-semibold tracking-[-0.01em] text-white">
                 {{ preview.meta.label }}
             </h2>
             <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">

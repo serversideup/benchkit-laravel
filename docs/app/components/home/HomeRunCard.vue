@@ -97,7 +97,7 @@ const submittedOn = computed(() => new Date(props.summary.submitted_at).toLocale
         </div>
 
         <div class="mt-6 flex items-center gap-2">
-            <h3 class="font-sans text-xl font-semibold tracking-tight text-white">
+            <h3 class="text-xl font-semibold tracking-tight text-white">
                 {{ machine }}
             </h3>
             <UIcon

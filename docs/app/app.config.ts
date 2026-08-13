@@ -17,7 +17,47 @@ export default defineAppConfig({
                 description: 'text-gray-300 text-md leading-relaxed'
             }
         },
+        /**
+         * The docs page header. The eyebrow is the same tracked mono rule that
+         * opens every section on the homepage, so a docs page and a marketing
+         * section announce themselves in one voice. Title is Inter, tightened
+         * at display size the way the homepage headlines are.
+         */
+        pageHeader: {
+            slots: {
+                root: 'relative border-b border-default py-10',
+                headline: 'mb-4 flex items-center gap-3 font-mono text-[11px] font-normal uppercase tracking-[0.16em] text-neutral-500 before:h-px before:w-6 before:bg-flame-500/70 before:content-[\'\']',
+                title: 'text-3xl sm:text-4xl text-balance font-semibold leading-[1.1] tracking-[-0.03em] text-highlighted',
+                description: 'text-lg text-pretty leading-relaxed text-muted'
+            }
+        },
         prose: {
+            /**
+             * Heading scale for docs content: 24 / 18 / 16, semibold rather
+             * than bold, tightened as it gets larger. Each heading sits far
+             * from the section above it and close to the copy it introduces,
+             * so the page reads as groups instead of an even ladder of text.
+             */
+            h1: {
+                slots: {
+                    base: 'text-4xl text-balance font-semibold tracking-[-0.03em] text-highlighted mb-8'
+                }
+            },
+            h2: {
+                slots: {
+                    base: 'text-2xl text-balance font-semibold tracking-[-0.025em] text-highlighted mt-16 mb-5'
+                }
+            },
+            h3: {
+                slots: {
+                    base: 'text-lg font-semibold tracking-[-0.015em] text-highlighted mt-12 mb-3'
+                }
+            },
+            h4: {
+                slots: {
+                    base: 'text-base font-semibold tracking-[-0.01em] text-highlighted mt-8 mb-2'
+                }
+            },
             codeIcon: {
                 'compose.yml': 'i-simple-icons-docker',
                 'compose.yaml': 'i-simple-icons-docker',
@@ -44,6 +84,20 @@ export default defineAppConfig({
                         neutral: { base: '[&_a]:text-white [&_a]:hover:text-white [&_a]:hover:border-white' }
                     }
                 }
+            }
+        },
+        /**
+         * Right rail. Its headings are labels, not headlines, so they take the
+         * mono voice and step back to let the page's own headings lead.
+         */
+        contentToc: {
+            slots: {
+                title: 'truncate font-mono text-[11px] font-normal uppercase tracking-[0.16em] text-neutral-500'
+            }
+        },
+        pageLinks: {
+            slots: {
+                title: 'font-mono text-[11px] font-normal uppercase tracking-[0.16em] text-neutral-500'
             }
         },
         mode: 'dark',
@@ -146,7 +200,7 @@ export default defineAppConfig({
         }]
     },
     toc: {
-        title: 'Table of Contents',
+        title: 'On this page',
         bottom: {
             title: 'Community',
             edit: 'https://github.com/serversideup/benchkit-laravel/edit/main/docs/content',

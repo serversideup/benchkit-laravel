@@ -72,7 +72,7 @@ const TOOLS = [
                             {{ String(index + 1).padStart(2, '0') }}
                         </span>
 
-                        <h3 class="mt-5 font-sans text-lg font-semibold tracking-tight text-white">
+                        <h3 class="mt-5 text-lg font-semibold tracking-tight text-white">
                             {{ tool.name }}
                         </h3>
 

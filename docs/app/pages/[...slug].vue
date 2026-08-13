@@ -2,6 +2,7 @@
     <UPage v-if="page">
         <UPageHeader
             :title="page.title"
+            :description="page.description"
             :headline="headline"
         >
             <template #links>
@@ -19,9 +20,9 @@
                 :value="page"
             />
 
-            <USeparator v-if="surround?.length" />
+            <USeparator v-if="neighbours?.length" />
 
-            <UContentSurround :surround="surround" />
+            <UContentSurround :surround="neighbours" />
         </UPageBody>
 
         <template
@@ -90,9 +91,16 @@ if (!page.value) {
 
 const { data: surround } = await useAsyncData(`${route.path}-surround`, () => {
     return queryCollectionItemSurroundings('docs', route.path, {
-        fields: ['description']
+        fields: ['description', 'redirect']
     })
 })
+
+/**
+ * Redirect stubs are not real neighbours — following one bounces straight back
+ * to the page you came from. Blanked in place rather than filtered out, since
+ * position is what makes a card the previous or the next page.
+ */
+const neighbours = computed(() => surround.value?.map(item => item?.redirect ? null : item))
 
 const title = page.value.seo?.title || page.value.title
 const description = page.value.seo?.description || page.value.description

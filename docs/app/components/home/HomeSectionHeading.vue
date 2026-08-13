@@ -20,9 +20,7 @@ withDefaults(defineProps<{ eyebrow: string, centered?: boolean }>(), { centered:
             </span>
         </div>
 
-        <!-- font-sans overrides the global mono heading rule: mono is BenchKit's
-             voice for numbers, not for display type. -->
-        <h2 class="mt-5 text-balance font-sans text-3xl font-semibold leading-[1.12] tracking-[-0.025em] text-white sm:text-4xl">
+        <h2 class="mt-5 text-balance text-3xl font-semibold leading-[1.12] tracking-[-0.025em] text-white sm:text-4xl">
             <slot name="title" />
         </h2>
 

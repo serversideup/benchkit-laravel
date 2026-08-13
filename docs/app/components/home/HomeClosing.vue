@@ -12,7 +12,7 @@
         <UContainer class="relative py-24 lg:py-32">
             <HomeReveal>
                 <div class="mx-auto max-w-2xl text-center">
-                    <h2 class="text-balance font-sans text-4xl font-semibold leading-[1.08] tracking-[-0.03em] text-white sm:text-5xl">
+                    <h2 class="text-balance text-4xl font-semibold leading-[1.08] tracking-[-0.03em] text-white sm:text-5xl">
                         Your turn.
                     </h2>
 

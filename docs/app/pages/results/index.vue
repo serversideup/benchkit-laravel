@@ -142,8 +142,7 @@ useSeoMeta({
                         </span>
                     </div>
 
-                    <!-- font-sans overrides the global mono heading rule. -->
-                    <h1 class="mt-4 text-balance font-sans text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-white sm:text-4xl">
+                    <h1 class="mt-4 text-balance text-3xl font-semibold leading-[1.1] tracking-[-0.03em] text-white sm:text-4xl">
                         Every run people have shared.
                     </h1>
 
@@ -370,7 +369,7 @@ useSeoMeta({
         <section class="border-t border-white/[0.06]">
             <UContainer class="py-16 lg:py-20">
                 <div class="mx-auto max-w-2xl text-center">
-                    <h2 class="text-balance font-sans text-3xl font-semibold tracking-[-0.025em] text-white">
+                    <h2 class="text-balance text-3xl font-semibold tracking-[-0.025em] text-white">
                         Ran one? Add it to the gallery.
                     </h2>
                     <p class="mt-4 text-pretty leading-relaxed text-neutral-400">

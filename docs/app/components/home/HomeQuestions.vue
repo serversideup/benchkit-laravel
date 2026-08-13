@@ -48,7 +48,7 @@ const QUESTIONS = [
                         class="grid gap-2 py-6 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-10"
                         :class="index ? 'border-t border-white/[0.06]' : ''"
                     >
-                        <dt class="text-balance font-sans text-base font-semibold text-white">
+                        <dt class="text-balance text-base font-semibold text-white">
                             {{ item.question }}
                         </dt>
                         <dd class="text-pretty leading-relaxed text-neutral-400">
