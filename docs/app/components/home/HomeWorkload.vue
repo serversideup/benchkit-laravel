@@ -19,19 +19,11 @@ const GROUPS = [
         ]
     },
     {
-        label: 'PHP and database',
-        tool: 'phpbench',
+        label: 'Customize anything',
         rows: [
-            { name: 'Eloquent', does: 'What the ORM costs on your hardware' },
-            { name: 'PHP', does: 'Where your PHP build is fast and slow' }
-        ]
-    },
-    {
-        label: 'Yours to change',
-        rows: [
-            { name: 'Database', does: 'SQLite, MySQL, MariaDB, Postgres, SQL Server' },
-            { name: 'Load', does: 'Duration, connections, simulated I/O' },
-            { name: 'Stages', does: 'Run all four or just one' }
+            { name: 'Database', does: 'Run against SQLite, MySQL, MariaDB, Postgres, SQL Server' },
+            { name: 'Load', does: 'Change Duration, connections, simulated I/O' },
+            { name: 'Benchmark Templates', does: 'Choose between Quick, Full, or Custom' }
         ]
     }
 ]
