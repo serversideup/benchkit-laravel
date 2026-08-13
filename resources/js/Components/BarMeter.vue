@@ -1,6 +1,6 @@
 <template>
-    <span class="rounded-sm bg-[#22262F] overflow-hidden">
-        <span v-if="percent != null" class="block h-full rounded-r-[4px]" :style="`width: ${percent}%; background-color: ${color};`"></span>
+    <span class="rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden">
+        <span v-if="percent != null" class="block h-full rounded-full" :style="`width: ${percent}%; background-color: ${color};`"></span>
     </span>
 </template>
 
@@ -14,7 +14,7 @@ defineProps({
     },
     color: {
         type: String,
-        default: '#94979C',
+        default: 'rgba(148, 151, 156, 0.55)',
     },
 });
 </script>

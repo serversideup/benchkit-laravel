@@ -1,5 +1,5 @@
 <template>
-    <PanelSection title="Environment">
+    <PanelSection eyebrow="Configuration" title="Environment">
         <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm">
             <div class="flex flex-col gap-3">
                 <div v-for="fact in stackFacts" :key="fact.label" class="grid grid-cols-[110px_1fr] gap-3">

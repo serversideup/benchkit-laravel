@@ -1,5 +1,5 @@
 <template>
-    <PanelSection title="Web server load test">
+    <PanelSection eyebrow="oha" title="Web server load test">
         <template #aside>
             <span class="flex flex-wrap items-center gap-2">
                 <Chip>{{ http.octane ? 'worker mode' : 'classic mode' }}</Chip>
@@ -11,18 +11,16 @@
             </span>
         </template>
 
-        <!-- Only the I/O route has a ceiling that can be computed, so it is the
-             only one where "the pool was the limit" is a claim rather than a
-             guess. It belongs here, next to the number it explains, rather than
-             in the page-level banner where it read as a verdict on the run. -->
-        <p v-if="http.pool_limited && ioCeiling" class="mt-3 text-sm text-[#F79009]">
-            The I/O route hit this server's limit. Each of the {{ http.workers }} workers is held for the full
-            {{ http.io_ms }}ms, so no hardware can push this route past
-            <span class="font-mono">~{{ ioCeiling.toLocaleString() }} req/s</span> — more workers would raise it, a faster CPU would not.
-        </p>
-
-        <p class="mt-2 text-xs text-[#61656C]">
-            Saturation test &mdash; a fixed connection count held open, reporting max throughput. Tail-latency percentiles are indicative; the &ldquo;Test from your own machine&rdquo; panel has a coordinated-omission-corrected latency command for honest p99s.
+        <p class="mt-3 text-xs text-[#61656C]">
+            Saturation test &mdash; connections held open to find max throughput, so response times include time spent queued.
+            <!-- The one thing readers reliably get stuck on is why I/O sits so
+                 far below the framework routes on the same box. The answer is
+                 arithmetic, not a defect, and it needs more room than a panel
+                 has: a blocking call holds a worker for its whole duration, so
+                 that route can never exceed workers / delay however fast the
+                 CPU is. -->
+            <a :href="LOAD_TEST_DOCS" target="_blank" rel="noopener"
+                class="text-[#94979C] underline underline-offset-4 decoration-[#373A41] hover:text-[#CECFD2] hover:decoration-[#61656C] transition-colors duration-200">Learn more</a>
         </p>
 
         <!-- Mobile: one route per block, stacked. The desktop matrix (routes
@@ -107,6 +105,8 @@ const props = defineProps({
     },
 });
 
+const LOAD_TEST_DOCS = 'https://serversideup.net/open-source/benchkit/docs/benchmarks/web-server-load-test';
+
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 
 // The I/O route's hard ceiling: a request occupies a worker for its whole
@@ -125,27 +125,30 @@ const ioCeiling = computed(() => {
     return Math.round(workers * (1000 / ioMs));
 });
 
-// Ordered by real-world representativeness: DB read is the closest thing to an
-// actual Laravel page, static is the framework ceiling, and io models a request
-// dominated by one outbound call, where per-request bootstrap shrinks to a small
-// fraction of the total. That route is also bounded by the server's worker
-// count (see the pool_limited warning above), so read it against that ceiling
-// rather than as a clean framework comparison. (io's description carries the actual
-// delay, added in `routes`.)
+// Ordered as a ladder: each route adds one thing to the one before it —
+// serialization, then a database, then a blocking wait. Read left to right the
+// deltas are the story ("what does a query cost me?"), which the previous
+// order — most-representative-first — scrambled by burying the static
+// baseline everything else is measured against in third place.
 const ROUTES = {
-    db_read: { label: 'DB read', description: '20 rows queried per request' },
-    json: { label: 'JSON API', description: '25-item JSON payload' },
     static: { label: 'Static', description: 'Framework baseline — no database' },
+    json: { label: 'JSON API', description: '25-item JSON payload' },
+    db_read: { label: 'DB read', description: '20 rows queried per request' },
     io: { label: 'I/O-bound', description: 'Simulated outbound call' },
 };
 
 // Gray = a typical request, amber = the tail. Series identity like
 // Nightwatch's AVG/MAX pair — true no matter how fast or slow the values
 // are, so a blazing 1ms tail never gets painted as an error.
+// One measurement read at three points, so the bars are one hue at three
+// weights rather than three colours. Twelve slabs of full-strength amber for
+// routine data left nothing in reserve for the cases that genuinely need
+// flagging. Warmth still climbs with the tail, quietly enough that the numbers
+// stay the loudest thing in the panel.
 const PERCENTILES = [
-    { key: 'p50', human: 'Typical', color: '#94979C' },
-    { key: 'p95', human: 'Slowest 5%', color: '#F79009' },
-    { key: 'p99', human: 'Slowest 1%', color: '#F79009' },
+    { key: 'p50', human: 'Typical', color: 'rgba(148, 151, 156, 0.40)' },
+    { key: 'p95', human: 'Slowest 5%', color: 'rgba(247, 144, 9, 0.35)' },
+    { key: 'p99', human: 'Slowest 1%', color: 'rgba(247, 144, 9, 0.60)' },
 ];
 
 const routes = computed(() => {

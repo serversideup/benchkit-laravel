@@ -1,11 +1,22 @@
 <template>
-    <div v-if="caveats.length" class="flex flex-col gap-3">
+    <div v-if="caveats.length" class="flex flex-col gap-2.5">
         <div v-for="caveat in caveats" :key="caveat.key"
-            class="rounded-lg border p-4" :class="TONES[caveat.severity].box">
-            <p class="text-sm font-medium" :class="TONES[caveat.severity].title">
-                {{ caveat.title }}
-            </p>
-            <p class="mt-1 text-xs text-[#94979C] leading-relaxed">{{ caveat.detail }}</p>
+            class="flex gap-3 rounded-xl border p-4" :class="TONES[caveat.severity].box">
+            <!-- The mark is what separates a defect from a note at a glance,
+                 which the boxes alone could not do — a wash of colour behind a
+                 paragraph reads the same whatever it says. -->
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="mt-px size-4 shrink-0" :class="TONES[caveat.severity].mark">
+                <path d="M10 7.5v3M10 13.5h.007M8.57 3.02 1.6 15a1.67 1.67 0 0 0 1.43 2.5h13.94A1.67 1.67 0 0 0 18.4 15L11.43 3.02a1.67 1.67 0 0 0-2.86 0Z"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+
+            <div class="min-w-0">
+                <p class="text-sm font-medium" :class="TONES[caveat.severity].title">{{ caveat.title }}</p>
+                <!-- Held to a readable measure. Full-width prose across the
+                     page ran to well over a hundred characters a line, which is
+                     most of why these felt like walls rather than warnings. -->
+                <p class="mt-1 max-w-[62ch] text-sm text-[#94979C] leading-relaxed">{{ caveat.detail }}</p>
+            </div>
         </div>
     </div>
 </template>
@@ -54,10 +65,13 @@ const idleCores = computed(() => {
 /** Filesystems that are memory pretending to be storage. */
 const MEMORY_FILESYSTEMS = ['tmpfs', 'ramfs', 'memory'];
 
+// Red means the numbers are wrong. Amber means they are right and easy to
+// misread. Grey means neither — context, styled so a healthy run does not look
+// like a list of failures.
 const TONES = {
-    high: { box: 'border-[#F97066]/40 bg-[#F97066]/5', title: 'text-[#F97066]' },
-    medium: { box: 'border-[#F79009]/30 bg-[#F79009]/5', title: 'text-[#F79009]' },
-    note: { box: 'border-[#22262F] bg-[#13161B]', title: 'text-[#CECFD2]' },
+    high: { box: 'border-[#F97066]/25 bg-[#F97066]/[0.04]', mark: 'text-[#F97066]', title: 'text-[#F97066]' },
+    medium: { box: 'border-[#F79009]/25 bg-[#F79009]/[0.04]', mark: 'text-[#F79009]', title: 'text-[#F79009]' },
+    note: { box: 'border-[#22262F]', mark: 'text-[#61656C]', title: 'text-[#CECFD2]' },
 };
 
 /**
@@ -82,7 +96,7 @@ const caveats = computed(() => {
             key: 'debug',
             severity: 'high',
             title: 'This server is faster than these numbers say',
-            detail: 'The app was running in debug mode, so Laravel built a stack trace on every single request — something it never does in production. Set APP_DEBUG=false and run again to see what this host really does. Until then, don\'t compare this against other results.',
+            detail: 'Laravel built a stack trace on every request, which it never does in production. Set APP_DEBUG=false and run again.',
         });
     }
 
@@ -95,7 +109,7 @@ const caveats = computed(() => {
             key: 'memory-database',
             severity: 'high',
             title: 'These write speeds came from a database in memory',
-            detail: 'Your database was stored in RAM rather than on a disk. Writing to memory is far faster than writing to any real drive, so the Create, Update, and Delete figures are not what this host would do in production.',
+            detail: 'It was stored in RAM rather than on a disk, so Create, Update, and Delete are far faster here than this host would manage in production.',
         });
     } else if (Object.values(environment.database?.durability ?? {}).some((value) => ['off', '0'].includes(String(value).toLowerCase()))) {
         found.push({
@@ -111,7 +125,7 @@ const caveats = computed(() => {
             key: 'opcache',
             severity: 'high',
             title: 'This server is much faster than these numbers say',
-            detail: 'OPcache was off, so PHP recompiled the whole application from source on every request. Practically no production host runs this way. Turn OPcache on and run again — this result can\'t be compared with the rest of the gallery.',
+            detail: 'PHP recompiled the whole application from source on every request. Practically no production host runs this way.',
         });
     }
 
@@ -125,15 +139,6 @@ const caveats = computed(() => {
             severity: 'medium',
             title: `This machine has ${cores.value} cores and only ${http.workers} were usable`,
             detail: `PHP handles one request per worker, so with ${http.workers} workers at most ${http.workers} cores can be busy at once — the other ${idleCores.value} sat idle for the whole test. This result is well below what this hardware can do. Restart with PHP_FPM_PM_MAX_CHILDREN set to at least the core count and run again.`,
-        });
-    }
-
-    if (http.oversubscribed) {
-        found.push({
-            key: 'queueing',
-            severity: 'note',
-            title: 'The response times below are mostly queueing',
-            detail: `This test deliberately holds ${http.connections} requests open at once against a server that works on ${http.workers} at a time, to find the point where it maxes out. The rest wait in line, and that wait is counted in the times below — so they describe a server under a stampede, not what one visitor would see. The req/s figures are the ones to read here.`,
         });
     }
 

@@ -2,7 +2,7 @@
     <div class="flex flex-col min-w-0">
         <div v-if="!editingLabel" class="flex items-center gap-2.5 min-w-0 group">
             <h1 @click="startEditingLabel()" title="Rename run"
-                class="text-2xl sm:text-3xl text-[#F7F7F7] font-mono font-medium truncate cursor-text rounded-lg -mx-2 px-2 -my-1 py-1 hover:bg-[rgba(255,255,255,0.05)] transition-colors duration-200">{{ meta.label }}</h1>
+                class="text-3xl sm:text-4xl text-[#F7F7F7] font-semibold tracking-[-0.03em] leading-[1.1] truncate cursor-text rounded-lg -mx-2 px-2 -my-1 py-1 hover:bg-[rgba(255,255,255,0.05)] transition-colors duration-200">{{ meta.label }}</h1>
             <button @click="startEditingLabel()" type="button" class="shrink-0 p-1.5 rounded-md text-[#61656C] hover:text-[#CECFD2] hover:bg-[rgba(255,255,255,0.06)] cursor-pointer" title="Rename run">
                 <span class="sr-only">Rename run</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none">

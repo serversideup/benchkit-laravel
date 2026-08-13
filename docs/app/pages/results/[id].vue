@@ -155,8 +155,14 @@
                 </template>
 
                 <p class="mt-2 text-xs text-neutral-500">
-                    Saturation test — a fixed connection count held open, reporting max throughput. Tail-latency
-                    percentiles are indicative.
+                    Saturation test — connections held open to find max throughput, so response times
+                    include time spent queued.
+                    <NuxtLink
+                        to="/docs/benchmarks/web-server-load-test"
+                        class="text-neutral-400 underline underline-offset-4 decoration-white/20 transition-colors hover:text-neutral-300 hover:decoration-white/40"
+                    >
+                        Learn more
+                    </NuxtLink>
                 </p>
 
                 <!-- Mobile: one route per block -->
@@ -629,10 +635,12 @@ const specs = computed(() => {
 })
 
 // Ordered by real-world representativeness, matching the app's run view.
+// A ladder: each route adds one thing to the one before it — serialization,
+// then a database, then a blocking wait. The deltas are the story.
 const ROUTES: Record<string, { label: string, description: string }> = {
-    db_read: { label: 'DB read', description: '20 rows queried per request' },
-    json: { label: 'JSON API', description: '25-item JSON payload' },
     static: { label: 'Static', description: 'Framework baseline — no database' },
+    json: { label: 'JSON API', description: '25-item JSON payload' },
+    db_read: { label: 'DB read', description: '20 rows queried per request' },
     io: { label: 'I/O-bound', description: 'Simulated outbound call' }
 }
 

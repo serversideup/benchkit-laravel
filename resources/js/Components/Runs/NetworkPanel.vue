@@ -1,5 +1,5 @@
 <template>
-    <PanelSection title="Network speed test">
+    <PanelSection eyebrow="cfspeedtest" title="Network speed test">
         <template #aside>
             <span class="flex flex-wrap items-center gap-2">
                 <Chip><template v-if="provider">{{ provider }} &rarr; </template>Cloudflare [{{ network.colo }}]</Chip>

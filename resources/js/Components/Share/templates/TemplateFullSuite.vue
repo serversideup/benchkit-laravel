@@ -104,12 +104,19 @@ const operations = computed(() => [
     .filter((operation) => operation.data.milliseconds != null)
     .map((operation) => ({ ...operation, parts: formatMsParts(operation.data.milliseconds) })));
 
-// DB read is the closest thing to a real Laravel page (query + hydrate +
-// respond), so it leads; static is the framework ceiling, not the story
+// JSON leads, matching primaryMetric() on the gallery so the number someone
+// posts is the number their result is ranked by.
+//
+// DB read is the more realistic page, and was here for that reason, but it is
+// the least comparable of the three: the database is a confound. SQLite on
+// tmpfs, SQLite on a disk, and MySQL over a socket differ by more than the
+// hardware does. JSON exercises the whole framework request path — router,
+// middleware, controller, serialization — with nothing external to vary, so
+// two JSON figures from two hosts are about the hosts.
 const HERO_ROUTES = [
-    { key: 'db_read', label: 'DB read' },
     { key: 'json', label: 'JSON API' },
     { key: 'static', label: 'static' },
+    { key: 'db_read', label: 'DB read' },
 ];
 
 const heroRoute = computed(() => {

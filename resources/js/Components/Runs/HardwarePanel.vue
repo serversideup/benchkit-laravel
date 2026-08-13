@@ -1,5 +1,5 @@
 <template>
-    <PanelSection title="Hardware">
+    <PanelSection eyebrow="yabs" title="Hardware">
         <template v-if="geekbench?.url" #aside>
             <a :href="geekbench.url" target="_blank" class="text-sm text-[#94979C] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] hover:text-[#CECFD2]">
                 View on Geekbench &rarr;

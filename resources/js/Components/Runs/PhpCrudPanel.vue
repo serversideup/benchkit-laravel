@@ -1,5 +1,5 @@
 <template>
-    <PanelSection title="Laravel database performance">
+    <PanelSection eyebrow="phpbench" title="Laravel database performance">
         <template #aside>
             <span class="flex flex-wrap items-center gap-2">
                 <Chip v-if="mode">{{ mode }} suite</Chip>

@@ -206,13 +206,8 @@ export async function validateSubmission(doc, filepath = null) {
         if (http.workers != null) isNum(http.workers, 'http.workers', { min: 1, max: 100_000 })
         if (http.pool_limited != null && typeof http.pool_limited !== 'boolean') err('http.pool_limited must be a boolean')
         if (http.oversubscribed != null && typeof http.oversubscribed !== 'boolean') err('http.oversubscribed must be a boolean')
-        // Not a fault — a saturation test is meant to offer more work than the
-        // server can take. It is why the latency figures are queue-dominated,
-        // which is worth stating next to them.
-        if (http.oversubscribed === true) warn('this run held more connections open than the server has workers, so its latency percentiles include time spent queued and describe the queue rather than the work')
         // Not fatal — the run is real, it just isn't a framework comparison.
         // Surfacing it in review is what keeps the gallery interpretable.
-        if (http.pool_limited === true) warn("the I/O route reached the ceiling its worker count implies, so that route measures how the server was sized rather than how fast it is")
     }
 
     const phpBench = benchmarks.php

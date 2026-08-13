@@ -9,7 +9,10 @@
                 <div class="flex flex-col min-w-0 gap-2">
                     <RunMetaEditor :run-id="run.id" :meta="meta" @updated="meta = $event" />
 
-                    <p class="text-sm text-[#94979C] font-mono flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <!-- Sans, not mono: this is a sentence about the run, and a
+                         six-item mono chain under a title reads as output
+                         rather than as context. -->
+                    <p class="text-sm text-[#94979C] flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span class="whitespace-nowrap">{{ display.timestamp }}</span>
                         <span class="text-[#61656C]">&middot;</span>
                         <button v-if="hostSummary" @click="detailsOpen = !detailsOpen" type="button" class="hover:text-[#CECFD2] hover:underline underline-offset-4 decoration-[#373A41] cursor-pointer text-left" title="Edit hosting details">{{ hostSummary }}</button>
@@ -49,7 +52,9 @@
             <RunCaveats class="rise-in mt-8" style="animation-delay: 150ms;"
                 :environment="run.environment" :http="display.http" />
 
-            <div class="rise-in mt-8 rounded-xl border border-[#22262F] bg-[#0C0E12] px-6 sm:px-8 divide-y divide-[#22262F]" style="animation-delay: 180ms;">
+            <!-- Separate cards rather than divisions of one long box: it gives each
+                 measurement its own edge and lets the page breathe. -->
+            <div class="rise-in mt-8 flex flex-col gap-4" style="animation-delay: 180ms;">
                 <HttpPanel v-if="display.http" :http="display.http" />
                 <!-- The raw benchmarks.php, not display.php: this panel calls
                      crudHeadlines() and suiteTotalMs(), which read `headline`
