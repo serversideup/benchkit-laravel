@@ -85,6 +85,7 @@ You can also share a run as an image on X with [#BenchKit](https://x.com/search?
 - **[Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases)** — point BenchKit at MySQL, MariaDB, or Postgres instead of the default SQLite.
 - **[Customizing the image](https://serversideup.net/open-source/benchkit/docs/configuration/customizing-the-image)** — change OPcache, JIT, and the FPM pool with environment variables.
 - **[Reading your results](https://serversideup.net/open-source/benchkit/docs/benchmarks/reading-your-results)** — what a number tells you, and the limits that apply to it.
+- **[Testing from your own machine](https://serversideup.net/open-source/benchkit/docs/benchmarks/testing-from-your-own-machine)** — point oha at the load test endpoints from another machine.
 - **[FAQ](https://serversideup.net/open-source/benchkit/docs/faq)** — the questions we get most often.
 
 > The documentation source lives in the [`docs/`](./docs) directory — a standalone Nuxt site deployed to Cloudflare Pages.
