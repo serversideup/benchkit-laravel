@@ -1,19 +1,18 @@
 name: Docker Publish (Beta Images)
 
-# `beta` currently tracks the tip of `main` so changes can be pulled and tested
-# before a release. Once 1.0 ships, swap the `push` trigger for
-# `release: [prereleased]` and resolve `ref` from the latest pre-release tag.
+# Dormant until the first release. `main` currently publishes the production
+# tags directly (see action_publish-images-production.yml), so there is nothing
+# for `beta` to track and this runs on demand only. Once production moves back
+# to `release: [released]`, restore the trigger below so `beta` tracks
+# pre-releases, and resolve `ref` from the latest pre-release tag:
+#
+#   release:
+#     types: [prereleased]
+#
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      # docs/ is a standalone Nuxt site and is excluded from the image via
-      # .dockerignore, so it can never change the build.
-      - 'docs/**'
 
-# Two pushes in quick succession would otherwise race for the `beta` tag.
+# Two runs in quick succession would otherwise race for the `beta` tag.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true

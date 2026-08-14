@@ -45,10 +45,10 @@ BenchKit ships as a container image, so all you need is Docker:
 ```bash
 docker run -p 80:8080 \
   -v benchkit-runs:/var/www/html/storage/app/runs \
-  serversideup/benchkit-laravel:beta
+  serversideup/benchkit-laravel:latest
 ```
 
-Then open the server in your browser and click **Start Benchmark**. BenchKit is in beta, so images are published under `beta` tags. To benchmark FrankenPHP in Octane worker mode, see [FrankenPHP](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
+Then open the server in your browser and click **Start Benchmark**. To benchmark FrankenPHP in Octane worker mode, see [FrankenPHP](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
 
 ## Resources
 - **[Discord](https://serversideup.net/discord)** for friendly support from the community and the team.

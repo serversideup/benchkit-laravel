@@ -1,11 +1,28 @@
 name: Docker Publish (Production Images)
 
+# Until the first release, `main` *is* production: every push publishes the
+# unprefixed tags, including `latest`. At 1.0, swap the `push` trigger back for
+# `release: [released]` and restore the `get-latest-release` job (see this
+# file's git history) so builds come from the latest published release tag
+# rather than the tip of `main`.
 on:
   workflow_dispatch:
-  release:
-    types: [released]
+  push:
+    branches:
+      - main
+    paths-ignore:
+      # docs/ is a standalone Nuxt site and is excluded from the image via
+      # .dockerignore, so it can never change the build.
+      - 'docs/**'
+  # Weekly rebuild so the published images pick up new base images even when
+  # nothing has landed on main.
   schedule:
     - cron: '0 9 * * 2'
+
+# Two pushes in quick succession would otherwise race for the `latest` tag.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,35 +30,19 @@ permissions:
   id-token: write
 
 jobs:
-  get-latest-release:
-    runs-on: ubuntu-24.04
-    outputs:
-      release_tag: ${{ steps.get_latest_release.outputs.release_tag }}
-    steps:
-      - name: Get Latest Release
-        id: get_latest_release
-        run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
-            echo "🛑 No published release found. Refusing to build :latest."
-            exit 1
-          fi
-          echo "release_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-
-  # The weekly rebuild picks up new base images, so re-run the suite against the
-  # released tag rather than trusting the result from whenever it was cut.
+  # The scheduled rebuild picks up new base images, so the suite runs on every
+  # publish rather than trusting the result from whenever the commit landed.
   tests:
-    needs: get-latest-release
     uses: ./.github/workflows/service_run-tests.yml
     with:
-      ref: ${{ needs.get-latest-release.outputs.release_tag }}
+      ref: ${{ github.sha }}
 
   build-production-images:
-    needs: [get-latest-release, tests]
+    needs: tests
     uses: ./.github/workflows/service_docker-build-and-publish.yml
     with:
       registry-repositories: "docker.io/serversideup/benchkit-laravel,ghcr.io/serversideup/benchkit-laravel"
       tag-prefix: ''
       release-type: latest
-      ref: ${{ needs.get-latest-release.outputs.release_tag }}
+      ref: ${{ github.sha }}
     secrets: inherit
