@@ -18,6 +18,16 @@ const buttonProps = (link: Record<string, unknown>): ButtonProps => ({
     variant: (link.variant ?? 'ghost') as ButtonProps['variant'],
     size: link.size as ButtonProps['size']
 })
+
+/**
+ * app.config.ts holds the path as it sits in docs/public; the base URL the site
+ * is served under is joined on here, the same way resultsApi() does it.
+ */
+const logoSrc = computed(() => {
+    const logo = header?.logo?.dark || header?.logo?.light
+
+    return logo ? publicAsset(logo) : undefined
+})
 </script>
 
 <template>
@@ -27,12 +37,18 @@ const buttonProps = (link: Record<string, unknown>): ButtonProps => ({
         :to="header?.to || '/'"
     >
         <template #title>
-            <NuxtImg
-                v-if="header?.logo?.dark || header?.logo?.light"
-                :src="header?.logo?.dark || header?.logo?.light"
+            <!--
+                A plain <img>, not <NuxtImg>: the logo is an SVG that needs no
+                resizing, and NuxtImg routes it through /_ipx/ in dev but emits
+                the bare src in the static build, so the base URL lands on it in
+                one environment and not the other.
+            -->
+            <img
+                v-if="logoSrc"
+                :src="logoSrc"
                 :alt="header?.logo?.alt"
                 class="w-44 xl:w-52 shrink-0"
-            />
+            >
 
             <span v-else-if="header?.title">
                 {{ header.title }}

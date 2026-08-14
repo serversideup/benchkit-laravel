@@ -282,7 +282,7 @@
                     >
                         <p class="flex items-center gap-1.5">
                             <img
-                                :src="`/images/results/${op.key}.png`"
+                                :src="publicAsset(`/images/results/${op.key}.png`)"
                                 :alt="op.label"
                                 class="w-4 h-4"
                             >
@@ -376,7 +376,7 @@
                     <div>
                         <p class="flex items-center gap-1.5 text-sm font-medium text-neutral-400">
                             <img
-                                src="/images/results/single-core.png"
+                                :src="publicAsset('/images/results/single-core.png')"
                                 alt=""
                                 class="w-3.5"
                             > Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} single-core
@@ -388,7 +388,7 @@
                     <div>
                         <p class="flex items-center gap-1.5 text-sm font-medium text-neutral-400">
                             <img
-                                src="/images/results/multi-core.png"
+                                :src="publicAsset('/images/results/multi-core.png')"
                                 alt=""
                                 class="w-3.5"
                             > Geekbench{{ geekbench.version ? ` ${geekbench.version}` : '' }} multi-core
@@ -732,9 +732,9 @@ const networkStats = computed(() => {
     if (!n) return []
     const fmt = (v: number | null | undefined) => v == null ? '—' : Number(v).toFixed(0)
     return [
-        { label: 'Download', unit: 'mbps', value: fmt(n.download_mbps), icon: '/images/results/download-cloud.png' },
-        { label: 'Upload', unit: 'mbps', value: fmt(n.upload_mbps), icon: '/images/results/upload-cloud.png' },
-        { label: 'Latency', unit: 'ms', value: fmt(n.latency_ms), icon: '/images/results/latency-switch.png' }
+        { label: 'Download', unit: 'mbps', value: fmt(n.download_mbps), icon: publicAsset('/images/results/download-cloud.png') },
+        { label: 'Upload', unit: 'mbps', value: fmt(n.upload_mbps), icon: publicAsset('/images/results/upload-cloud.png') },
+        { label: 'Latency', unit: 'ms', value: fmt(n.latency_ms), icon: publicAsset('/images/results/latency-switch.png') }
     ]
 })
 
