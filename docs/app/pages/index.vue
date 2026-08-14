@@ -26,4 +26,20 @@ defineOgImageComponent('Docs', {
     title: 'BenchKit',
     description: 'Understand true Laravel performance'
 })
+
+/**
+ * The home page describes a piece of software, so it says so. Without this it
+ * claimed to be a generic web page, which tells a search engine or an AI crawler
+ * nothing about what BenchKit is, what it costs, or where the source lives.
+ */
+useSchemaOrg([
+    defineSoftwareApp({
+        name: 'BenchKit for Laravel',
+        description,
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Linux',
+        offers: { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
+        license: 'https://github.com/serversideup/benchkit-laravel/blob/main/LICENSE'
+    })
+])
 </script>

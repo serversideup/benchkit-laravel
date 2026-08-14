@@ -105,7 +105,7 @@ const props = defineProps({
     },
 });
 
-const LOAD_TEST_DOCS = 'https://serversideup.net/open-source/benchkit/docs/benchmarks/web-server-load-test';
+const LOAD_TEST_DOCS = 'https://serversideup.net/open-source/benchkit/docs/benchmarks';
 
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 

@@ -20,9 +20,9 @@
                 :value="page"
             />
 
-            <USeparator v-if="neighbours?.length" />
+            <USeparator v-if="surround?.length" />
 
-            <UContentSurround :surround="neighbours" />
+            <UContentSurround :surround="surround" />
         </UPageBody>
 
         <template
@@ -91,16 +91,9 @@ if (!page.value) {
 
 const { data: surround } = await useAsyncData(`${route.path}-surround`, () => {
     return queryCollectionItemSurroundings('docs', route.path, {
-        fields: ['description', 'redirect']
+        fields: ['description']
     })
 })
-
-/**
- * Redirect stubs are not real neighbours — following one bounces straight back
- * to the page you came from. Blanked in place rather than filtered out, since
- * position is what makes a card the previous or the next page.
- */
-const neighbours = computed(() => surround.value?.map(item => item?.redirect ? null : item))
 
 const title = page.value.seo?.title || page.value.title
 const description = page.value.seo?.description || page.value.description
@@ -117,6 +110,38 @@ const headline = computed(() => findPageHeadline(navigation?.value, page.value?.
 defineOgImageComponent('Docs', {
     headline: headline.value
 })
+
+/**
+ * A section index like /docs/image-variations is its own top level, so it gets
+ * no middle crumb. A page below one, like /docs/getting-started/quick-start,
+ * sits under the section index rather than under itself.
+ */
+const breadcrumb = computed(() => {
+    const segments = route.path.split('/').filter(Boolean)
+    const trail = [{ name: 'BenchKit', item: '/' }]
+
+    if (segments.length > 2 && headline.value) {
+        trail.push({ name: headline.value, item: `/${segments.slice(0, 2).join('/')}` })
+    }
+
+    return [...trail, { name: page.value?.title, item: route.path }]
+})
+
+/**
+ * TechArticle rather than the default bare WebPage, plus the trail that gets a
+ * documentation page shown in search results under its section instead of on
+ * its own. Both are also what an AI crawler reads to work out that these pages
+ * are reference material and how they relate to each other.
+ */
+useSchemaOrg([
+    defineArticle({
+        '@type': 'TechArticle',
+        'headline': title,
+        'description': description,
+        'inLanguage': 'en'
+    }),
+    defineBreadcrumb({ itemListElement: breadcrumb.value })
+])
 
 const links = computed(() => {
     const links = []

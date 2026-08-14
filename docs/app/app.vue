@@ -35,9 +35,27 @@
 </template>
 
 <script setup lang="ts">
+import { joinURL } from 'ufo'
 import { ProjectSwitcherBar } from '@serversideup/project-switcher-bar'
 
 const { seo } = useAppConfig()
+
+/**
+ * Canonical URLs, which nothing was emitting before. The site is served from a
+ * sub-path of serversideup.net, so site.url is only the origin and the base URL
+ * has to be joined onto it or every canonical points at a page that does not
+ * exist.
+ */
+const route = useRoute()
+const siteConfig = useSiteConfig()
+const { app } = useRuntimeConfig()
+
+useHead({
+    link: [{
+        rel: 'canonical',
+        href: computed(() => joinURL(siteConfig.url, app.baseURL, route.path))
+    }]
+})
 
 const { data: navigation } = await useAsyncData('navigation', () => queryCollectionNavigation('docs'))
 const { data: files } = useLazyAsyncData('search', () => queryCollectionSearchSections('docs'), {
@@ -64,7 +82,10 @@ useHead({
 useSeoMeta({
     titleTemplate: `%s - ${seo?.siteName}`,
     ogSiteName: seo?.siteName,
-    twitterCard: 'summary_large_image'
+    ogType: 'website',
+    twitterCard: 'summary_large_image',
+    // Attribution on shared cards, which is otherwise blank on X.
+    twitterSite: '@serversideup'
 })
 
 provide('navigation', navigation)

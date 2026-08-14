@@ -57,6 +57,20 @@ export default defineNuxtConfig({
         colorMode: false
     },
 
+    // Pages removed when the docs were consolidated. These are permanent
+    // because the BenchKit application itself links to the load test page, and
+    // containers already running in the wild will keep doing so indefinitely.
+    routeRules: {
+        // Was a content page carrying a `redirect` field, which meant /docs
+        // rendered an empty page and bounced on the client. As a route rule it
+        // is a real 301, and the sitemap drops it the way it drops the others.
+        '/docs': { redirect: { to: '/docs/getting-started', statusCode: 301 } },
+        '/docs/configuration/default-configurations': { redirect: { to: '/docs/benchmarks', statusCode: 301 } },
+        '/docs/benchmarks/web-server-load-test': { redirect: { to: '/docs/benchmarks', statusCode: 301 } },
+        '/docs/benchmarks/throughput-vs-latency': { redirect: { to: '/docs/benchmarks/reading-your-results', statusCode: 301 } },
+        '/docs/benchmarks/limitations': { redirect: { to: '/docs/benchmarks/reading-your-results', statusCode: 301 } }
+    },
+
     compatibilityDate: '2024-07-11',
 
     nitro: {
@@ -83,12 +97,14 @@ export default defineNuxtConfig({
     },
 
     llms: {
-        domain: 'https://serversideup.net/open-source/benchkit/',
+        // No trailing slash: nuxt-llms joins this with a leading-slash path, so
+        // one here produced "benchkit//llms-full.txt" in the generated index.
+        domain: 'https://serversideup.net/open-source/benchkit',
         title: 'BenchKit — Understand true Laravel performance',
-        description: 'A self-hostable benchmarking playground that measures real-world Laravel performance across hardware and PHP images.',
+        description: 'A free and open source Laravel application that measures how performance changes across hosts, hardware, and PHP configurations. Run it on the server you want to measure, compare runs, and share results with the community.',
         full: {
             title: 'BenchKit - Full Documentation',
-            description: 'A self-hostable benchmarking playground that measures real-world Laravel performance across hardware and PHP images.'
+            description: 'Complete BenchKit documentation: running it, configuring PHP and the database, the image variations, how the benchmarks work, and how to read the results.'
         },
         sections: [
             {
@@ -120,6 +136,13 @@ export default defineNuxtConfig({
                 ]
             },
             {
+                title: 'Community Results',
+                contentCollection: 'docs',
+                contentFilters: [
+                    { field: 'path', operator: 'LIKE', value: '/docs/community-results%' }
+                ]
+            },
+            {
                 title: 'FAQ',
                 contentCollection: 'docs',
                 contentFilters: [
@@ -134,5 +157,14 @@ export default defineNuxtConfig({
     plausible: {
         enabled: process.env.PLAUSIBLE_ENABLED === 'true',
         apiHost: 'https://a.521dimensions.com'
+    },
+
+    sitemap: {
+        // The prerender crawler reports paths with the base URL already on
+        // them, which the sitemap then prefixes again, so the site root came
+        // out as /open-source/benchkit/open-source/benchkit. Pages now come
+        // from the page files and the content collection, both of which report
+        // paths relative to the base.
+        excludeAppSources: ['nuxt:prerender']
     }
 })

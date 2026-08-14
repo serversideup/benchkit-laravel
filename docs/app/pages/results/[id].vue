@@ -156,7 +156,7 @@
                     Saturation test — connections held open to find max throughput, so response times
                     include time spent queued.
                     <NuxtLink
-                        to="/docs/benchmarks/web-server-load-test"
+                        to="/docs/benchmarks"
                         class="text-neutral-400 underline underline-offset-4 decoration-white/20 transition-colors hover:text-neutral-300 hover:decoration-white/40"
                     >
                         Learn more

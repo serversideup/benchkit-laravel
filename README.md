@@ -30,7 +30,7 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 📚 **Full documentation lives at [serversideup.net/open-source/benchkit](https://serversideup.net/open-source/benchkit).**
 
 - [Quick start](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
-- [Deployment options](https://serversideup.net/open-source/benchkit/docs/getting-started/deployment-options) — Docker image vs. cloning the repo
+- [Running from source](https://serversideup.net/open-source/benchkit/docs/getting-started/running-from-source) — for hosts that take a repository instead of a container
 - [Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases) (MySQL / Postgres)
 - [Image variations](https://serversideup.net/open-source/benchkit/docs/image-variations) (`fpm-nginx`, `frankenphp`, …)
 - [Benchmarks & methodology](https://serversideup.net/open-source/benchkit/docs/benchmarks) — what each test measures, and what it doesn't
@@ -45,10 +45,10 @@ BenchKit ships as a container image, so all you need is Docker:
 ```bash
 docker run -p 80:8080 \
   -v benchkit-runs:/var/www/html/storage/app/runs \
-  serversideup/benchkit-laravel
+  serversideup/benchkit-laravel:beta
 ```
 
-Then open the server in your browser and click **Start Benchmark**. To benchmark FrankenPHP (Octane worker mode), see the [FrankenPHP guide](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
+Then open the server in your browser and click **Start Benchmark**. BenchKit is in beta, so images are published under `beta` tags. To benchmark FrankenPHP in Octane worker mode, see [FrankenPHP](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
 
 ## Resources
 - **[Discord](https://serversideup.net/discord)** for friendly support from the community and the team.
