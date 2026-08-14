@@ -93,6 +93,19 @@ class ServingRuntimeTest extends TestCase
     }
 
     /**
+     * FrankenPHP is the only Octane server the images ship, so it is the
+     * default in config and .env.example alike — a bare `octane:start` targets
+     * it, and a worker carrying no other signal is attributed to it rather
+     * than to a server that is not installed.
+     */
+    public function test_a_worker_with_no_other_signal_is_attributed_to_the_shipped_octane_server(): void
+    {
+        $this->withEnvironment('LARAVEL_OCTANE', '1');
+
+        $this->assertSame('frankenphp', (new ServingRuntime)->execute()['server']);
+    }
+
+    /**
      * FrankenPHP's worker mode does not require Octane, so its own marker has
      * to count on its own.
      */
