@@ -27,7 +27,7 @@ It's a standalone app rather than a package you install. Spin it up, run a bench
 
 Every run uses the same load settings unless you change them, which is what makes it meaningful to put your numbers next to somebody else's.
 
-📖 [How each stage works, and what it doesn't tell you →](https://serversideup.net/open-source/benchkit/docs/benchmarks)
+[How each stage works →](https://serversideup.net/open-source/benchkit/docs/benchmarks)
 
 ## Quick start
 
@@ -51,7 +51,7 @@ A few things worth knowing:
 - **The volume holds your run history.** Without it, your results disappear with the container.
 - **Pick Quick or Full** in the settings drawer before you start. BenchKit estimates how long your choice will take.
 
-📖 [Full quick start guide →](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
+[Full quick start guide →](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
 
 ## Pick your web server
 
@@ -65,7 +65,7 @@ The same application ships on three web servers, so any difference between two r
 
 Run each one on the same machine, then open the runs side by side in **Compare**. FrankenPHP also runs in Octane worker mode from the same image, which is the cleanest comparison the tool can make.
 
-📖 [Choosing a variation →](https://serversideup.net/open-source/benchkit/docs/image-variations) · [FrankenPHP worker mode →](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp)
+[Choosing a variation →](https://serversideup.net/open-source/benchkit/docs/image-variations)
 
 ## Share your results
 
@@ -75,7 +75,7 @@ Press **Submit result** when a run finishes. BenchKit shows you the exact docume
 
 You can also share a run as an image on X with [#BenchKit](https://x.com/search?q=%23BenchKit&f=live).
 
-📖 [What gets published, and what never does →](https://serversideup.net/open-source/benchkit/docs/community-results)
+[What gets published, and what never does →](https://serversideup.net/open-source/benchkit/docs/community-results)
 
 ## Documentation
 
