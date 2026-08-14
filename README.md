@@ -11,12 +11,83 @@
 </p>
 
 ## Introduction
-BenchKit for Laravel is an open source and containerized Laravel application to help you understand how your host and Laravel configurations are actually performing. We put together this application that runs realistic benchmark tests through Laravel so you can understand the actual performance of your setup. Running BenchKit for Laravel also helps you build faster and more reliable applications.
 
-## View community results
-This application runs completely decentralized and community results are encourage to be shared on X (Twitter) with the hashtag of `#BenchKit and #Laravel`. View the community results below:
+BenchKit is a free and open source Laravel application that shows you how performance changes across hosts, hardware, and PHP configurations. You run it on the server you want to measure, and it reports what that machine does with a Laravel workload.
 
-- [View community results on X (Twitter) →](https://x.com/search?q=%23benchkit%20%23laravel&src=typed_query&f=live)
+It's a standalone app rather than a package you install. Spin it up, run a benchmark, share the result, then throw it away. Your own codebase is never involved.
+
+### What a run measures
+
+| Stage | Tool | What it measures |
+| --- | --- | --- |
+| Hardware | [YABS](https://github.com/masonr/yet-another-bench-script) | CPU and disk, through Geekbench and fio |
+| Network | [cfspeedtest](https://github.com/code-inflation/cfspeedtest) | Latency and bandwidth to Cloudflare |
+| Web server load | [oha](https://github.com/hatoo/oha) | Requests per second and latency, per route |
+| PHP and database | [phpbench](https://phpbench.readthedocs.io/) | Timing for individual PHP and database operations |
+
+Every run uses the same load settings unless you change them, which is what makes it meaningful to put your numbers next to somebody else's.
+
+📖 [How each stage works, and what it doesn't tell you →](https://serversideup.net/open-source/benchkit/docs/benchmarks)
+
+## Quick start
+
+You need a server and Docker. Nothing else.
+
+```bash
+# Install Docker (skip if you already have it)
+curl -fsSL https://get.docker.com | bash
+
+# Start BenchKit
+docker run -p 80:8080 \
+  -v benchkit-runs:/var/www/html/storage/app/runs \
+  serversideup/benchkit-laravel:latest
+```
+
+Open `http://<your-server-ip>/` in your browser and press **Start Benchmark**.
+
+A few things worth knowing:
+
+- **The run belongs to the server**, not to your browser. Close the tab, reload the page, or follow along from your phone without disturbing it.
+- **The volume holds your run history.** Without it, your results disappear with the container.
+- **Pick Quick or Full** in the settings drawer before you start. BenchKit estimates how long your choice will take.
+
+📖 [Full quick start guide →](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
+
+## Pick your web server
+
+The same application ships on three web servers, so any difference between two runs comes from the server rather than the code. The tag you pull decides which one you get.
+
+| Variation | How PHP is served | Tag |
+| --- | --- | --- |
+| **FPM-NGINX** | nginx hands PHP requests to PHP-FPM | `latest` |
+| **FrankenPHP** | One binary serves PHP directly | `frankenphp` |
+| **FPM-Apache** | Apache hands PHP requests to PHP-FPM | `fpm-apache` |
+
+Run each one on the same machine, then open the runs side by side in **Compare**. FrankenPHP also runs in Octane worker mode from the same image, which is the cleanest comparison the tool can make.
+
+📖 [Choosing a variation →](https://serversideup.net/open-source/benchkit/docs/image-variations) · [FrankenPHP worker mode →](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp)
+
+## Share your results
+
+The [community results gallery](https://serversideup.net/open-source/benchkit/results) collects real runs across different hosts, hardware, and PHP configurations. Adding yours is how the next person finds a machine like the one they're considering.
+
+Press **Submit result** when a run finishes. BenchKit shows you the exact document first, then opens a pre-filled GitHub issue. A bot validates it and opens a pull request. Submitting is optional, and BenchKit never sends anything anywhere on its own.
+
+You can also share a run as an image on X with [#BenchKit](https://x.com/search?q=%23BenchKit&f=live).
+
+📖 [What gets published, and what never does →](https://serversideup.net/open-source/benchkit/docs/community-results)
+
+## Documentation
+
+📚 **Full documentation lives at [serversideup.net/open-source/benchkit](https://serversideup.net/open-source/benchkit).**
+
+- **[Running from source](https://serversideup.net/open-source/benchkit/docs/getting-started/running-from-source)** — for Laravel Cloud, Railway, or any host that takes a repository instead of a container.
+- **[Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases)** — point BenchKit at MySQL, MariaDB, or Postgres instead of the default SQLite.
+- **[Customizing the image](https://serversideup.net/open-source/benchkit/docs/configuration/customizing-the-image)** — change OPcache, JIT, and the FPM pool with environment variables.
+- **[Reading your results](https://serversideup.net/open-source/benchkit/docs/benchmarks/reading-your-results)** — what a number tells you, and the limits that apply to it.
+- **[FAQ](https://serversideup.net/open-source/benchkit/docs/faq)** — the questions we get most often.
+
+> The documentation source lives in the [`docs/`](./docs) directory — a standalone Nuxt site deployed to Cloudflare Pages.
 
 ## Powered by Spin Pro
 Spin is an [open source tool built by Server Side Up](https://serversideup.net/open-source/spin/) to help you run Docker from development → production. Spin is language agnostic, so you can use it with any language but we also provide official templates. This project was powered by Spin Pro, which offers additional features for Laravel power users.
@@ -24,31 +95,6 @@ Spin is an [open source tool built by Server Side Up](https://serversideup.net/o
 <p align="center">
 		<a href="https://getspin.pro/?ref=benchkit-laravel"><img src="https://raw.githubusercontent.com/serversideup/benchkit-laravel/main/.github/img/spin-pro.png" width="720" alt="Powered by Spin Pro"></a>
 </p>
-
-## Documentation
-
-📚 **Full documentation lives at [serversideup.net/open-source/benchkit](https://serversideup.net/open-source/benchkit).**
-
-- [Quick start](https://serversideup.net/open-source/benchkit/docs/getting-started/quick-start)
-- [Running from source](https://serversideup.net/open-source/benchkit/docs/getting-started/running-from-source) — for hosts that take a repository instead of a container
-- [Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases) (MySQL / Postgres)
-- [Image variations](https://serversideup.net/open-source/benchkit/docs/image-variations) (`fpm-nginx`, `frankenphp`, …)
-- [Benchmarks & methodology](https://serversideup.net/open-source/benchkit/docs/benchmarks) — what each test measures, and what it doesn't
-- [FAQ](https://serversideup.net/open-source/benchkit/docs/faq)
-
-> The documentation source lives in the [`docs/`](./docs) directory — a standalone Nuxt site deployed to Cloudflare Pages.
-
-## Quick start
-
-BenchKit ships as a container image, so all you need is Docker:
-
-```bash
-docker run -p 80:8080 \
-  -v benchkit-runs:/var/www/html/storage/app/runs \
-  serversideup/benchkit-laravel:latest
-```
-
-Then open the server in your browser and click **Start Benchmark**. To benchmark FrankenPHP in Octane worker mode, see [FrankenPHP](https://serversideup.net/open-source/benchkit/docs/image-variations/frankenphp).
 
 ## Resources
 - **[Discord](https://serversideup.net/discord)** for friendly support from the community and the team.
