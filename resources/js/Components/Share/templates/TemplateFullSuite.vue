@@ -180,6 +180,7 @@ const chips = computed(() => {
         environment.database ? { text: environment.database } : null,
         http?.connections && http?.duration_seconds ? { text: `${http.connections} connections · ${http.duration_seconds}s` } : null,
         http?.mode && http.mode !== 'loopback' ? { text: httpTargetLabel(http.mode) } : null,
+        http?.generator?.mode === 'external' ? { text: 'external load' } : null,
     ].filter(Boolean);
 });
 

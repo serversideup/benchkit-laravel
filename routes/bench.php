@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Benchmarks\BenchTargetController;
+use App\Http\Controllers\Benchmarks\GeneratorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,3 +27,21 @@ Route::get('/bench/io', [BenchTargetController::class, 'io']);
  * load test measures — that is the whole point of it.
  */
 Route::get('/bench/env', [BenchTargetController::class, 'environment']);
+
+/*
+ * The external load generator's endpoints. Sessionless like everything else
+ * here — the generator is a shell script on another machine with a token,
+ * not a browser with a cookie. Every one of them 404s unless the token
+ * matches the current pairing, and the whole surface only exists while a
+ * pairing does. None of them are load-test targets, and the script never
+ * calls them during a measured window.
+ */
+Route::middleware('throttle:generator')->group(function (): void {
+    Route::get('/bench/generator/{token}/script', [GeneratorController::class, 'script']);
+    Route::post('/bench/generator/{token}/handshake', [GeneratorController::class, 'handshake']);
+    Route::get('/bench/generator/{token}/work', [GeneratorController::class, 'work']);
+});
+
+Route::post('/bench/generator/{token}/results/{route}', [GeneratorController::class, 'upload'])
+    ->middleware('throttle:generator-upload')
+    ->where('route', 'static|json|db-read|io');

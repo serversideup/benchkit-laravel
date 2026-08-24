@@ -17,6 +17,14 @@ export default defineConfig({
             host: process.env.VITE_DOMAIN || 'vite.dev.test',
             clientPort: 443,
         },
+        // The dev server runs from the repository root, and chokidar's
+        // default ignores don't cover these trees. Watching them exhausts
+        // the host's inotify watcher limit, and when that happens Vite
+        // crashes, the hot file disappears, and the app silently serves
+        // whatever stale production build is in public/build.
+        watch: {
+            ignored: ['**/vendor/**', '**/storage/**', '**/docs/**', '**/results/**', '**/.infrastructure/**'],
+        },
         https: hasLocalCertificates ? {
             key: fs.readFileSync(`${certificatePath}/local-dev-key.pem`),
             cert: fs.readFileSync(`${certificatePath}/local-dev.pem`),

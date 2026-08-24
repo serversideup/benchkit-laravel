@@ -51,9 +51,16 @@ class HttpBenchmarkResults extends BenchmarkResults
      * Recording it is what lets a reader tell a framework measurement from a
      * concurrency-ceiling measurement.
      *
+     * $generator records where the load came from: mode "self" when this
+     * machine drove its own load (the default, and the only possibility for
+     * runs written before the block existed), mode "external" when a second
+     * machine drove it. The rest of the block describes that machine — it is
+     * measurement conditions, and it travels with the numbers it conditions.
+     *
      * @param  array{url: string, mode: string}  $target
+     * @param  array{mode: string, rtt_ms: float|null, source_ip: string|null, oha_version: string|null, host: string|null}|null  $generator
      */
-    public function writeMeta(array $target, int $duration, int $connections, int $ioMs, ?int $workers = null): void
+    public function writeMeta(array $target, int $duration, int $connections, int $ioMs, ?int $workers = null, ?array $generator = null): void
     {
         File::ensureDirectoryExists(dirname($this->metaPath()));
         File::put($this->metaPath(), json_encode([
@@ -69,7 +76,42 @@ class HttpBenchmarkResults extends BenchmarkResults
             'connections' => $connections,
             'io_ms' => $ioMs,
             'workers' => $workers,
+            'generator' => $generator ?? self::selfGenerator(),
         ]));
+    }
+
+    /**
+     * Merge generator details into an already-written meta file. The external
+     * stage writes its meta before the generator has necessarily handshaked,
+     * so the description arrives later than the settings do.
+     *
+     * @param  array<string, mixed>  $generator
+     */
+    public function mergeGeneratorMeta(array $generator): void
+    {
+        $meta = $this->readJson($this->metaPath());
+
+        if ($meta === null) {
+            return;
+        }
+
+        $meta['generator'] = array_merge($meta['generator'] ?? self::selfGenerator(), $generator);
+
+        File::put($this->metaPath(), json_encode($meta));
+    }
+
+    /**
+     * @return array{mode: string, rtt_ms: null, source_ip: null, oha_version: null, host: null}
+     */
+    public static function selfGenerator(): array
+    {
+        return [
+            'mode' => 'self',
+            'rtt_ms' => null,
+            'source_ip' => null,
+            'oha_version' => null,
+            'host' => null,
+        ];
     }
 
     /**
@@ -99,6 +141,10 @@ class HttpBenchmarkResults extends BenchmarkResults
                 'p50_ms' => $this->toMilliseconds($data['latencyPercentiles']['p50'] ?? null),
                 'p95_ms' => $this->toMilliseconds($data['latencyPercentiles']['p95'] ?? null),
                 'p99_ms' => $this->toMilliseconds($data['latencyPercentiles']['p99'] ?? null),
+                // The floor of the round trip between generator and server —
+                // what the generator-bound check needs, and for a self-test
+                // the closest thing to a measured loopback RTT.
+                'fastest_ms' => $this->toMilliseconds($data['summary']['fastest'] ?? null),
                 'total_requests' => (int) array_sum($data['statusCodeDistribution'] ?? []),
                 'status_codes' => $data['statusCodeDistribution'] ?? [],
             ];
@@ -124,10 +170,34 @@ class HttpBenchmarkResults extends BenchmarkResults
             'connections' => $meta['connections'] ?? null,
             'io_ms' => $meta['io_ms'] ?? null,
             'workers' => $workers,
+            'generator' => $this->generator($meta, $routes),
             'oversubscribed' => $this->isOversubscribed($connections, $workers),
             'pool_limited' => $this->isPoolLimited($routes, $workers, $ioMs),
+            'generator_bound' => $this->isGeneratorBound($routes, $connections),
             'routes' => $routes,
         ];
+    }
+
+    /**
+     * The generator block for the parsed payload. A meta file without one was
+     * written before external mode existed, which makes it provably a
+     * self-test. Self-tests derive rtt_ms at parse time from the fastest
+     * observed request, since nothing measured the (loopback) path up front.
+     *
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, array<string, mixed>>  $routes
+     * @return array<string, mixed>
+     */
+    protected function generator(array $meta, array $routes): array
+    {
+        $generator = ($meta['generator'] ?? null) ?: self::selfGenerator();
+
+        if (($generator['mode'] ?? 'self') === 'self' && ($generator['rtt_ms'] ?? null) === null) {
+            $fastest = array_filter(array_column($routes, 'fastest_ms'), 'is_numeric');
+            $generator['rtt_ms'] = $fastest === [] ? null : min($fastest);
+        }
+
+        return $generator;
     }
 
     /**
@@ -176,6 +246,58 @@ class HttpBenchmarkResults extends BenchmarkResults
         }
 
         return $observed >= ($workers * (1000 / $ioMs)) * self::AT_CEILING;
+    }
+
+    /**
+     * Whether the load generator — rather than the server — is what capped
+     * this run.
+     *
+     * oha is closed-loop: each connection sends its next request only when
+     * the previous reply arrives, so throughput can never exceed
+     * connections / round-trip-floor no matter how fast the server is. The
+     * fastest observed request is that floor. Observed throughput landing at
+     * connections/fastest means the average request took about as long as the
+     * fastest one — requests never queued at the server, so the connection
+     * count times the path latency was the limit, and the figure describes
+     * the path between generator and server rather than the server.
+     *
+     * This applies to both modes: a distant external generator hits it over
+     * the network, and a fast machine can hit it over loopback with the
+     * standard 50 connections.
+     *
+     * @param  array<string, array<string, mixed>>  $routes
+     */
+    protected function isGeneratorBound(array $routes, ?int $connections): ?bool
+    {
+        if ($connections === null || $connections <= 0) {
+            return null;
+        }
+
+        $checked = false;
+
+        foreach ($routes as $key => $route) {
+            // The io route's throughput is capped by its deliberate sleep,
+            // which the pool-limited check already accounts for; measuring it
+            // against a network ceiling would misread the sleep as distance.
+            if ($key === 'io') {
+                continue;
+            }
+
+            $fastest = $route['fastest_ms'] ?? null;
+            $observed = $route['requests_per_second'] ?? null;
+
+            if (! is_numeric($fastest) || $fastest <= 0 || ! is_numeric($observed)) {
+                continue;
+            }
+
+            $checked = true;
+
+            if ($observed >= ($connections / ($fastest / 1000)) * self::AT_CEILING) {
+                return true;
+            }
+        }
+
+        return $checked ? false : null;
     }
 
     /**

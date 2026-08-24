@@ -12,6 +12,12 @@ import { CURRENCIES, findPrivacyLeaks, indexFields, measurementDigest, runsPathF
 // Keep in step with AssembleResultsDocument::SCHEMA_VERSION in the app.
 // SchemaVersionTest asserts the two match, so this is checked rather than
 // remembered.
+//
+// The http.generator block was added without a bump: every run written before
+// it exists is provably a self-test (external load generation did not exist),
+// so consumers back-fill generator.mode = "self" and no published number
+// changes meaning. An addition like that partitions the gallery; it does not
+// supersede anything.
 export const SCHEMA_VERSION = 4
 
 /**
@@ -208,6 +214,46 @@ export async function validateSubmission(doc, filepath = null) {
         if (http.oversubscribed != null && typeof http.oversubscribed !== 'boolean') err('http.oversubscribed must be a boolean')
         // Not fatal — the run is real, it just isn't a framework comparison.
         // Surfacing it in review is what keeps the gallery interpretable.
+
+        // Where the load came from. Absent means self — provably, because a
+        // build without the block could only self-test — so absence is silent.
+        // When present, mode is the axis the gallery partitions on, so a third
+        // value must never slip through quietly.
+        const generator = http.generator
+        if (generator != null) {
+            if (typeof generator !== 'object' || Array.isArray(generator)) {
+                err('http.generator must be an object')
+            } else {
+                if (!['self', 'external'].includes(generator.mode)) {
+                    err(`http.generator.mode "${generator.mode}" is not one of self, external`)
+                }
+                // An RTT above 10s is not a load-test path; the loose MAX_MS
+                // bound would check nothing here.
+                if (generator.rtt_ms != null) isNum(generator.rtt_ms, 'http.generator.rtt_ms', { min: 0, max: 10_000, required: false })
+                if (generator.oha_version != null && !/^[0-9A-Za-z._+-]{1,20}$/.test(String(generator.oha_version))) {
+                    err('http.generator.oha_version has an unexpected shape')
+                }
+                // The generator is a machine the submitter controls — often
+                // their own laptop or home connection. Its IP and hostname
+                // identify them and no gallery reading needs either: rtt_ms
+                // already characterizes the path.
+                for (const key of ['source_ip', 'host']) {
+                    if (generator[key] != null) err(`http.generator.${key} is not published — remove it`)
+                }
+            }
+        }
+
+        if (http.generator_bound != null && typeof http.generator_bound !== 'boolean') err('http.generator_bound must be a boolean')
+        // A generator-bound run landed at the ceiling its own connection count
+        // and round trip allow, so the throughput figure describes the path
+        // between the two machines rather than the server. A number that
+        // measures the wrong thing is worse than a missing row.
+        if (http.generator_bound === true) {
+            err('the load generator hit its own ceiling in this run — throughput landed at the maximum its connection count and round trip allow, so the figure measures the path to the server rather than the server. Run again with the generator closer to the machine, or with more connections, and resubmit.')
+        }
+        if (generator?.mode === 'external' && http.generator_bound == null) {
+            warn('this run used an external load generator but does not say whether the generator kept up (generator_bound is missing)')
+        }
     }
 
     const phpBench = benchmarks.php

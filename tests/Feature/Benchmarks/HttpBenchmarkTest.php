@@ -3,15 +3,19 @@
 namespace Tests\Feature\Benchmarks;
 
 use App\Support\BenchmarkStages;
+use App\Support\GeneratorSession;
+use App\Support\RunState;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\Concerns\UsesFakeResultsPath;
+use Tests\Concerns\UsesFakeRunPath;
 use Tests\TestCase;
 
 class HttpBenchmarkTest extends TestCase
 {
     use UsesFakeResultsPath;
+    use UsesFakeRunPath;
 
     /**
      * Resolving the stage is what picks a reachable target and records the
@@ -367,5 +371,162 @@ class HttpBenchmarkTest extends TestCase
         $this->seedMetaAndOneRoute(['tls' => true]);
 
         $this->getJson('/http/results')->assertOk()->assertJsonPath('http_results.tls', true);
+    }
+
+    public function test_the_http_stage_records_a_self_generator(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->resolveHttpStage();
+
+        $generator = $this->meta()['generator'];
+        $this->assertSame('self', $generator['mode']);
+        $this->assertNull($generator['rtt_ms']);
+        $this->assertNull($generator['source_ip']);
+    }
+
+    /**
+     * A meta file without a generator block was written before external mode
+     * existed, which provably makes it a self-test — not an unknown.
+     */
+    public function test_http_results_default_the_generator_to_self_for_older_meta(): void
+    {
+        $this->seedMetaAndOneRoute();
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator.mode', 'self');
+    }
+
+    public function test_http_results_derive_self_rtt_from_the_fastest_request(): void
+    {
+        $this->seedMetaAndOneRoute();
+
+        File::put($this->resultsPath.'/http-json.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 900.0, 'fastest' => 0.0004, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.010],
+            'statusCodeDistribution' => ['200' => 9000],
+        ]));
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator.rtt_ms', 0.4);
+    }
+
+    public function test_http_results_pass_through_an_external_generator_block(): void
+    {
+        $this->seedMetaAndOneRoute(['generator' => [
+            'mode' => 'external',
+            'rtt_ms' => 1.8,
+            'source_ip' => '203.0.113.7',
+            'oha_version' => '1.4.5',
+            'host' => 'generator-box',
+        ]]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.generator.mode', 'external');
+        $response->assertJsonPath('http_results.generator.rtt_ms', 1.8);
+        $response->assertJsonPath('http_results.generator.oha_version', '1.4.5');
+    }
+
+    /**
+     * A closed-loop generator cannot exceed connections / round-trip-floor.
+     * 50 connections over a 60ms floor caps at ~833 req/s; a run reporting
+     * 820 landed at that ceiling, so the path — not the server — was the
+     * limit. 400 req/s against the same floor is a server being measured.
+     */
+    public function test_http_results_flag_a_run_the_generator_capped(): void
+    {
+        $this->seedMetaAndOneRoute();
+
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 820.0, 'fastest' => 0.060, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.061],
+            'statusCodeDistribution' => ['200' => 8200],
+        ]));
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator_bound', true);
+    }
+
+    public function test_http_results_do_not_blame_the_generator_when_the_server_was_the_limit(): void
+    {
+        $this->seedMetaAndOneRoute();
+
+        File::put($this->resultsPath.'/http-static.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 400.0, 'fastest' => 0.060, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.125],
+            'statusCodeDistribution' => ['200' => 4000],
+        ]));
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator_bound', false);
+    }
+
+    public function test_http_results_report_generator_bound_as_unknown_without_a_latency_floor(): void
+    {
+        // The seeded static route carries no `fastest`, so there is no floor
+        // to compute a ceiling from.
+        $this->seedMetaAndOneRoute();
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator_bound', null);
+    }
+
+    public function test_the_external_stage_arms_the_pairing_and_waits(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $session = (new GeneratorSession)->create('https://public.example.com', 'https://public.example.com');
+        $run = (new RunState)->start(['http' => true], ['http'], null);
+
+        // A stale route file from a previous run must not satisfy the wait.
+        File::put($this->resultsPath.'/http-static.json', '{}');
+
+        $stage = $this->resolveHttpStage(['http_generator' => 'external', 'http_duration' => 10]);
+
+        $this->assertStringContainsString('benchmark:await-generator', $stage['command']);
+        $this->assertFileDoesNotExist($this->resultsPath.'/http-static.json');
+
+        $meta = $this->meta();
+        $this->assertSame('https://public.example.com', $meta['target']);
+        $this->assertSame('external', $meta['mode']);
+        $this->assertSame('external', $meta['generator']['mode']);
+
+        $armed = (new GeneratorSession)->current();
+        $this->assertSame(GeneratorSession::STATUS_ARMED, $armed['status']);
+        $this->assertSame($run['id'], $armed['run_id']);
+        // The work fragment is rendered from the run's settings, not the
+        // pairing's — the single source of truth end to end.
+        $this->assertStringContainsString('oha -z 10s -c 50 --redirect 0 --insecure', $armed['work']);
+        $this->assertStringContainsString('oha -z 3s', $armed['work']);
+    }
+
+    public function test_the_external_stage_fails_actionably_without_a_pairing(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('no generator is paired');
+
+        $this->resolveHttpStage(['http_generator' => 'external']);
+    }
+
+    /**
+     * The io route is closed-loop-bound by design — its known sleep is the
+     * whole point — and its ceiling already has a check (pool_limited).
+     * Reading its sleep as network distance would flag every healthy run.
+     */
+    public function test_generator_bound_ignores_the_io_route(): void
+    {
+        $this->seedMetaAndOneRoute(['workers' => 100], ioRequestsPerSecond: 490.0);
+
+        File::put($this->resultsPath.'/http-io.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 490.0, 'fastest' => 0.100, 'totalData' => 40000],
+            'latencyPercentiles' => ['p50' => 0.102],
+            'statusCodeDistribution' => ['200' => 4900],
+        ]));
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.generator_bound', null);
     }
 }

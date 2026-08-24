@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Runs\SaveRunFromState;
 use App\Http\Requests\Runs\StartRunRequest;
 use App\Support\BenchmarkStages;
+use App\Support\GeneratorSession;
 use App\Support\RunState;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,6 +49,7 @@ class RunSessionController extends Controller
             $enabled,
             $request->validated('preset'),
             $request->validated('host_details') ?? [],
+            $stages->order($settings),
         );
 
         $this->spawn();
@@ -64,12 +66,15 @@ class RunSessionController extends Controller
      * worker — including during the HTTP stage, which load tests this very
      * application and would then be measuring a server it had tied up.
      */
-    public function log(Request $request): JsonResponse
+    public function log(Request $request, GeneratorSession $generator): JsonResponse
     {
         $run = $this->state->current();
 
+        // The generator pairing rides on this poll even with no run: the
+        // start screen learns "generator connected" through the same idle
+        // poll that watches for a run started elsewhere.
         if ($run === null) {
-            return response()->json(['run' => null, 'offset' => 0, 'events' => []]);
+            return response()->json(['run' => null, 'offset' => 0, 'events' => [], 'generator' => $generator->payload()]);
         }
 
         $log = $this->state->eventsSince(max(0, (int) $request->query('offset', 0)));
@@ -78,6 +83,7 @@ class RunSessionController extends Controller
             'run' => $this->payload($run),
             'offset' => $log['offset'],
             'events' => $log['events'],
+            'generator' => $generator->payload(),
         ]);
     }
 

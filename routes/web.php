@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BenchmarkController;
+use App\Http\Controllers\GeneratorSessionController;
 use App\Http\Controllers\Benchmarks\CloudflareSpeedTestController;
 use App\Http\Controllers\Benchmarks\HttpBenchmarkController;
 use App\Http\Controllers\Benchmarks\PhpBenchmarkController;
@@ -34,6 +35,9 @@ Route::get('/run/log', [RunSessionController::class, 'log']);
 Route::post('/run/cancel', [RunSessionController::class, 'cancel']);
 Route::post('/run/save', [RunSessionController::class, 'save']);
 Route::delete('/run', [RunSessionController::class, 'destroy']);
+// Mints the pairing an external load generator connects to; the generator's
+// own token-addressed endpoints live in routes/bench.php.
+Route::post('/run/generator', [GeneratorSessionController::class, 'store']);
 
 Route::get('/yabs/results', [YabsController::class, 'results']);
 Route::get('/cfspeedtest/results', [CloudflareSpeedTestController::class, 'results']);

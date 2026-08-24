@@ -256,6 +256,16 @@ class BuildSubmissionDocument
             // reader cannot tell a framework result from one bounded by how the
             // server was sized.
             'workers' => $http['workers'] ?? null,
+            // Where the load came from (the gallery partitions on it) and
+            // whether the generator — not the server — is what this run
+            // measured. Both absent, not null, on snapshots that predate
+            // external mode: those provably self-tested, and an absent key
+            // reads as "written before the block existed" rather than as a
+            // measurement of nothing.
+            ...$this->present([
+                'generator' => $this->generator($http['generator'] ?? null),
+                'generator_bound' => $this->boolean($http['generator_bound'] ?? null),
+            ]),
             // Whether the load offered more concurrency than the server can
             // take (a property of the test) and whether the worker count is
             // demonstrably what capped it (a claim needing evidence — see
@@ -264,6 +274,29 @@ class BuildSubmissionDocument
             'pool_limited' => $http['pool_limited'] ?? null,
             'routes' => $this->object($routes),
         ];
+    }
+
+    /**
+     * The generator described without identifying it. The machine driving the
+     * load is one the submitter controls — often their own laptop or home
+     * connection — so its IP and hostname stay local; rtt_ms already says
+     * everything the gallery needs to know about the path.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function generator(mixed $generator): ?array
+    {
+        if (! is_array($generator)) {
+            return null;
+        }
+
+        $kept = $this->present([
+            'mode' => in_array($generator['mode'] ?? null, ['self', 'external'], true) ? $generator['mode'] : null,
+            'rtt_ms' => $this->number($generator['rtt_ms'] ?? null),
+            'oha_version' => $this->identifier($generator['oha_version'] ?? null, 20),
+        ]);
+
+        return $kept === [] ? null : $kept;
     }
 
     /**

@@ -1,0 +1,214 @@
+<?php
+
+namespace App\Http\Controllers\Benchmarks;
+
+use App\Actions\Results\HttpBenchmarkResults;
+use App\Http\Controllers\Controller;
+use App\Support\GeneratorScript;
+use App\Support\GeneratorSession;
+use App\Support\RunState;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+
+/**
+ * The token-addressed endpoints an external load generator talks to. They
+ * live on the bench routes (no session, no CSRF — the generator has neither)
+ * and 404 whenever there is no pairing or the token does not match, so a
+ * wrong token is indistinguishable from no endpoint at all.
+ *
+ * Error responses are plain text: the reader is a shell script that prints
+ * the body straight to the terminal of whoever ran it.
+ */
+class GeneratorController extends Controller
+{
+    /** An oha JSON file for a 60s standard run is ~2 KB; this is headroom, not a quota. */
+    protected const MAX_UPLOAD_BYTES = 1_048_576;
+
+    public function __construct(
+        protected GeneratorSession $session,
+        protected RunState $runState,
+    ) {}
+
+    public function script(string $token): Response
+    {
+        $session = $this->authorized($token);
+
+        // Rendered fresh per request so a re-download always carries the
+        // current pairing, and streamed as a shell script for `curl | sh`.
+        return response(
+            (new GeneratorScript)->bootstrap($session),
+            200,
+            ['Content-Type' => 'text/x-shellscript; charset=utf-8'],
+        );
+    }
+
+    public function handshake(Request $request, string $token): JsonResponse|Response
+    {
+        $session = $this->authorized($token);
+
+        // Once the run is waiting on a specific generator, a second handshake
+        // is another machine — first generator wins.
+        if (in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)) {
+            return response("Another generator is already driving this run.\n", 409, ['Content-Type' => 'text/plain']);
+        }
+
+        $this->session->recordHandshake($this->describeGenerator($request));
+
+        return response()->json(['status' => 'connected', 'poll_seconds' => 2]);
+    }
+
+    /**
+     * The generator's 2-second poll. Answers by status code so the script
+     * needs no JSON parsing: 204 keep waiting, 200 here is your work, 410
+     * this pairing is over. Deliberately a plain poll rather than a long
+     * poll — a held-open connection would occupy a PHP worker, and no polls
+     * happen during measured windows anyway.
+     */
+    public function work(string $token): Response
+    {
+        $session = $this->authorized($token);
+
+        if (in_array($session['status'], [GeneratorSession::STATUS_DONE, GeneratorSession::STATUS_ERROR], true)) {
+            return response("This run is finished.\n", 410, ['Content-Type' => 'text/plain']);
+        }
+
+        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)) {
+            $this->session->touch();
+
+            return response()->noContent();
+        }
+
+        // Armed for a run that is no longer alive: tell the script to stop
+        // rather than let it wait on a run that will never fire.
+        if (! $this->runState->isActive() || ($this->runState->current()['id'] ?? null) !== $session['run_id']) {
+            return response("The run this pairing belonged to has ended.\n", 410, ['Content-Type' => 'text/plain']);
+        }
+
+        $this->session->markWorkFetched();
+
+        return response($session['work'] ?? '', 200, ['Content-Type' => 'text/x-shellscript; charset=utf-8']);
+    }
+
+    public function upload(Request $request, string $token, string $route): JsonResponse|Response
+    {
+        $session = $this->authorized($token);
+        $key = str_replace('-', '_', $route);
+
+        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)
+            || ! $this->runState->isActive()
+            || ($this->runState->current()['id'] ?? null) !== $session['run_id']) {
+            abort(404);
+        }
+
+        if (! array_key_exists($key, HttpBenchmarkResults::ROUTES)) {
+            abort(404);
+        }
+
+        $body = $request->getContent();
+
+        if (strlen($body) > self::MAX_UPLOAD_BYTES) {
+            return $this->reject($key, $request->ip(), 'the upload is larger than any oha result file', 413);
+        }
+
+        if (($reason = $this->malformed($body)) !== null) {
+            return $this->reject($key, $request->ip(), $reason, 422);
+        }
+
+        // First writer wins, atomically: exclusive create fails if the route
+        // already landed, so a second generator cannot overwrite a result.
+        $results = new HttpBenchmarkResults;
+        $handle = @fopen($results->routePath($key), 'x');
+
+        if ($handle === false) {
+            return $this->reject($key, $request->ip(), 'this route already has a result — first upload wins', 409);
+        }
+
+        fwrite($handle, $body);
+        fclose($handle);
+
+        $data = json_decode($body, true);
+        $requestsPerSecond = round((float) $data['summary']['requestsPerSec'], 1);
+
+        $this->session->recordReceived($key, $requestsPerSecond, $request->ip());
+
+        return response()->json(['status' => 'accepted', 'requests_per_second' => $requestsPerSecond], 201);
+    }
+
+    /**
+     * Shape checks before anything touches the results directory. The same
+     * rules the parser applies later, applied here so a bad upload is
+     * refused with a reason instead of silently producing an empty stage.
+     */
+    protected function malformed(string $body): ?string
+    {
+        $data = json_decode($body, true);
+
+        if (! is_array($data)) {
+            return 'the body is not the JSON oha writes with --output-format json';
+        }
+
+        $requestsPerSecond = $data['summary']['requestsPerSec'] ?? null;
+
+        if (! is_numeric($requestsPerSecond) || $requestsPerSecond <= 0) {
+            return 'summary.requestsPerSec is missing — is this the measured run, not the warmup?';
+        }
+
+        // The same rule HttpBenchmarkResults::hasMeasuredTraffic() applies:
+        // zero bytes transferred means the application was never reached.
+        $totalData = $data['summary']['totalData'] ?? null;
+
+        if (! is_numeric($totalData) || $totalData <= 0) {
+            return 'the run transferred zero bytes — the target answered without ever reaching the application';
+        }
+
+        $successes = collect($data['statusCodeDistribution'] ?? [])
+            ->filter(fn ($count, $code) => (int) $code >= 200 && (int) $code < 300)
+            ->sum();
+
+        if ($successes < 1) {
+            return 'no request returned a 2xx — is the target URL pointing at BenchKit?';
+        }
+
+        return null;
+    }
+
+    protected function reject(string $route, ?string $ip, string $reason, int $status): Response
+    {
+        $this->session->recordRejection($route, $reason, $ip);
+
+        return response($reason."\n", $status, ['Content-Type' => 'text/plain']);
+    }
+
+    /**
+     * Handshake fields are informational, so they are sanitized rather than
+     * rejected — a generator with an odd hostname should still pair.
+     *
+     * @return array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, source_ip: string|null}
+     */
+    protected function describeGenerator(Request $request): array
+    {
+        $version = $request->input('oha_version');
+        $host = $request->input('host');
+        $cores = filter_var($request->input('cores'), FILTER_VALIDATE_INT);
+        $rtt = filter_var($request->input('rtt_ms'), FILTER_VALIDATE_FLOAT);
+
+        return [
+            'oha_version' => is_string($version) && preg_match('/^[0-9A-Za-z._+-]{1,20}$/', $version) ? $version : null,
+            'cores' => $cores !== false && $cores > 0 && $cores <= 4096 ? $cores : null,
+            'host' => is_string($host) ? mb_substr(preg_replace('/[\x00-\x1F\x7F]/', '', $host), 0, 60) : null,
+            'rtt_ms' => $rtt !== false && $rtt >= 0 && $rtt <= 60_000 ? round($rtt, 2) : null,
+            'source_ip' => $request->ip(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function authorized(string $token): array
+    {
+        abort_unless($this->session->matches($token), 404);
+
+        return $this->session->current();
+    }
+}

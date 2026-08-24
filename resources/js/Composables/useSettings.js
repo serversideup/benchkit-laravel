@@ -23,11 +23,23 @@ const defaults = {
     http_duration: 30,
     http_connections: 50,
     http_io_ms: 100,
+    // Where the load comes from: 'external' (a paired second machine drives
+    // it — the honest absolute number, and the default for every preset) or
+    // 'self' (this server drives its own load, zero setup — opted into via
+    // the settings drawer or the pairing dialog's escape hatch). Not part of
+    // the presets, so switching it never flips the preset buttons to
+    // "custom".
+    http_generator: 'external',
     php_database: true,
     php_mode: 'full',
 };
 
 const numericKeys = ['geekbench_version', 'http_duration', 'http_connections', 'http_io_ms'];
+
+// http_generator stays out of both presets: load source is an orthogonal
+// choice, and folding it in would flip the preset buttons to "custom" the
+// moment someone pairs an external generator.
+const { http_generator: _, ...presetDefaults } = defaults;
 
 const presets = {
     quick: {
@@ -41,7 +53,7 @@ const presets = {
         php_mode: 'quick',
     },
     full: {
-        ...defaults,
+        ...presetDefaults,
     },
 };
 
@@ -171,7 +183,7 @@ const runSummary = computed(() => {
     }
 
     if (form.http) {
-        tests.push('Web Server Load');
+        tests.push(form.http_generator === 'external' ? 'Web Server Load (external)' : 'Web Server Load');
     }
 
     if (form.php_database) {

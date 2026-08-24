@@ -47,9 +47,6 @@
                 No tests selected &mdash; choose a preset or customize.
             </p>
 
-            <button @click="showEndpointsModal = true" class="mt-6 text-xs font-mono text-[#94979C] hover:text-[#CECFD2] underline underline-offset-4 decoration-[#373A41] hover:decoration-[#94979C] cursor-pointer transition-colors duration-200">
-                Prefer your own tools? You can run some tests externally too
-            </button>
         </div>
 
         <div v-if="recentRuns.length" class="mx-auto w-full max-w-[700px] flex flex-col mt-12">
@@ -79,7 +76,7 @@
             </div>
         </div>
 
-        <ExternalEndpointsModal :open="showEndpointsModal" @close="showEndpointsModal = false" />
+        <GeneratorPairingModal :open="showPairingModal" @close="showPairingModal = false" @start="startPaired" />
         </div>
     </div>
 </template>
@@ -90,9 +87,10 @@ import { Link, usePage } from '@inertiajs/vue3';
 import Server from '@/Pages/Partials/Server.vue';
 import Php from '@/Pages/Partials/Php.vue';
 import Laravel from '@/Pages/Partials/Laravel.vue';
-import ExternalEndpointsModal from '@/Components/ExternalEndpointsModal.vue';
+import GeneratorPairingModal from '@/Components/GeneratorPairingModal.vue';
 import RunHistoryList from '@/Components/Runs/RunHistoryList.vue';
 import { useBenchmarkQueue } from '@/Composables/useBenchmarkQueue';
+import { useGeneratorPairing } from '@/Composables/useGeneratorPairing';
 import { useSettings } from '@/Composables/useSettings';
 import { useSettingsDrawer } from '@/Composables/useSettingsDrawer';
 
@@ -156,7 +154,24 @@ const blockers = computed(() => {
     return found;
 });
 
+/**
+ * An external run needs its generator before anything else can usefully
+ * happen — the HTTP stage runs first in that mode — so Start opens the
+ * pairing dialog until one is connected. A generator already connected, or
+ * a self-test, starts immediately.
+ */
 const startBenchkit = () => {
+    if (form.http && form.http_generator === 'external' && !connected.value) {
+        showPairingModal.value = true;
+
+        return;
+    }
+
+    startQueue();
+}
+
+const startPaired = () => {
+    showPairingModal.value = false;
     startQueue();
 }
 
@@ -166,6 +181,7 @@ const {
 } = useBenchmarkQueue();
 
 const {
+    form,
     applyPreset,
     activePreset,
     estimateLabel,
@@ -175,5 +191,7 @@ const {
 
 const { open: openDrawer } = useSettingsDrawer();
 
-const showEndpointsModal = ref(false);
+const { connected } = useGeneratorPairing();
+
+const showPairingModal = ref(false);
 </script>

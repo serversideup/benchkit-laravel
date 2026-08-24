@@ -94,6 +94,13 @@ export interface RunIndex {
     static_p95_ms: number | null
     db_read_rps: number | null
     db_read_p95_ms: number | null
+    /**
+     * Where the HTTP load came from: 'self' when the server drove its own load
+     * (sharing CPU with what it measured), 'external' when a second machine
+     * drove it, null when the run has no HTTP stage. The gallery partitions on
+     * this and never draws the two populations on one axis.
+     */
+    load_mode?: 'self' | 'external' | null
     php_read_ms: number | null
     cost_amount: number | null
     cost_currency: string | null
@@ -193,6 +200,14 @@ export interface RunEntry extends RunIndex {
                 oversubscribed?: boolean | null
                 /** The I/O route reached the ceiling its worker count implies. */
                 pool_limited?: boolean | null
+                /** Where the load came from. Absent on runs that predate external mode — provably self-tests. */
+                generator?: {
+                    mode?: 'self' | 'external'
+                    rtt_ms?: number | null
+                    oha_version?: string | null
+                } | null
+                /** Throughput landed at the generator's own ceiling; the validator rejects these. */
+                generator_bound?: boolean | null
                 routes: {
                     static?: HttpRoute
                     json?: HttpRoute
@@ -232,6 +247,24 @@ export interface RunEntry extends RunIndex {
 
 // ---- Shared display helpers ----
 
+/**
+ * One place for the partition's naming, so the listing, the detail page, and
+ * the submit preview cannot drift. 'self' is back-filled for http-bearing runs
+ * without a load_mode — they predate external mode, which provably makes them
+ * self-tests.
+ */
+export const LOAD_MODE_LABELS = {
+    self: 'Self-tested',
+    external: 'External load'
+} as const
+
+export function loadMode(entry: Pick<RunIndex, 'load_mode' | 'json_rps' | 'static_rps' | 'db_read_rps'>): 'self' | 'external' | null {
+    if (entry.load_mode === 'external') return 'external'
+    if (entry.load_mode === 'self') return 'self'
+
+    return entry.json_rps != null || entry.static_rps != null || entry.db_read_rps != null ? 'self' : null
+}
+
 export interface PrimaryMetric {
     label: string
     rps: number
@@ -266,7 +299,9 @@ export function primaryMetric(entry: RunIndex): PrimaryMetric | null {
  * gets more wrong every day nobody updates it — for a figure people would
  * screenshot. The gallery compares within a single currency instead, which
  * needs no rate and cannot go stale. Ratios from different currencies are not
- * comparable, so callers must scope by currency before ranking.
+ * comparable, so callers must scope by currency before ranking — and by
+ * load_mode, because self-tested and externally-driven throughput are two
+ * different measurements.
  */
 export function valuePerCostUnit(entry: RunIndex): number | null {
     const rps = primaryMetric(entry)?.rps

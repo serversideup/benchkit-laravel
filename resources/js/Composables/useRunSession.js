@@ -34,6 +34,17 @@ export const fetchRunLog = (offset = 0) => fetch(`/run/log?offset=${offset}`, {
     headers: jsonHeaders(),
 }).then(json);
 
+/**
+ * Mint (or rotate) the external-load pairing. The target is this page's
+ * origin — the one URL proven reachable from outside, because the browser
+ * is outside.
+ */
+export const startGeneratorSession = () => fetch('/run/generator', {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ target_url: window.location.origin }),
+}).then(json);
+
 export const cancelRun = () => fetch('/run/cancel', {
     method: 'POST',
     headers: jsonHeaders(),

@@ -222,6 +222,15 @@ export const indexFields = (run) => {
         static_p95_ms: num(route(run, 'static')?.p95_ms),
         db_read_rps: num(route(run, 'db_read')?.requests_per_second),
         db_read_p95_ms: num(route(run, 'db_read')?.p95_ms),
+        // The partition axis: self-tested and externally-driven throughput are
+        // two different measurements and never share a column. A run with HTTP
+        // results but no generator block predates external mode, which
+        // provably makes it a self-test — the back-fill is a fact, not a
+        // guess. Named load_mode because http.mode already means the target
+        // ("loopback"/"app-url"), not the load's origin.
+        load_mode: run?.benchmarks?.http
+            ? (run.benchmarks.http.generator?.mode === 'external' ? 'external' : 'self')
+            : null,
         php_read_ms: num(run?.benchmarks?.php?.headline?.read?.milliseconds),
         // Stored as billed, never converted — a rate belongs at display time.
         cost_amount: num(cost?.amount),

@@ -224,6 +224,42 @@ class RunSessionTest extends TestCase
             ->assertJsonValidationErrors(['settings.http_duration', 'settings.http_connections', 'settings.http_io_ms']);
     }
 
+    /**
+     * The stage record's key order is what the client renders and what the
+     * run executes, so an external run's record must lead with http.
+     */
+    public function test_an_external_run_records_its_stages_http_first(): void
+    {
+        $this->postJson('/run', ['settings' => $this->settings([
+            'hardware' => true,
+            'http' => true,
+            'http_generator' => 'external',
+        ])])->assertCreated();
+
+        $this->assertSame(
+            ['http', 'yabs', 'cfspeedtest', 'php'],
+            array_keys($this->state()->current()['stages']),
+        );
+    }
+
+    public function test_a_self_test_run_records_its_stages_in_canonical_order(): void
+    {
+        $this->postJson('/run', ['settings' => $this->settings(['http' => true])])->assertCreated();
+
+        $this->assertSame(
+            ['yabs', 'cfspeedtest', 'http', 'php'],
+            array_keys($this->state()->current()['stages']),
+        );
+    }
+
+    public function test_the_http_generator_setting_is_validated(): void
+    {
+        $this->postJson('/run', ['settings' => $this->settings([
+            'http' => true,
+            'http_generator' => 'laptop',
+        ])])->assertStatus(422)->assertJsonValidationErrors('settings.http_generator');
+    }
+
     public function test_a_failed_validation_does_not_claim_the_run_session(): void
     {
         $this->postJson('/run', ['settings' => $this->settings(['php_mode' => 'sideways'])])

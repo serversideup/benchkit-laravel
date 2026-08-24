@@ -132,6 +132,22 @@
             </div>
 
             <div
+                v-if="submittedLoadMode === 'self'"
+                class="mt-3 flex gap-3 rounded-xl border border-[#F79009]/25 bg-[#F79009]/[0.04] p-4"
+            >
+                <UIcon
+                    name="i-lucide-info"
+                    class="mt-0.5 size-4 shrink-0 text-[#F79009]"
+                />
+                <p class="text-sm leading-relaxed text-[#94979C]">
+                    This run is a <span class="text-[#F7F7F7]">self-test</span> — the server generated
+                    its own load. It will be accepted, shown with a warning, and listed apart from
+                    external load tests: the generator shared the CPU with what it measured, so the
+                    two populations are never compared.
+                </p>
+            </div>
+
+            <div
                 v-if="metrics.length"
                 class="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3"
             >
@@ -164,7 +180,8 @@
                 </p>
                 <p class="mt-2 text-sm text-[#94979C]">
                     Console logs, your <code class="font-mono text-[#CECFD2]">APP_URL</code> and internal hostnames,
-                    the raw YABS output with its IP/ISP/city block, your network ASN and Cloudflare colo, and your
+                    the raw YABS output with its IP/ISP/city block, your network ASN and Cloudflare colo, the IP and
+                    hostname of any machine that drove an external load test, and your
                     <code class="font-mono text-[#CECFD2]">opcache.preload</code> path. The app never puts them in a
                     token, and a second check on the pull request scans every value again before anything merges.
                 </p>
@@ -367,6 +384,19 @@ const specs = computed(() => {
             sub: run.stages_completed?.join(', ') || null
         }
     ]
+})
+
+/**
+ * Where the HTTP load came from, read the same way the gallery will read it:
+ * no generator block means the run predates external mode and provably
+ * self-tested. Surfaced here so the submitter learns the listing policy
+ * before opening an issue, not after.
+ */
+const submittedLoadMode = computed(() => {
+    const http = preview.value?.benchmarks?.http
+    if (!http) return null
+
+    return http.generator?.mode === 'external' ? 'external' : 'self'
 })
 
 const metrics = computed(() => {

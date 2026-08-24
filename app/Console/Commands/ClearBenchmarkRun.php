@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\GeneratorSession;
 use App\Support\RunState;
 use Illuminate\Console\Command;
 
@@ -41,6 +42,9 @@ class ClearBenchmarkRun extends Command
         }
 
         $state->dismiss();
+        // A pairing bound to the cleared run would otherwise wait out its
+        // expiry; the token dies with the run it belonged to.
+        (new GeneratorSession)->forget();
 
         $this->info('Benchmark run cleared.');
 

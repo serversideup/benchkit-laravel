@@ -24,6 +24,26 @@ class BenchmarkStages
     public const ORDER = ['yabs', 'cfspeedtest', 'http', 'php'];
 
     /**
+     * All stages in the order this run should execute them.
+     *
+     * An external load test moves the HTTP stage to the front: it is the one
+     * stage that needs a human and a second machine present, so it runs while
+     * both still are. A generator that had to wait through fifteen minutes of
+     * Geekbench is a generator whose laptop may have gone to sleep.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<int, string>
+     */
+    public function order(array $settings): array
+    {
+        if ($this->bool($settings, 'http') && ($settings['http_generator'] ?? 'self') === 'external') {
+            return ['http', ...array_values(array_diff(self::ORDER, ['http']))];
+        }
+
+        return self::ORDER;
+    }
+
+    /**
      * The stages the given settings ask for, in run order.
      *
      * @param  array<string, mixed>  $settings
@@ -31,7 +51,7 @@ class BenchmarkStages
      */
     public function enabled(array $settings): array
     {
-        return array_values(array_filter(self::ORDER, fn (string $stage) => match ($stage) {
+        return array_values(array_filter($this->order($settings), fn (string $stage) => match ($stage) {
             'yabs' => $this->bool($settings, 'hardware'),
             'cfspeedtest' => $this->bool($settings, 'network'),
             'http' => $this->bool($settings, 'http'),
@@ -115,14 +135,84 @@ class BenchmarkStages
         // Ask the target what PHP looks like over there before loading it. This
         // is the only moment a run can see the serving process rather than the
         // CLI one assembling the results, and it has to happen while the target
-        // is known-good and idle.
+        // is known-good and idle. The local target is right for this even in
+        // external mode — the probe is the app asking itself, not load.
         $webRuntime = (new WebRuntimeSpecs)->capture($target['url']);
+        $workers = $this->workerCeiling($webRuntime);
+        $results = new HttpBenchmarkResults;
 
-        (new HttpBenchmarkResults)->writeMeta($target, $duration, $connections, $ioMs, $this->workerCeiling($webRuntime));
+        if (($settings['http_generator'] ?? 'self') === 'external') {
+            return $this->externalHttpStage($results, $duration, $connections, $ioMs, $workers);
+        }
+
+        $results->writeMeta($target, $duration, $connections, $ioMs, $workers);
 
         return [
             'command' => (new HttpBenchCommand)->build($target, $duration, $connections, $ioMs),
             'collect' => null,
+        ];
+    }
+
+    /**
+     * External mode: instead of driving load, the stage arms the pairing with
+     * work rendered from this run's settings and waits for the generator to
+     * upload the four route results. Everything downstream is unchanged —
+     * uploads land exactly where oha would have written them.
+     *
+     * @return array{command: string, collect: ?string}
+     */
+    protected function externalHttpStage(HttpBenchmarkResults $results, int $duration, int $connections, int $ioMs, ?int $workers): array
+    {
+        $session = (new GeneratorSession)->current();
+
+        if ($session === null) {
+            throw new RuntimeException('External load test selected but no generator is paired. Open BenchKit, choose "External load test", and run the pairing command on a second machine.');
+        }
+
+        // In external mode a route file's existence means "uploaded during
+        // this run", so a previous run's files cannot be allowed to satisfy
+        // the wait. The results directory deliberately survives runs.
+        foreach (array_keys(HttpBenchmarkResults::ROUTES) as $key) {
+            @unlink($results->routePath($key));
+        }
+
+        // The generator hits the pairing's public origin, not the loopback
+        // the self-test would use.
+        $target = ['url' => $session['target_url'], 'mode' => 'external'];
+
+        $results->writeMeta($target, $duration, $connections, $ioMs, $workers, $this->generatorMeta($session));
+
+        $runId = (new RunState)->current()['id'] ?? '';
+
+        (new GeneratorSession)->arm($runId, (new GeneratorScript)->work(
+            (new HttpBenchCommand)->plan($target, $duration, $connections, $ioMs),
+            $session,
+        ));
+
+        return [
+            'command' => sprintf('%s %s benchmark:await-generator', config('benchmark.php_binary'), escapeshellarg(base_path('artisan'))),
+            'collect' => null,
+        ];
+    }
+
+    /**
+     * The generator block as far as it is known when the stage arms. The
+     * handshake may not have happened yet; the waiting command merges the
+     * details in when it does.
+     *
+     * @param  array<string, mixed>  $session
+     * @return array{mode: string, rtt_ms: float|null, source_ip: string|null, oha_version: string|null, host: string|null}
+     */
+    protected function generatorMeta(array $session): array
+    {
+        $handshake = $session['handshake'] ?? null;
+
+        return [
+            'mode' => 'external',
+            'rtt_ms' => $handshake['rtt_ms'] ?? null,
+            'source_ip' => $handshake['source_ip'] ?? null,
+            'oha_version' => $handshake['oha_version'] ?? null,
+            'host' => $handshake['host'] ?? null,
         ];
     }
 

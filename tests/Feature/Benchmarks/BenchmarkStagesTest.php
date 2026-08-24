@@ -54,6 +54,34 @@ class BenchmarkStagesTest extends TestCase
     }
 
     /**
+     * The HTTP stage is the one stage of an external run that needs a human
+     * and a second machine present, so it runs first — while both still are.
+     * A self-test keeps the canonical order.
+     */
+    public function test_an_external_run_moves_the_http_stage_first(): void
+    {
+        $settings = [
+            'hardware' => true,
+            'network' => true,
+            'http' => true,
+            'http_generator' => 'external',
+            'php_database' => true,
+        ];
+
+        $this->assertSame(['http', 'yabs', 'cfspeedtest', 'php'], $this->stages->enabled($settings));
+        $this->assertSame(['http', 'yabs', 'cfspeedtest', 'php'], $this->stages->order($settings));
+    }
+
+    public function test_an_external_run_without_the_http_stage_keeps_the_canonical_order(): void
+    {
+        $this->assertSame(['yabs', 'cfspeedtest', 'http', 'php'], $this->stages->order([
+            'hardware' => true,
+            'http' => false,
+            'http_generator' => 'external',
+        ]));
+    }
+
+    /**
      * The mode-to-command mapping itself is covered by PhpBenchCommandTest;
      * this checks the run's settings reach it.
      */

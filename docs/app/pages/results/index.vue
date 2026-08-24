@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ResultsIndex, RunIndex } from '~/types/run'
-import { primaryMetric, formatNumber, monthlyCostLabel } from '~/types/run'
+import { primaryMetric, formatNumber, monthlyCostLabel, loadMode, LOAD_MODE_LABELS } from '~/types/run'
 
 // URL resolved in setup, not inside the handler — resultsApi reads runtime
 // config, and useAsyncData can re-run its handler outside a Nuxt context.
@@ -12,6 +12,35 @@ const entries = computed<RunIndex[]>(() => data.value?.runs ?? [])
 const query = ref('')
 const variation = ref<string>('all')
 const verifiedOnly = ref(false)
+
+/**
+ * A partition, not a filter: self-tested runs (the server drove its own load)
+ * and externally-driven runs are two different measurements, so there is no
+ * "All" — they never share a column, whatever the sort. Runs without an HTTP
+ * stage belong to neither population and stay visible in both.
+ */
+const LOAD_MODES = [
+    { key: 'external', label: LOAD_MODE_LABELS.external },
+    { key: 'self', label: LOAD_MODE_LABELS.self }
+] as const
+
+const loadModeChoice = ref<'external' | 'self' | null>(null)
+
+const loadModeCounts = computed(() => {
+    const counts = { external: 0, self: 0 }
+
+    for (const entry of entries.value) {
+        const mode = loadMode(entry)
+        if (mode) counts[mode]++
+    }
+
+    return counts
+})
+
+// Default to the honest-absolute-number population when it has members;
+// until it does, an empty default tab would make the gallery look empty.
+const activeLoadMode = computed<'external' | 'self'>(() =>
+    loadModeChoice.value ?? (loadModeCounts.value.external > 0 ? 'external' : 'self'))
 
 /**
  * Deliberately no value or cost ranking. Comparing req/s per euro against
@@ -50,6 +79,7 @@ interface IndexedRun {
     rps: number
     p95: number
     recency: string
+    loadMode: 'self' | 'external' | null
 }
 
 const indexed = computed<IndexedRun[]>(() => entries.value.map((entry) => {
@@ -63,7 +93,8 @@ const indexed = computed<IndexedRun[]>(() => entries.value.map((entry) => {
             .toLowerCase(),
         rps: metric?.rps ?? 0,
         p95: metric?.p95_ms ?? Number.POSITIVE_INFINITY,
-        recency: `${entry.submitted_at}${entry.run_id}`
+        recency: `${entry.submitted_at}${entry.run_id}`,
+        loadMode: loadMode(entry)
     }
 }))
 
@@ -71,8 +102,10 @@ const filtered = computed(() => {
     const needle = query.value.trim().toLowerCase()
     const image = variation.value
     const maintainer = verifiedOnly.value
+    const partition = activeLoadMode.value
 
     return indexed.value.filter((row) => {
+        if (row.loadMode != null && row.loadMode !== partition) return false
         if (image !== 'all' && row.entry.php_variation !== image) return false
         if (maintainer && !row.entry.verified) return false
         if (needle && !row.haystack.includes(needle)) return false
@@ -96,7 +129,7 @@ const PAGE_SIZE = 25
 const shown = ref(PAGE_SIZE)
 const visible = computed(() => sorted.value.slice(0, shown.value))
 
-watch([query, variation, verifiedOnly, sort], () => shown.value = PAGE_SIZE)
+watch([query, variation, verifiedOnly, sort, activeLoadMode], () => shown.value = PAGE_SIZE)
 
 /** Built here rather than as nested <template> fragments, which the linter's
  *  newline rules would break across lines and pad with stray whitespace. */
@@ -172,6 +205,23 @@ useSeoMeta({
                     </div>
 
                     <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span class="mr-2 text-xs text-neutral-600">Load</span>
+                            <button
+                                v-for="option in LOAD_MODES"
+                                :key="option.key"
+                                type="button"
+                                :aria-pressed="activeLoadMode === option.key"
+                                class="cursor-pointer rounded-lg px-3 py-1.5 text-sm transition-colors duration-200"
+                                :class="activeLoadMode === option.key
+                                    ? 'bg-flame-500/15 text-flame-400'
+                                    : 'text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300'"
+                                @click="loadModeChoice = option.key"
+                            >
+                                {{ option.label }} ({{ loadModeCounts[option.key] }})
+                            </button>
+                        </div>
+
                         <div
                             v-if="variations.length > 1"
                             class="flex flex-wrap items-center gap-1"
@@ -229,6 +279,21 @@ useSeoMeta({
                             {{ sorted.length }} of {{ entries.length }}
                         </span>
                     </div>
+                </div>
+
+                <div
+                    v-if="activeLoadMode === 'self'"
+                    class="mt-8 flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-4"
+                >
+                    <UIcon
+                        name="i-lucide-triangle-alert"
+                        class="mt-0.5 size-4 shrink-0 text-amber-400"
+                    />
+                    <p class="text-sm leading-relaxed text-neutral-300">
+                        These servers generated their own load — the generator shared the CPU with what
+                        it was measuring, so throughput understates the machine. Self-tested runs are
+                        listed apart from external load tests and the two are never compared.
+                    </p>
                 </div>
 
                 <div class="relative mt-8 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02]">
@@ -299,8 +364,16 @@ useSeoMeta({
                                                 aria-label="Run by a maintainer"
                                             />
                                         </div>
-                                        <div class="mt-0.5 truncate text-sm text-neutral-500">
-                                            {{ machineLine(row.entry) }}
+                                        <div class="mt-0.5 flex items-center gap-2 text-sm text-neutral-500">
+                                            <span class="truncate">{{ machineLine(row.entry) }}</span>
+                                            <!-- Rows get screenshotted one at a time, so the label
+                                                 travels on the row, not just on the partition tab. -->
+                                            <span
+                                                v-if="row.loadMode === 'self'"
+                                                class="shrink-0 rounded border border-amber-500/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-amber-400/90"
+                                            >
+                                                Self-tested
+                                            </span>
                                         </div>
                                     </td>
                                     <td class="px-4 py-5">

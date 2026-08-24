@@ -150,6 +150,15 @@
                     <ResultsChip v-if="http.mode">
                         {{ http.mode }}
                     </ResultsChip>
+                    <ResultsChip v-if="loadModeLabel">
+                        {{ loadModeLabel }}
+                    </ResultsChip>
+                    <ResultsChip v-if="http.generator?.mode === 'external' && http.generator?.rtt_ms != null">
+                        {{ http.generator.rtt_ms }}ms RTT
+                    </ResultsChip>
+                    <ResultsChip v-if="http.generator?.mode === 'external' && http.generator?.oha_version">
+                        oha {{ http.generator.oha_version }}
+                    </ResultsChip>
                 </template>
 
                 <p class="mt-2 text-xs text-neutral-500">
@@ -526,7 +535,7 @@
 
 <script setup lang="ts">
 import type { HttpRoute, RunEntry } from '~/types/run'
-import { coresLabel, costLabel, formatThroughput } from '~/types/run'
+import { coresLabel, costLabel, formatThroughput, LOAD_MODE_LABELS } from '~/types/run'
 
 const route = useRoute()
 const id = route.params.id as string
@@ -875,7 +884,24 @@ const caveats = computed(() => {
         })
     }
 
+    // Absent generator block means the run predates external mode, which
+    // provably makes it a self-test — same back-fill the index applies.
+    const httpBench = run.value.benchmarks.http
+    if (httpBench && (httpBench.generator?.mode ?? 'self') === 'self') {
+        found.push({
+            key: 'self-test',
+            title: 'This server generated its own load',
+            detail: 'The load generator ran on the machine it was measuring and shared the CPU with the server, so throughput understates what this machine can actually serve. That keeps the run honest for comparing configurations on the same box, which is why it is accepted — but it is listed apart from external load tests and the two are never compared.'
+        })
+    }
+
     return found
+})
+
+const loadModeLabel = computed(() => {
+    if (!run.value.benchmarks.http) return null
+
+    return LOAD_MODE_LABELS[run.value.benchmarks.http.generator?.mode === 'external' ? 'external' : 'self']
 })
 
 const databaseLabel = computed(() => {

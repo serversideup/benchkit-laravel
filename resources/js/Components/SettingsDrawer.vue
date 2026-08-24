@@ -96,8 +96,27 @@
 
                     <div class="flex flex-col py-6 border-b border-[#22262F]">
                         <ToggleRow v-model="form.http" label="Web Server Load Test">
-                            Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server against itself (self-test) and measure requests per second.
+                            Use <a href="https://github.com/hatoo/oha" target="_blank" class="underline font-mono">oha</a> to load test this app's web server and measure requests per second.
                         </ToggleRow>
+
+                        <div class="flex flex-col mt-4" v-show="form.http">
+                            <span class="text-sm text-[#CECFD2] font-mono font-medium">Load generator</span>
+                            <div class="mt-1.5 grid grid-cols-2 gap-1 rounded-lg border border-[#373A41] bg-[#0C0E12] p-1 font-mono text-sm">
+                                <button type="button" @click="form.http_generator = 'self'" class="px-3 py-1.5 rounded-md text-center cursor-pointer transition-colors duration-200"
+                                    :class="form.http_generator !== 'external' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">
+                                    Self-test
+                                </button>
+                                <button type="button" @click="form.http_generator = 'external'" class="px-3 py-1.5 rounded-md text-center cursor-pointer transition-colors duration-200"
+                                    :class="form.http_generator === 'external' ? 'bg-[#22262F] text-white' : 'text-[#94979C] hover:text-[#CECFD2]'">
+                                    External load test
+                                </button>
+                            </div>
+                            <p class="mt-1.5 text-xs text-[#94979C] font-mono">
+                                {{ form.http_generator === 'external'
+                                    ? 'A second machine you pair drives the load — the honest absolute number. You connect it when you start the run, and it runs first.'
+                                    : 'This server drives its own load — zero setup, and consistent for comparing configurations on this same machine, but throughput reads as a floor.' }}
+                            </p>
+                        </div>
 
                         <div class="grid grid-cols-2 gap-3 mt-4" v-show="form.http">
                             <div class="flex flex-col">

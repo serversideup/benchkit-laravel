@@ -3,6 +3,7 @@
         <template #aside>
             <span class="flex flex-wrap items-center gap-2">
                 <Chip>{{ http.octane ? 'worker mode' : 'classic mode' }}</Chip>
+                <Chip>{{ generatorLabel }}</Chip>
                 <Chip v-if="http.duration_seconds">{{ http.duration_seconds }}s</Chip>
                 <Chip v-if="http.connections">{{ http.connections }} connections</Chip>
                 <Chip v-if="http.io_ms != null">I/O {{ http.io_ms }}ms</Chip>
@@ -108,6 +109,18 @@ const props = defineProps({
 const LOAD_TEST_DOCS = 'https://serversideup.net/open-source/benchkit/docs/benchmarks';
 
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
+
+// Where the load came from. Snapshots from before external mode carry no
+// generator block, which provably makes them self-tests.
+const generatorLabel = computed(() => {
+    if ((props.http.generator?.mode ?? 'self') !== 'external') {
+        return 'self-tested';
+    }
+
+    const rtt = props.http.generator?.rtt_ms;
+
+    return rtt != null ? `external load · ${rtt}ms RTT` : 'external load';
+});
 
 // The I/O route's hard ceiling: a request occupies a worker for its whole
 // duration, so each worker serves at most 1000/io_ms requests per second and

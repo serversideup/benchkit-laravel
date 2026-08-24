@@ -206,6 +206,10 @@ export const runDisplay = (run) => {
             workers: http.workers ?? null,
             oversubscribed: http.oversubscribed ?? null,
             pool_limited: http.pool_limited ?? null,
+            // Snapshots from before external mode carry no generator block;
+            // they could only have been self-tests.
+            generator: http.generator ?? { mode: 'self' },
+            generator_bound: http.generator_bound ?? null,
             routes: http.routes ?? {},
         } : null,
         php: php ? {

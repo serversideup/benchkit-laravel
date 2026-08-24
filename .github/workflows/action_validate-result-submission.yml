@@ -46,6 +46,11 @@ jobs:
             echo "Changed run files: ${files:-<none>}"
           fi
 
+      # The validator's own tests, dependency-free by design so they run on a
+      # bare Node runner — the same property the validator itself has.
+      - name: Test the validation rules
+        run: node --test docs/shared/submission/validate.test.mjs
+
       - name: Validate submissions
         if: steps.changed.outputs.scope == 'all' || steps.changed.outputs.files != ''
         run: node .github/scripts/validate-run-submission.mjs ${{ steps.changed.outputs.files }}

@@ -129,6 +129,24 @@ const caveats = computed(() => {
         });
     }
 
+    // Also arithmetic: a closed-loop generator can never exceed
+    // connections / round-trip-floor, and this run landed at that ceiling.
+    // The throughput figures describe the path between the generator and the
+    // server, whichever machine the generator ran on.
+    if (http.generator_bound === true) {
+        const rtt = http.generator?.rtt_ms ?? null;
+        const ceiling = rtt && http.connections ? Math.round(http.connections / (rtt / 1000)) : null;
+
+        found.push({
+            key: 'generator-bound',
+            severity: 'high',
+            title: 'The load generator was the limit, not this server',
+            detail: ceiling
+                ? `The tool driving the traffic hit its own ceiling: ${http.connections} connections over a ${rtt}ms round trip cannot exceed ~${ceiling.toLocaleString()} requests per second no matter how fast the server is. These throughput figures describe the path between the generator and the server. Run again with the generator closer to this machine, or with more connections.`
+                : 'The tool driving the traffic hit its own ceiling — every request came back as fast as the quickest one, so the connection count and the round trip capped what could be measured, not the server. Run again with the generator closer to this machine, or with more connections.',
+        });
+    }
+
     // Arithmetic, not a heuristic: a process-per-request server cannot keep
     // more cores busy than it has workers. The shipped pool size is a fixed 20
     // regardless of hardware, so every machine bigger than that measures a
@@ -148,6 +166,42 @@ const caveats = computed(() => {
             severity: 'medium',
             title: 'Some of this measures your network, not your server',
             detail: 'BenchKit could not reach the app directly and went out through your public URL instead, so every request also paid for a proxy and a round trip. Compare this only against other runs measured the same way.',
+        });
+    }
+
+    // The io route's ceiling is computable (workers × 1000/io_ms, a known
+    // sleep per request), so landing at it is evidence the pool was the
+    // limit — for that route.
+    if (http.pool_limited === true) {
+        const ceiling = http.workers && http.io_ms ? Math.round(http.workers * (1000 / http.io_ms)) : null;
+
+        found.push({
+            key: 'pool-limited',
+            severity: 'medium',
+            title: 'The worker pool capped the simulated I/O test',
+            detail: ceiling
+                ? `Each request on the I/O route holds a worker for about ${http.io_ms}ms, so ${http.workers} workers can serve at most ~${ceiling.toLocaleString()} requests per second — and this run landed at that limit. That figure measures the size of the worker pool, not the speed of the machine. Raise the worker count to move the ceiling.`
+                : 'Each request on the I/O route holds a worker for the length of its simulated wait, and this run landed at the most the pool could serve. That figure measures the size of the worker pool, not the speed of the machine. Raise the worker count to move the ceiling.',
+        });
+    }
+
+    if (http.oversubscribed === true) {
+        found.push({
+            key: 'oversubscribed',
+            severity: 'note',
+            title: 'Latency figures include time spent queuing',
+            detail: `The test held ${http.connections} connections open against ${http.workers} workers — deliberately, because offering more work than the server can take is how a maximum is found. The percentiles include the wait in that queue, so they describe saturation behaviour rather than what a lone user would experience.`,
+        });
+    }
+
+    // Context, not a defect: the self-test is the zero-setup default and the
+    // right instrument for comparing configurations on one machine.
+    if (Object.keys(http.routes ?? {}).length > 0 && (http.generator?.mode ?? 'self') === 'self') {
+        found.push({
+            key: 'self-test',
+            severity: 'note',
+            title: 'This server generated its own load',
+            detail: 'The load generator ran on the machine it was testing and shared the CPU with the server. That keeps the test honest for comparing configurations on this same machine, but absolute throughput reads lower than a dedicated generator would measure. For the honest absolute number, run an external load test from a second machine.',
         });
     }
 

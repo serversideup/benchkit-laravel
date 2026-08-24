@@ -4,6 +4,7 @@ namespace Tests\Feature\Runs;
 
 use App\Actions\Runs\EncodeSubmissionToken;
 use App\Support\SubmissionIssue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Concerns\SeedsRunSnapshots;
 use Tests\TestCase;
@@ -85,6 +86,17 @@ class SubmissionTest extends TestCase
                     'tls' => true,
                     'workers' => 24,
                     'pool_limited' => false,
+                    // The generator's IP and hostname exist in the snapshot so
+                    // this fixture can prove they never leave it — the machine
+                    // driving the load is the submitter's own.
+                    'generator' => [
+                        'mode' => 'external',
+                        'rtt_ms' => 1.8,
+                        'source_ip' => '198.51.100.7',
+                        'oha_version' => '1.4.5',
+                        'host' => 'jays-macbook.local',
+                    ],
+                    'generator_bound' => false,
                     'routes' => [
                         'json' => [
                             'path' => '/bench/json',
@@ -183,6 +195,9 @@ class SubmissionTest extends TestCase
         $this->assertStringNotContainsString('/var/www/html/preload.php', $encoded, 'the opcache.preload path leaked');
         $this->assertStringNotContainsString('/home/acme/benchkit', $encoded, 'the sqlite database path leaked');
 
+        $this->assertStringNotContainsString('198.51.100.7', $encoded, 'the external generator\'s IP leaked');
+        $this->assertStringNotContainsString('jays-macbook.local', $encoded, 'the external generator\'s hostname leaked');
+
         $this->assertArrayNotHasKey('logs', $document);
         $this->assertArrayNotHasKey('target', $document['benchmarks']['http']);
         $this->assertArrayNotHasKey('url', $document['environment']['laravel']['environment']);
@@ -190,6 +205,43 @@ class SubmissionTest extends TestCase
         $this->assertArrayNotHasKey('asn', $document['benchmarks']['cfspeedtest']);
         $this->assertArrayNotHasKey('colo', $document['benchmarks']['cfspeedtest']);
         $this->assertArrayNotHasKey('path', $document['environment']['database']);
+        $this->assertArrayNotHasKey('source_ip', $document['benchmarks']['http']['generator']);
+        $this->assertArrayNotHasKey('host', $document['benchmarks']['http']['generator']);
+    }
+
+    /**
+     * The gallery partitions on generator.mode and refuses generator-bound
+     * runs, so both have to survive the allow-list — described, but never
+     * identifying the machine that drove the load.
+     */
+    public function test_the_document_publishes_the_generator_without_identifying_it(): void
+    {
+        $id = $this->seedSensitiveRun();
+
+        $http = $this->getJson("/runs/{$id}/submission")->json('document.benchmarks.http');
+
+        $this->assertSame('external', $http['generator']['mode']);
+        $this->assertSame(1.8, $http['generator']['rtt_ms']);
+        $this->assertSame('1.4.5', $http['generator']['oha_version']);
+        $this->assertFalse($http['generator_bound']);
+    }
+
+    /**
+     * Snapshots from before external mode carry no generator block. Absent, not
+     * null, in the published document: the gallery back-fills those as
+     * self-tests precisely because the block's absence is what proves it.
+     */
+    public function test_the_document_omits_the_generator_for_older_snapshots(): void
+    {
+        $id = $this->seedSensitiveRun();
+        $snapshot = json_decode(Storage::disk('runs')->get("{$id}.json"), true);
+        unset($snapshot['benchmarks']['http']['generator'], $snapshot['benchmarks']['http']['generator_bound']);
+        Storage::disk('runs')->put("{$id}.json", json_encode($snapshot));
+
+        $http = $this->getJson("/runs/{$id}/submission")->json('document.benchmarks.http');
+
+        $this->assertArrayNotHasKey('generator', $http);
+        $this->assertArrayNotHasKey('generator_bound', $http);
     }
 
     /**

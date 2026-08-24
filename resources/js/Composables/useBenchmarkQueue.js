@@ -40,6 +40,16 @@ const state = ref('idle');
 const run = ref(null);
 const startError = ref(null);
 
+// The external-load pairing, as the server reports it on every poll.
+// undefined until the first poll answers, null when the server says none
+// exists — the distinction is what lets the start screen mint a pairing
+// only once it knows there isn't one already.
+const generator = ref(undefined);
+
+// The pairing dialog raises this so a handshake shows within a second of
+// happening; idle polling is otherwise deliberately slow.
+const boostPolling = ref(false);
+
 // Set the instant the user confirms a cancel, so the UI can show it is
 // stopping without waiting for the request to land and the server's
 // cancel_requested flag to poll back — otherwise the button sits there
@@ -197,7 +207,13 @@ const applyRun = (payload) => {
         results[benchmark].endedAt = timestamp(stage.ended_at);
     });
 
-    const current = payload.current_stage ?? lastStageWithOutput() ?? queue[0];
+    // The last fallback walks the run's own stage order (an external run
+    // puts http first), so the console never opens on a stage the run is
+    // not about to execute.
+    const current = payload.current_stage
+        ?? lastStageWithOutput()
+        ?? Object.keys(payload.stages ?? {}).find((stage) => payload.stages[stage].status === 'pending')
+        ?? queue[0];
 
     activeBenchmark.value = current;
 
@@ -238,6 +254,7 @@ const poll = async () => {
         const data = await fetchRunLog(offset);
 
         offset = data.offset;
+        generator.value = data.generator ?? null;
         applyEvents(data.events);
         applyRun(data.run);
     } catch (error) {
@@ -253,7 +270,7 @@ const poll = async () => {
 // offering a Start button that would be refused.
 const schedule = () => {
     clearTimeout(timer);
-    timer = setTimeout(poll, state.value === 'running' ? 1000 : 5000);
+    timer = setTimeout(poll, state.value === 'running' || boostPolling.value ? 1000 : 5000);
 };
 
 const follow = ({ replay = false } = {}) => {
@@ -383,6 +400,8 @@ export const useBenchmarkQueue = () => {
         state,
         startError,
         cancelRequested,
+        generator,
+        boostPolling,
         activeBenchmark,
         userViewingBenchmark,
         viewingBenchmark,

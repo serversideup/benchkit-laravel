@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -21,6 +24,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->ensureSqliteDatabaseExists();
+        $this->configureGeneratorRateLimits();
+    }
+
+    /**
+     * The generator endpoints are unauthenticated and token-addressed, so a
+     * wrong token 404s — throttling is what keeps guessing expensive. The
+     * legitimate script polls every 2 seconds, well inside the limit; uploads
+     * happen four times per run.
+     */
+    protected function configureGeneratorRateLimits(): void
+    {
+        RateLimiter::for('generator', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+        RateLimiter::for('generator-upload', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
     }
 
     /**

@@ -52,7 +52,7 @@ class RunState
      * @param  array<string, mixed>  $hostDetails
      * @return array<string, mixed>
      */
-    public function start(array $settings, array $stages, ?string $preset, array $hostDetails = []): array
+    public function start(array $settings, array $stages, ?string $preset, array $hostDetails = [], ?array $order = null): array
     {
         File::ensureDirectoryExists($this->directory());
         File::delete($this->cancelPath());
@@ -68,7 +68,7 @@ class RunState
             'preset' => $preset,
             'host_details' => $hostDetails,
             'current_stage' => null,
-            'stages' => $this->initialStages($stages),
+            'stages' => $this->initialStages($stages, $order ?? CreateRunSnapshot::STAGES),
             'save_state' => self::SAVE_PENDING,
             'snapshot_id' => null,
             'error' => null,
@@ -347,14 +347,20 @@ class RunState
     }
 
     /**
+     * The stage record is keyed by stage in this run's execution order, and
+     * key order is what the client renders the stage list in — an external
+     * run puts the HTTP stage first, and the console should read the same
+     * way the run actually happened.
+     *
      * @param  array<int, string>  $stages
+     * @param  array<int, string>  $order
      * @return array<string, array<string, mixed>>
      */
-    protected function initialStages(array $stages): array
+    protected function initialStages(array $stages, array $order): array
     {
         $initial = [];
 
-        foreach (CreateRunSnapshot::STAGES as $stage) {
+        foreach ([...$order, ...array_diff(CreateRunSnapshot::STAGES, $order)] as $stage) {
             $initial[$stage] = [
                 'status' => in_array($stage, $stages, true) ? 'pending' : 'skipped',
                 'started_at' => null,
