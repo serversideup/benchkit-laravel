@@ -39,12 +39,12 @@
                                  this needs after they have already pasted a pipe into sh. -->
                             <p class="mt-5 max-w-[54ch] text-xs leading-relaxed text-[#61656C]">
                                 That machine needs <span class="font-mono text-[#94979C]">oha</span> installed first.
-                                For safety, this script does not install anything but you can follow our simple 
+                                Follow our  
                                 <a :href="GENERATOR_DOCS" target="_blank" rel="noopener"
                                     class="text-[#94979C] underline decoration-[#373A41] underline-offset-4 transition-colors duration-200 hover:text-[#CECFD2] hover:decoration-[#61656C]">
-                                    Setting up a machine guide
+                                    Testing from another machine guide
                                 </a>
-                                for instructions on how to install it.
+                                on how to get the most accyurate results.
                             </p>
 
                             <!-- The one thing to act on, so it carries the most weight on the
