@@ -3,7 +3,7 @@
         <div v-for="caveat in caveats" :key="caveat.key"
             class="flex gap-3 rounded-xl border p-4" :class="TONES[caveat.severity].box">
             <!-- The mark is what separates a defect from a note at a glance,
-                 which the boxes alone could not do — a wash of colour behind a
+                 which the boxes alone could not do — a wash of color behind a
                  paragraph reads the same whatever it says. -->
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="mt-px size-4 shrink-0" :class="TONES[caveat.severity].mark">
                 <path d="M10 7.5v3M10 13.5h.007M8.57 3.02 1.6 15a1.67 1.67 0 0 0 1.43 2.5h13.94A1.67 1.67 0 0 0 18.4 15L11.43 3.02a1.67 1.67 0 0 0-2.86 0Z"
@@ -190,7 +190,7 @@ const caveats = computed(() => {
             key: 'oversubscribed',
             severity: 'note',
             title: 'Latency figures include time spent queuing',
-            detail: `The test held ${http.connections} connections open against ${http.workers} workers — deliberately, because offering more work than the server can take is how a maximum is found. The percentiles include the wait in that queue, so they describe saturation behaviour rather than what a lone user would experience.`,
+            detail: `The test held ${http.connections} connections open against ${http.workers} workers — deliberately, because offering more work than the server can take is how a maximum is found. The percentiles include the wait in that queue, so they describe saturation behavior rather than what a lone user would experience.`,
         });
     }
 

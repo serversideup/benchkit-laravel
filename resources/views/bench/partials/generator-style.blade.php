@@ -2,7 +2,7 @@
 # processes, so neither can borrow the other's functions; this is rendered
 # into each one instead of duplicated by hand.
 
-# Colour only where it is wanted: a real terminal, NO_COLOR unset (the
+# Color only where it is wanted: a real terminal, NO_COLOR unset (the
 # convention at no-color.org), and a TERM that can render it.
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then
     TTY=1

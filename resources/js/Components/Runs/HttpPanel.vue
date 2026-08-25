@@ -154,7 +154,7 @@ const ROUTES = {
 // Nightwatch's AVG/MAX pair — true no matter how fast or slow the values
 // are, so a blazing 1ms tail never gets painted as an error.
 // One measurement read at three points, so the bars are one hue at three
-// weights rather than three colours. Twelve slabs of full-strength amber for
+// weights rather than three colors. Twelve slabs of full-strength amber for
 // routine data left nothing in reserve for the cases that genuinely need
 // flagging. Warmth still climbs with the tail, quietly enough that the numbers
 // stay the loudest thing in the panel.

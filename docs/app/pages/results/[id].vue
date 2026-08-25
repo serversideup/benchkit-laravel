@@ -654,7 +654,7 @@ const ROUTES: Record<string, { label: string, description: string }> = {
 // Gray = a typical request, amber = the tail.
 /**
  * One measurement read at three points, so the bars are one hue at three
- * weights rather than three colours. They were neutral, amber, amber — which
+ * weights rather than three colors. They were neutral, amber, amber — which
  * filled every panel with twelve saturated bars and left the accent meaning
  * nothing by the time something actually needed flagging. Warmth still climbs
  * with the tail, just quietly enough that the numbers stay the loudest thing.

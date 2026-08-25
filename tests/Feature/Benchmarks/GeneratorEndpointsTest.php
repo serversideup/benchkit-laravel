@@ -98,7 +98,7 @@ class GeneratorEndpointsTest extends TestCase
         $this->assertStringContainsString('oha-macos-arm64', $script);
     }
 
-    public function test_both_scripts_only_colour_a_terminal_that_wants_it(): void
+    public function test_both_scripts_only_color_a_terminal_that_wants_it(): void
     {
         $session = $this->pair();
 

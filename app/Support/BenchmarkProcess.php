@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
  * Runs a benchmark command as a subprocess and hands every line of its
  * output to a callback.
  *
- * The benchmarks this wraps write progress bars and colour, and several
+ * The benchmarks this wraps write progress bars and color, and several
  * only produce them when they believe they are attached to a terminal, so
  * the command runs inside `script`'s pseudo-TTY.
  */
