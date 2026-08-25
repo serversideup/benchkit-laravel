@@ -68,7 +68,8 @@ export default defineNuxtConfig({
         '/docs/configuration/default-configurations': { redirect: { to: '/docs/benchmarks', statusCode: 301 } },
         '/docs/benchmarks/web-server-load-test': { redirect: { to: '/docs/benchmarks', statusCode: 301 } },
         '/docs/benchmarks/throughput-vs-latency': { redirect: { to: '/docs/benchmarks/reading-your-results', statusCode: 301 } },
-        '/docs/benchmarks/limitations': { redirect: { to: '/docs/benchmarks/reading-your-results', statusCode: 301 } }
+        '/docs/benchmarks/limitations': { redirect: { to: '/docs/benchmarks/reading-your-results', statusCode: 301 } },
+        '/docs/benchmarks/testing-from-your-own-machine': { redirect: { to: '/docs/benchmarks/testing-from-another-machine', statusCode: 301 } }
     },
 
     compatibilityDate: '2024-07-11',

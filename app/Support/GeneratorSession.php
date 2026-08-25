@@ -74,8 +74,8 @@ class GeneratorSession
 
     /**
      * The current pairing, or null when none exists or the one on disk has
-     * been abandoned. Expiry is reconciled on read, like RunState's dead-PID
-     * check, so every reader self-heals.
+     * been abandoned. Expiry and stranding are both reconciled on read, like
+     * RunState's dead-PID check, so every reader self-heals.
      *
      * @return array<string, mixed>|null
      */
@@ -87,7 +87,7 @@ class GeneratorSession
             return null;
         }
 
-        if ($this->isExpired($session)) {
+        if ($this->isExpired($session) || $this->isStranded($session)) {
             $this->forget();
 
             return null;
@@ -259,6 +259,25 @@ class GeneratorSession
         $run = (new RunState)->current();
 
         return ($run['status'] ?? null) === RunState::STATUS_RUNNING && ($run['id'] ?? null) === $session['run_id'];
+    }
+
+    /**
+     * Armed or already driving load for a run that is no longer the live one.
+     * Nothing can arrive on a pairing in that state: every endpoint the
+     * generator can still reach refuses a run that has ended, so its script
+     * exits, and the record left behind is a machine that has gone.
+     *
+     * Cancelling is what makes this necessary — the waiting stage is killed
+     * where it stands and never gets to retire the pairing itself. Without
+     * this the start screen keeps reporting a connected generator, skips the
+     * pairing dialog, and the next external run waits out its timeout.
+     *
+     * @param  array<string, mixed>  $session
+     */
+    protected function isStranded(array $session): bool
+    {
+        return in_array($session['status'] ?? null, [self::STATUS_ARMED, self::STATUS_RUNNING], true)
+            && ! $this->boundToActiveRun($session);
     }
 
     /**

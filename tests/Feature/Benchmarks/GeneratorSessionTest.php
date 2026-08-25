@@ -120,4 +120,88 @@ class GeneratorSessionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('generator', null);
     }
+
+    /**
+     * Cancelling a run never gets to tell the pairing about it — the waiting
+     * stage is killed where it stands. The generator on the other machine
+     * exits all the same, because every endpoint it can reach refuses a run
+     * that is over, so a pairing left armed is a record of a machine that has
+     * gone. Left standing it reports "connected" forever, the start screen
+     * skips the pairing dialog, and the next external run waits out its
+     * timeout on a generator that will never arrive.
+     */
+    public function test_a_pairing_armed_for_a_cancelled_run_reads_as_no_pairing(): void
+    {
+        $state = new RunState;
+        $run = $state->start(['http' => true], ['http'], null);
+        $state->claim(getmypid());
+
+        $session = new GeneratorSession;
+        $session->create('https://bench.example.com', 'https://bench.example.com');
+        $session->recordHandshake(['oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']);
+        $session->arm($run['id'], '# work');
+
+        $state->finish(RunState::STATUS_CANCELLED);
+
+        $this->assertNull($session->current());
+        $this->assertFileDoesNotExist($session->path());
+
+        $this->getJson('/run/log')
+            ->assertOk()
+            ->assertJsonPath('generator', null);
+    }
+
+    /**
+     * The same reconciliation, one step earlier: the generator had fetched
+     * its work and was driving load when the run stopped.
+     */
+    public function test_a_pairing_running_for_a_run_that_ended_reads_as_no_pairing(): void
+    {
+        $state = new RunState;
+        $run = $state->start(['http' => true], ['http'], null);
+        $state->claim(getmypid());
+
+        $session = new GeneratorSession;
+        $session->create('https://bench.example.com', 'https://bench.example.com');
+        $session->arm($run['id'], '# work');
+        $session->markWorkFetched();
+
+        $state->finish(RunState::STATUS_CANCELLED);
+        $state->dismiss();
+
+        $this->assertNull($session->current());
+    }
+
+    /**
+     * A pairing that handshaked but was never armed belongs to a generator
+     * still polling for work, whatever became of the run. Retiring that one
+     * would throw away a live connection.
+     */
+    public function test_a_connected_pairing_survives_a_run_ending(): void
+    {
+        $state = new RunState;
+        $state->start(['http' => true], ['http'], null);
+        $state->claim(getmypid());
+
+        $session = new GeneratorSession;
+        $session->create('https://bench.example.com', 'https://bench.example.com');
+        $session->recordHandshake(['oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']);
+
+        $state->finish(RunState::STATUS_CANCELLED);
+
+        $this->assertSame(GeneratorSession::STATUS_CONNECTED, $session->status());
+    }
+
+    public function test_a_pairing_armed_for_the_live_run_is_left_alone(): void
+    {
+        $state = new RunState;
+        $run = $state->start(['http' => true], ['http'], null);
+        $state->claim(getmypid());
+
+        $session = new GeneratorSession;
+        $session->create('https://bench.example.com', 'https://bench.example.com');
+        $session->arm($run['id'], '# work');
+
+        $this->assertSame(GeneratorSession::STATUS_ARMED, $session->status());
+    }
 }

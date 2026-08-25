@@ -81,6 +81,39 @@ class GeneratorEndpointsTest extends TestCase
         $this->assertStringContainsString('curl -k', $script);
     }
 
+    public function test_the_script_refuses_to_install_oha_rather_than_doing_it_silently(): void
+    {
+        $session = $this->pair();
+
+        $script = $this->get("/bench/generator/{$session['token']}/script")->assertOk()->getContent();
+
+        $this->assertStringContainsString('command -v oha', $script);
+        $this->assertStringContainsString('will not install it for you', $script);
+        $this->assertStringContainsString('brew install oha', $script);
+        $this->assertStringContainsString('releases/latest/download/', $script);
+        // The download line names the asset for the machine running it, so
+        // both architectures have to be resolvable.
+        $this->assertStringContainsString('oha-linux-amd64', $script);
+        $this->assertStringContainsString('oha-linux-arm64', $script);
+        $this->assertStringContainsString('oha-macos-arm64', $script);
+    }
+
+    public function test_both_scripts_only_colour_a_terminal_that_wants_it(): void
+    {
+        $session = $this->pair();
+
+        $script = $this->get("/bench/generator/{$session['token']}/script")->assertOk()->getContent();
+        $work = $this->armed()['work'];
+
+        // Piped to a log or a CI job, the output has to stay plain text: no
+        // escape sequences, and no half-drawn line waiting to be rewritten.
+        foreach (['bootstrap' => $script, 'work' => $work] as $name => $shell) {
+            $this->assertStringContainsString('[ -t 1 ]', $shell, "{$name} does not check for a terminal");
+            $this->assertStringContainsString('NO_COLOR', $shell, "{$name} ignores NO_COLOR");
+            $this->assertStringContainsString('${TERM:-dumb}', $shell, "{$name} ignores TERM");
+        }
+    }
+
     public function test_the_handshake_records_the_generator_description(): void
     {
         $session = $this->pair();
@@ -130,7 +163,7 @@ class GeneratorEndpointsTest extends TestCase
         $this->assertSame(
             ['static', 'json', 'db-read', 'io'],
             array_values(array_filter(array_map(
-                fn (string $line) => preg_match("/^upload '([a-z-]+)'/", $line, $m) ? $m[1] : null,
+                fn (string $line) => preg_match("/^if upload '([a-z-]+)'/", $line, $m) ? $m[1] : null,
                 explode("\n", $work),
             ))),
         );
@@ -138,7 +171,13 @@ class GeneratorEndpointsTest extends TestCase
         $this->assertSame(GeneratorSession::STATUS_RUNNING, (new GeneratorSession)->current()['status']);
     }
 
-    public function test_work_is_410_when_the_armed_run_has_died(): void
+    /**
+     * The pairing is retired the moment its run stops, so the poll answers as
+     * it does for any token that no longer names a pairing. The script stops
+     * on a 404 exactly as it does on a 410 — what matters is that it is told,
+     * rather than left waiting on a run that will never fire.
+     */
+    public function test_work_stops_the_generator_when_the_armed_run_has_died(): void
     {
         $session = $this->armed();
 
@@ -148,7 +187,21 @@ class GeneratorEndpointsTest extends TestCase
         $run['pid'] = 999999999;
         File::put(config('benchmark.run_path').'/run.json', json_encode($run));
 
-        $this->get("/bench/generator/{$session['token']}/work")->assertStatus(410);
+        $this->get("/bench/generator/{$session['token']}/work")->assertNotFound();
+    }
+
+    public function test_an_upload_for_a_run_that_has_died_is_refused(): void
+    {
+        $session = $this->armed();
+
+        $run = json_decode(File::get(config('benchmark.run_path').'/run.json'), true);
+        $run['pid'] = 999999999;
+        File::put(config('benchmark.run_path').'/run.json', json_encode($run));
+
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
+            ->assertNotFound();
+
+        $this->assertFileDoesNotExist((new HttpBenchmarkResults)->routePath('static'));
     }
 
     public function test_an_upload_lands_exactly_where_oha_would_have_written_it(): void

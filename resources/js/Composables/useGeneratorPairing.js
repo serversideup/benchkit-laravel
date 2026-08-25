@@ -31,8 +31,15 @@ const ensureSession = async () => {
     return minting.value;
 };
 
+/**
+ * -k unconditionally: this instance is as likely to be on a self-signed
+ * loopback certificate as on a real one, and from here there is no telling
+ * which. A TLS failure on the very first fetch is the one error that leaves
+ * the person nothing to act on, and the token — not the transport — is what
+ * authenticates the pairing. On a plain http instance the flag does nothing.
+ */
 const command = computed(() => generator.value
-    ? `curl -fsSL ${window.location.origin}/bench/generator/${generator.value.token}/script | sh`
+    ? `curl -kfsSL ${window.location.origin}/bench/generator/${generator.value.token}/script | sh`
     : null);
 
 const connected = computed(() => Boolean(generator.value?.handshake));

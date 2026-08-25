@@ -47,6 +47,7 @@ class GeneratorScript
                 // (db_read → db-read), not the internal key.
                 'upload_key' => str_replace('_', '-', $route['key']),
                 'banner_quoted' => escapeshellarg($route['banner']),
+                'path_quoted' => escapeshellarg($route['path']),
                 'url_quoted' => escapeshellarg($route['url']),
             ], $plan),
         ])->render();

@@ -46,8 +46,8 @@ raw markdown of every docs page and a `SCREENSHOT_NEEDED` placeholder would be s
 | `docs/getting-started/quick-start` | Home screen: Start Benchmark, Quick/Full presets |
 | `docs/configuration/default-configurations` | Settings drawer: presets and the load-test inputs |
 | `docs/configuration/customizing-the-image` | Compare view diffing two runs |
-| `docs/benchmarks/web-server-load-test` | Load-test panel: four routes with req/s and percentile bars |
-| `docs/benchmarks/throughput-vs-latency` | "Test from your own machine" panel with the corrected latency command |
+| `docs/benchmarks` | Load-test panel: four routes with req/s and percentile bars |
+| `docs/benchmarks/testing-from-another-machine` | The pairing dialog, and the generator terminal mid-run |
 
 The landing page hero uses `public/images/benchkit-header.png`.
 

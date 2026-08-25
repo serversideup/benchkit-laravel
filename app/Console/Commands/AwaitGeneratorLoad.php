@@ -39,7 +39,7 @@ class AwaitGeneratorLoad extends Command
             $current = $session->current();
 
             if ($current === null) {
-                $this->line('The generator pairing disappeared — it may have expired.');
+                $this->line('The generator pairing disappeared. It may have expired.');
 
                 return self::FAILURE;
             }
@@ -73,7 +73,7 @@ class AwaitGeneratorLoad extends Command
             if ($current['status'] === GeneratorSession::STATUS_RUNNING && ! $announcedRunning) {
                 $announcedRunning = true;
                 $deadline = time() + $timeout;
-                $this->line('The generator picked up its work — load starts now.');
+                $this->line('The generator picked up its work. Load starts now.');
             }
 
             $rejectionsPrinted = $this->printRejections($current, $rejectionsPrinted);
@@ -86,7 +86,7 @@ class AwaitGeneratorLoad extends Command
 
             if (count($reported) === count(HttpBenchmarkResults::ROUTES)) {
                 $session->finish(GeneratorSession::STATUS_DONE);
-                $this->line('External load test complete — all routes received.');
+                $this->line('External load test complete. All routes received.');
 
                 return self::SUCCESS;
             }
@@ -138,7 +138,7 @@ class AwaitGeneratorLoad extends Command
 
         $from = isset($handshake['source_ip']) ? ' from '.$handshake['source_ip'] : '';
 
-        $this->line(sprintf('Generator connected%s — %s.', $from, implode(' · ', $parts) ?: 'no details reported'));
+        $this->line(sprintf('Generator connected%s: %s.', $from, implode(' · ', $parts) ?: 'no details reported'));
     }
 
     /**
@@ -148,9 +148,10 @@ class AwaitGeneratorLoad extends Command
     {
         $this->line('Waiting for an external load generator. On a machine near this server, run:');
         $this->line('');
-        $this->line(sprintf('  curl -fsSL %s/bench/generator/%s/script | sh', $session['base_url'], $session['token']));
+        $this->line(sprintf('  curl -kfsSL %s/bench/generator/%s/script | sh', $session['base_url'], $session['token']));
         $this->line('');
-        $this->line('A machine in the same datacenter or region measures the server; a distant one measures the network between them.');
+        $this->line('That machine needs oha installed. The command installs nothing.');
+        $this->line('Use a machine in the same datacenter or region. A distant one measures the network between them, not this server.');
     }
 
     /**
@@ -162,7 +163,7 @@ class AwaitGeneratorLoad extends Command
         $from = isset($received['source_ip']) ? ' from '.$received['source_ip'] : '';
         $rps = isset($received['requests_per_second']) ? number_format((float) $received['requests_per_second'], 1) : '?';
 
-        $this->line(sprintf('Received %s%s — %s req/s', $path, $from, $rps));
+        $this->line(sprintf('Received %s%s: %s req/s', $path, $from, $rps));
 
         $detail = (new HttpBenchmarkResults)->detail($key);
 
@@ -203,7 +204,7 @@ class AwaitGeneratorLoad extends Command
         if ($received > 0) {
             $session->finish(GeneratorSession::STATUS_DONE);
             $this->line(sprintf(
-                'The generator stopped after %d of %d routes — keeping the partial results.',
+                'The generator stopped after %d of %d routes. Keeping the partial results.',
                 $received,
                 count(HttpBenchmarkResults::ROUTES),
             ));

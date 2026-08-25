@@ -23,7 +23,7 @@ class HttpBenchCommand
      * for a run whose JSON is kept.
      *
      * @param  array{url: string, mode: string}  $target
-     * @return array<int, array{key: string, path: string, url: string, banner: string, load_flags: string, capture_flags: string, warmup_seconds: int, duration_seconds: int}>
+     * @return array<int, array{key: string, path: string, url: string, banner: string, connections: int, load_flags: string, capture_flags: string, warmup_seconds: int, duration_seconds: int}>
      */
     public function plan(array $target, int $duration, int $connections, int $ioMs): array
     {
@@ -44,6 +44,7 @@ class HttpBenchCommand
                 'path' => $path,
                 'url' => $url,
                 'banner' => "Load testing {$path} ({$position} of {$total}) — {$duration}s at {$connections} connections against {$target['url']} [{$target['mode']}]",
+                'connections' => $connections,
                 'load_flags' => sprintf('-c %d --redirect 0%s', $connections, $insecure),
                 'capture_flags' => '--no-tui --output-format json',
                 'warmup_seconds' => self::WARMUP_SECONDS,

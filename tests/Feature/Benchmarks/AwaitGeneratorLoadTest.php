@@ -57,9 +57,9 @@ class AwaitGeneratorLoadTest extends TestCase
 
         $this->artisan('benchmark:await-generator', ['--timeout' => 5])
             ->assertExitCode(0)
-            ->expectsOutputToContain('Received /bench/static from 203.0.113.7 — 1,234.6 req/s')
+            ->expectsOutputToContain('Received /bench/static from 203.0.113.7: 1,234.6 req/s')
             ->expectsOutputToContain('Requests/sec')
-            ->expectsOutputToContain('External load test complete — all routes received.');
+            ->expectsOutputToContain('External load test complete. All routes received.');
 
         $this->assertSame(GeneratorSession::STATUS_DONE, (new GeneratorSession)->current()['status']);
     }
@@ -76,7 +76,7 @@ class AwaitGeneratorLoadTest extends TestCase
 
         $this->artisan('benchmark:await-generator', ['--timeout' => 1])
             ->assertExitCode(0)
-            ->expectsOutputToContain('The generator stopped after 2 of 4 routes — keeping the partial results.');
+            ->expectsOutputToContain('The generator stopped after 2 of 4 routes. Keeping the partial results.');
     }
 
     public function test_it_fails_when_nothing_ever_arrives(): void
@@ -95,7 +95,7 @@ class AwaitGeneratorLoadTest extends TestCase
         $session = $this->armed();
 
         $this->artisan('benchmark:await-generator', ['--timeout' => 1])
-            ->expectsOutputToContain('curl -fsSL https://bench.example.com/bench/generator/'.$session['token'].'/script | sh');
+            ->expectsOutputToContain('curl -kfsSL https://bench.example.com/bench/generator/'.$session['token'].'/script | sh');
     }
 
     /**
@@ -116,7 +116,7 @@ class AwaitGeneratorLoadTest extends TestCase
 
         $this->artisan('benchmark:await-generator', ['--timeout' => 1])
             ->assertExitCode(0)
-            ->expectsOutputToContain('Generator connected from 203.0.113.7 — generator-box · oha 1.4.5 · 8 cores · RTT 1.83ms.');
+            ->expectsOutputToContain('Generator connected from 203.0.113.7: generator-box · oha 1.4.5 · 8 cores · RTT 1.83ms.');
 
         $meta = json_decode(File::get((new HttpBenchmarkResults)->metaPath()), true);
         $this->assertSame(1.83, $meta['generator']['rtt_ms']);

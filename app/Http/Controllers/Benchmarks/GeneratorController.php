@@ -6,7 +6,6 @@ use App\Actions\Results\HttpBenchmarkResults;
 use App\Http\Controllers\Controller;
 use App\Support\GeneratorScript;
 use App\Support\GeneratorSession;
-use App\Support\RunState;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -25,10 +24,7 @@ class GeneratorController extends Controller
     /** An oha JSON file for a 60s standard run is ~2 KB; this is headroom, not a quota. */
     protected const MAX_UPLOAD_BYTES = 1_048_576;
 
-    public function __construct(
-        protected GeneratorSession $session,
-        protected RunState $runState,
-    ) {}
+    public function __construct(protected GeneratorSession $session) {}
 
     public function script(string $token): Response
     {
@@ -61,9 +57,10 @@ class GeneratorController extends Controller
     /**
      * The generator's 2-second poll. Answers by status code so the script
      * needs no JSON parsing: 204 keep waiting, 200 here is your work, 410
-     * this pairing is over. Deliberately a plain poll rather than a long
-     * poll — a held-open connection would occupy a PHP worker, and no polls
-     * happen during measured windows anyway.
+     * this pairing is over, 404 there is no such pairing any more — the
+     * script stops on either of the last two. Deliberately a plain poll
+     * rather than a long poll — a held-open connection would occupy a PHP
+     * worker, and no polls happen during measured windows anyway.
      */
     public function work(string $token): Response
     {
@@ -79,12 +76,6 @@ class GeneratorController extends Controller
             return response()->noContent();
         }
 
-        // Armed for a run that is no longer alive: tell the script to stop
-        // rather than let it wait on a run that will never fire.
-        if (! $this->runState->isActive() || ($this->runState->current()['id'] ?? null) !== $session['run_id']) {
-            return response("The run this pairing belonged to has ended.\n", 410, ['Content-Type' => 'text/plain']);
-        }
-
         $this->session->markWorkFetched();
 
         return response($session['work'] ?? '', 200, ['Content-Type' => 'text/x-shellscript; charset=utf-8']);
@@ -95,9 +86,10 @@ class GeneratorController extends Controller
         $session = $this->authorized($token);
         $key = str_replace('-', '_', $route);
 
-        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)
-            || ! $this->runState->isActive()
-            || ($this->runState->current()['id'] ?? null) !== $session['run_id']) {
+        // A pairing only reads as armed or running while its run is the live
+        // one — GeneratorSession retires it otherwise — so this is also what
+        // refuses an upload for a run that has since been cancelled.
+        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)) {
             abort(404);
         }
 
