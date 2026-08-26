@@ -3,7 +3,7 @@
 namespace App\Support\Http;
 
 /**
- * One oha result, reduced to the facts the state machine and the curve need.
+ * One oha result, reduced to the facts the sweep and the curve need.
  *
  * Reducing here rather than passing the raw document around is what lets the
  * two drivers stay identical: the generator uploads oha's JSON and the local
@@ -89,7 +89,7 @@ class StepResult
      * every request reports a perfect success rate, and at a *higher* rate
      * than a working one, because an error is cheap to produce. Checking the
      * status distribution is what turns that from a flattering number into a
-     * stopped ramp.
+     * stopped sweep.
      */
     public function isClean(): bool
     {

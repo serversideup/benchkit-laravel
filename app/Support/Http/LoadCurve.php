@@ -8,7 +8,7 @@ namespace App\Support\Http;
  * numbers untrustworthy.
  *
  * Nothing here drives the load. The levels are chosen before the run starts
- * (LoadProfile::levels) and run as a plain list, so this only has to describe
+ * (LoadProfile::levelsFor) and run as a plain list, so this only has to describe
  * what came back — which is why the same class can read a self-test and an
  * external run without either of them knowing it exists.
  */

@@ -138,17 +138,11 @@
                          HTTP benchmark — reading it off `http` here silently
                          labelled every worker-mode run "classic mode". -->
                     <ResultsChip>{{ run.environment.php.octane ? 'worker mode' : 'classic mode' }}</ResultsChip>
-                    <ResultsChip v-if="http.duration_seconds">
-                        {{ http.duration_seconds }}s
-                    </ResultsChip>
-                    <ResultsChip v-if="http.connections">
-                        {{ http.connections }} connections
+                    <ResultsChip v-if="http.workers">
+                        {{ http.workers }} workers
                     </ResultsChip>
                     <ResultsChip v-if="http.io_ms != null">
                         I/O {{ http.io_ms }}ms
-                    </ResultsChip>
-                    <ResultsChip v-if="http.mode">
-                        {{ http.mode }}
                     </ResultsChip>
                     <ResultsChip v-if="loadModeLabel">
                         {{ loadModeLabel }}
@@ -162,8 +156,9 @@
                 </template>
 
                 <p class="mt-2 text-xs text-neutral-500">
-                    Saturation test — connections held open to find max throughput, so response times
-                    include time spent queued.
+                    Concurrency was raised until throughput stopped improving. Response times were
+                    measured separately, at about 70% of that rate, so they include no queue a real
+                    visitor would not also hit.
                     <NuxtLink
                         to="/docs/benchmarks"
                         class="text-neutral-400 underline underline-offset-4 decoration-white/20 transition-colors hover:text-neutral-300 hover:decoration-white/40"
@@ -187,10 +182,13 @@
                         </p>
                         <div class="mt-2">
                             <p class="text-5xl text-white font-mono font-medium leading-none tabular-nums">
-                                {{ round(benchRoute.data.throughput?.requests_per_second) }}
+                                <!-- A run whose sweep never flattened measured the most BenchKit
+                                     could ask for, not the most the machine can serve. A gallery
+                                     that prints that flat ranks a floor against maximums. -->
+                                <span v-if="benchRoute.isFloor" class="text-amber-400">≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
-                                req/s
+                                req/s <span v-if="benchRoute.concurrency" class="text-neutral-500">at {{ benchRoute.concurrency }} concurrent</span>
                             </p>
                         </div>
                         <div class="mt-4 flex flex-col gap-2.5">
@@ -230,10 +228,10 @@
                         </p>
                         <div class="mt-auto pt-4">
                             <p class="text-4xl text-white font-mono font-medium leading-none tabular-nums">
-                                {{ round(benchRoute.data.throughput?.requests_per_second) }}
+                                <span v-if="benchRoute.isFloor" class="text-amber-400">≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
-                                req/s
+                                req/s <span v-if="benchRoute.concurrency" class="text-neutral-500">at {{ benchRoute.concurrency }} concurrent</span>
                             </p>
                         </div>
                     </div>
@@ -691,6 +689,9 @@ const routes = computed(() => {
             })
             return {
                 key,
+                // Where the peak happened, and whether it was a peak at all.
+                concurrency: data.throughput?.concurrency ?? null,
+                isFloor: data.throughput?.saturated === false,
                 label: ROUTES[key]!.label,
                 description: key === 'io' ? `Simulated ~${http.value.io_ms ?? 100}ms outbound call` : ROUTES[key]!.description,
                 data,

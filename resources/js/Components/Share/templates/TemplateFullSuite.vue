@@ -186,7 +186,11 @@ const chips = computed(() => {
         environment.phpVersion ? { text: `PHP ${environment.phpVersion}` } : null,
         environment.laravelVersion ? { text: `Laravel ${environment.laravelVersion}` } : null,
         environment.database ? { text: environment.database } : null,
-        http?.connections && http?.duration_seconds ? { text: `${http.connections} connections · ${http.duration_seconds}s` } : null,
+        // Only when it is not the standard delay: a chip that always says the
+        // same thing is furniture. The connections/duration chip that used to
+        // sit here read fields that no longer exist, so it silently never
+        // rendered.
+        http?.io_ms != null && http.io_ms !== 100 ? { text: `I/O ${http.io_ms}ms` } : null,
         http?.mode && http.mode !== 'loopback' ? { text: httpTargetLabel(http.mode) } : null,
         http?.generator?.mode === 'external' ? { text: 'external load' } : null,
     ].filter(Boolean);

@@ -282,7 +282,7 @@ class HttpBenchmarkResults extends BenchmarkResults
     }
 
     /**
-     * @return array{mode: string|null, target: string|null, duration_seconds: int|null, connections: int|null, io_ms: int|null, routes: array<string, array<string, mixed>>}|null
+     * @return array{mode: string|null, target: string|null, io_ms: int|null, workers: int|null, levels: array<string, array<int, int>>, routes: array<string, array<string, mixed>>}|null
      */
     public function execute(): ?array
     {

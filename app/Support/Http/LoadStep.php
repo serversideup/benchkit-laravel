@@ -9,7 +9,7 @@ namespace App\Support\Http;
  * rather than per route. The external generator posts its result back to that
  * index, and the server refuses anything that is not the step it is currently
  * waiting for — which is what makes a retried upload cost one round trip
- * instead of corrupting the ramp.
+ * instead of corrupting the sweep.
  */
 class LoadStep
 {
@@ -37,7 +37,7 @@ class LoadStep
      * OPcache warm; its numbers describe a cold server and are never parsed.
      * Saying so here keeps the drivers from having to know which phases mean
      * something — the generator sends `{}` for an uncaptured step, and the
-     * state machine advances on the acknowledgement alone.
+     * driver advances on the acknowledgement alone.
      */
     public function isMeasured(): bool
     {
@@ -47,9 +47,8 @@ class LoadStep
     /**
      * Whether the raw oha JSON for this step is kept on disk.
      *
-     * Ramp rungs are reduced to a curve point and discarded: thirty-odd files
-     * of three-second throwaway data are not worth keeping, and nothing may
-     * cite a rung as a measurement. The two published passes are kept whole.
+     * Every measured window is kept: a sweep level backs one point on the
+     * published curve, and the response-time pass backs the percentiles.
      */
     public function isPublished(): bool
     {

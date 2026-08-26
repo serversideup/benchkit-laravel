@@ -55,7 +55,7 @@
                     </div>
 
                     <p v-if="httpLoadMismatch && headline.path.startsWith('routes.')" class="mt-7 text-sm text-center text-[#F79009]">
-                        These runs used different load settings &mdash; Run A: <span class="font-mono">{{ httpLoadMismatch.a }}</span> &middot; Run B: <span class="font-mono">{{ httpLoadMismatch.b }}</span> &mdash; so throughput isn't directly comparable.
+                        These runs simulated a different outbound call &mdash; Run A: <span class="font-mono">{{ httpLoadMismatch.a }}</span> &middot; Run B: <span class="font-mono">{{ httpLoadMismatch.b }}</span> &mdash; so the I/O route measured different work on each side.
                     </p>
                 </section>
 
@@ -164,11 +164,19 @@ const httpLoadMismatch = computed(() => {
         return null;
     }
 
-    if( a.connections === b.connections && a.duration_seconds === b.duration_seconds ) {
+    // The load sizes itself from each machine now, so two runs differing in
+    // concurrency is expected and says nothing. What still makes throughput
+    // apples-to-oranges is the one load parameter left — the simulated delay
+    // changes what /bench/io measures rather than how hard the load pushes.
+    //
+    // This used to compare connections and duration, and after those stopped
+    // existing it compared undefined against undefined: always equal, so the
+    // banner could never fire at all.
+    if( (a.io_ms ?? null) === (b.io_ms ?? null) ) {
         return null;
     }
 
-    const label = (http) => `${http.connections ?? '?'} connections × ${http.duration_seconds ?? '?'}s`;
+    const label = (http) => `${http.io_ms ?? '?'}ms simulated I/O`;
 
     return { a: label(a), b: label(b) };
 });
