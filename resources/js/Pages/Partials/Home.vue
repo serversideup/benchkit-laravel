@@ -121,6 +121,21 @@ const blockers = computed(() => {
         });
     }
 
+    // Config and route caches are files on disk, so the command line and the
+    // web process agree about them — unlike OPcache, which each SAPI holds
+    // separately. The official image builds them at boot, so a run without
+    // them is almost always one started from source or from a dev compose.
+    const uncached = ['config', 'routes', 'events'].filter((key) => page.laravel?.cache?.[key] === false);
+
+    if (uncached.length > 0) {
+        found.push({
+            key: 'unoptimized',
+            title: 'This app has not been prepared for production',
+            detail: 'Laravel would re-read its configuration and routes on every single request, which a deployed app does once at boot. Expect throughput well below what this box really does, and a result that is not comparable with the gallery.',
+            fix: 'php artisan optimize',
+        });
+    }
+
     if (page.laravel?.environment?.debug_mode === true) {
         found.push({
             key: 'debug',
@@ -135,19 +150,28 @@ const blockers = computed(() => {
     // than that the run can only use part of the hardware, and this is the
     // moment to say so — afterwards the only remedy is running it again.
     //
-    // The suggested value is the core count and no more. That is the number the
-    // arithmetic above supports; how far past it is worth going depends on how
-    // much of a request is spent waiting rather than computing, which is the
-    // sort of thing to measure rather than assert in a warning.
+    // The suggestion is derived from memory rather than from cores. A worker
+    // is a process, so the pool is bounded by RAM, and real deployments size it
+    // that way: a request spends much of its life waiting rather than
+    // computing, so a core-count pool leaves a machine idle under any load with
+    // I/O in it. Measured on this project's own image, a worker resides in
+    // roughly 40 MB.
     const cores = Number.parseInt(String(page.server?.cpu_cores ?? ''), 10) || null;
     const workers = page.php?.runtime?.workers;
+    const ramMb = Number.parseFloat(String(page.server?.ram ?? '')) || null;
+
+    // Leave a quarter of memory for the OS, the database, and BenchKit itself,
+    // and never suggest fewer workers than the machine has cores.
+    const suggested = ramMb && cores
+        ? Math.max(cores, Math.floor((ramMb * 0.75) / 40))
+        : cores;
 
     if (cores && workers && page.php?.runtime?.mode === 'process-per-request' && workers < cores) {
         found.push({
             key: 'undersized-pool',
-            title: `This machine has ${cores} cores but PHP is set up to use ${workers}`,
-            detail: `PHP handles one request per worker, so ${cores - workers} of your cores would sit idle for the whole test and the result would understate this hardware. Raise the worker count to at least your core count before you spend the run — each worker holds roughly 30 MB, so check that against your RAM first.`,
-            fix: `PHP_FPM_PM_MAX_CHILDREN=${cores}`,
+            title: `This machine has ${cores} cores but PHP is set up to use ${workers} workers`,
+            detail: `PHP handles one request per worker, so this run can keep at most ${workers} of them busy and the result understates the hardware. A machine this size can carry about ${suggested}. Each worker holds roughly 40 MB, so raising it past what your RAM allows trades a slow server for one the kernel kills.`,
+            fix: `PHP_FPM_PM_MAX_CHILDREN=${suggested}`,
         });
     }
 

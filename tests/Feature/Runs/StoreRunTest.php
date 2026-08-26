@@ -4,12 +4,13 @@ namespace Tests\Feature\Runs;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\SeedsHttpResults;
 use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
 class StoreRunTest extends TestCase
 {
-    use UsesFakeResultsPath;
+    use SeedsHttpResults, UsesFakeResultsPath;
 
     protected function setUp(): void
     {
@@ -36,18 +37,7 @@ class StoreRunTest extends TestCase
 
     protected function writeHttpFixtures(): void
     {
-        File::put($this->resultsPath.'/http-meta.json', json_encode([
-            'target' => 'http://localhost:8080',
-            'mode' => 'standard',
-            'duration_seconds' => 10,
-            'connections' => 50,
-        ]));
-
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['requestsPerSec' => 34.1, 'successRate' => 1.0],
-            'latencyPercentiles' => ['p50' => 1.84974, 'p95' => 2.33328, 'p99' => 2.39664],
-            'statusCodeDistribution' => ['200' => 251],
-        ]));
+        $this->seedHttpResults(levels: [1, 4, 20], mode: 'standard');
     }
 
     public function test_storing_a_run_creates_a_snapshot_file_with_only_completed_stages(): void
@@ -76,7 +66,9 @@ class StoreRunTest extends TestCase
         $this->assertNotNull($snapshot['benchmarks']['http']);
         $this->assertNull($snapshot['benchmarks']['php'], 'A stale phpbench file must not leak into a run that did not execute the php stage.');
         $this->assertNull($snapshot['benchmarks']['yabs']);
-        $this->assertSame(34.1, $snapshot['summary']['http_rps']);
+        // The peak of the seeded curve: throughput climbs with concurrency
+        // until the worker count and then stops.
+        $this->assertEquals(200, $snapshot['summary']['http_rps']);
     }
 
     public function test_cfspeedtest_logs_are_scrubbed_of_ip_addresses(): void

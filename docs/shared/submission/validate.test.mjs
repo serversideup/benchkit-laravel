@@ -13,7 +13,7 @@ import { buildDocument } from './run-document.mjs'
 import { validateSubmission } from './validate.mjs'
 
 const baseRun = () => ({
-    schema_version: 4,
+    schema_version: 5,
     id: '20260821-101500-ab12',
     created_at: '2026-08-21T10:15:00+00:00',
     meta: { label: 'Test run', provider: 'Hetzner' },
@@ -37,7 +37,15 @@ const baseRun = () => ({
             oversubscribed: true,
             pool_limited: false,
             routes: {
-                static: { path: '/bench/static', requests_per_second: 1234.5, success_rate: 1, p50_ms: 10, p95_ms: 25, p99_ms: 40 }
+                static: {
+                    path: '/bench/static',
+                    throughput: { requests_per_second: 1234.5, concurrency: 42, success_rate: 1, saturated: true },
+                    latency: { p50_ms: 10, p95_ms: 25, p99_ms: 40, corrected: true },
+                    curve: [
+                        { concurrency: 1, requests_per_second: 90.1 },
+                        { concurrency: 42, requests_per_second: 1234.5 }
+                    ]
+                }
             }
         },
         php: null

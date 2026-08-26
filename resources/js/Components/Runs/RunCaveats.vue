@@ -62,6 +62,19 @@ const idleCores = computed(() => {
     return Math.max(0, cores.value - workers);
 });
 
+/** What each route is called in a sentence, rather than by its key. */
+const ROUTE_LABELS = {
+    static: 'Static',
+    json: 'JSON API',
+    db_read: 'DB read',
+    io: 'I/O-bound',
+};
+
+/** "A", "A and B", "A, B and C" — a list a person would read aloud. */
+const listOf = (items) => items.length <= 1
+    ? (items[0] ?? '')
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
 /** Filesystems that are memory pretending to be storage. */
 const MEMORY_FILESYSTEMS = ['tmpfs', 'ramfs', 'memory'];
 
@@ -120,6 +133,22 @@ const caveats = computed(() => {
         });
     }
 
+    // Config and route caches are files on disk, so the command line and the
+    // web process agree about them — unlike OPcache, which each SAPI holds
+    // separately. That makes this safe to read from the run's own environment.
+    const laravelCache = environment.laravel?.cache ?? {};
+    const uncached = ['config', 'routes', 'events']
+        .filter((key) => laravelCache[key] === false);
+
+    if (uncached.length > 0 || String(environment.php?.ini?.['opcache.validate_timestamps'] ?? '0') === '1') {
+        found.push({
+            key: 'unoptimized',
+            severity: 'high',
+            title: 'This server is faster than these numbers say',
+            detail: 'The application was not prepared the way it would be for production, so every request re-read configuration and routes that a deployed app reads once. Run `php artisan optimize` and try again — on the official image this happens automatically, so a run without it is usually one started from source.',
+        });
+    }
+
     if (opcache != null && String(opcache) !== '1') {
         found.push({
             key: 'opcache',
@@ -129,21 +158,21 @@ const caveats = computed(() => {
         });
     }
 
-    // Also arithmetic: a closed-loop generator can never exceed
-    // connections / round-trip-floor, and this run landed at that ceiling.
-    // The throughput figures describe the path between the generator and the
-    // server, whichever machine the generator ran on.
+    // Arithmetic, not a heuristic. In a closed loop each connection holds one
+    // request at a time, so concurrency = rate x response time is an identity;
+    // a level where that did not hold had connections sitting idle, which is
+    // the machine driving the load running out of capacity rather than the one
+    // serving it.
     if (http.generator_bound === true) {
         const rtt = http.generator?.rtt_ms ?? null;
-        const ceiling = rtt && http.connections ? Math.round(http.connections / (rtt / 1000)) : null;
 
         found.push({
             key: 'generator-bound',
             severity: 'high',
             title: 'The load generator was the limit, not this server',
-            detail: ceiling
-                ? `The tool driving the traffic hit its own ceiling: ${http.connections} connections over a ${rtt}ms round trip cannot exceed ~${ceiling.toLocaleString()} requests per second no matter how fast the server is. These throughput figures describe the path between the generator and the server. Run again with the generator closer to this machine, or with more connections.`
-                : 'The tool driving the traffic hit its own ceiling — every request came back as fast as the quickest one, so the connection count and the round trip capped what could be measured, not the server. Run again with the generator closer to this machine, or with more connections.',
+            detail: rtt
+                ? `The machine sending the traffic could not keep its connections busy, so these throughput figures describe that machine and the ${rtt}ms path between it and this server rather than the server itself. Run again from somewhere closer, or from a machine with more headroom.`
+                : 'The machine sending the traffic could not keep its connections busy — some sat idle waiting on the generator rather than on this server. These throughput figures describe the generator. Run again from somewhere closer, or from a machine with more headroom.',
         });
     }
 
@@ -160,6 +189,64 @@ const caveats = computed(() => {
         });
     }
 
+    // oha's own success rate is transport-level, so a route answering 503 to
+    // everything reports as a perfect run — and a faster one than a working
+    // server, because an error is cheap to produce. The status codes are the
+    // only place that shows.
+    const failing = Object.entries(http.routes ?? {})
+        .filter(([, route]) => Object.keys(route?.throughput?.status_codes ?? {})
+            .some((code) => Number(code) < 200 || Number(code) >= 300))
+        .map(([key]) => ROUTE_LABELS[key] ?? key);
+
+    if (failing.length > 0) {
+        found.push({
+            key: 'failed-requests',
+            severity: 'high',
+            title: 'Some of these requests failed',
+            detail: `${listOf(failing)} answered with errors rather than results. A failing request is far cheaper to serve than a real one, so those throughput figures are higher than a working server would produce, not lower. This run is not comparable with anything.`,
+        });
+    }
+
+    // The single-connection level is the same request over the same network
+    // with nothing queued, so it is what the path and the framework cost
+    // before load is a factor. A loaded tail many times larger than that
+    // appeared because of the load.
+    //
+    // Measured against the idle *median*, not the idle tail. The tail of a
+    // six-second window is one or two requests and moves wildly — the same
+    // route measured an idle p95 of 18ms in one run and 93ms in the next,
+    // which silently stopped this firing. The idle median sat at 12-13ms in
+    // both, on both pool settings.
+    const TAIL_GROWTH = 5;
+
+    const strained = Object.entries(http.routes ?? {})
+        .map(([key, route]) => {
+            const idle = (route?.curve ?? []).find((point) => point.concurrency === 1)?.p50_ms ?? null;
+            const loaded = route?.latency?.p95_ms ?? null;
+
+            return { key, idle, loaded };
+        })
+        .filter(({ idle, loaded }) => idle != null && loaded != null && loaded > idle * TAIL_GROWTH);
+
+    if (strained.length > 0) {
+        const worst = strained.reduce((a, b) => (b.loaded / b.idle > a.loaded / a.idle ? b : a));
+
+        found.push({
+            key: 'tail-under-load',
+            severity: 'medium',
+            title: 'Response times hold up until this server gets busy',
+            // Deliberately no instruction. The obvious one — keep the worker
+            // pool warm instead of starting it on demand — was measured on the
+            // machine this text was written for and made the median three
+            // times worse, because a resident pool needs memory that box did
+            // not have. What helps depends on facts BenchKit does not check,
+            // and confident wrong advice is worse than none. Describing what
+            // happened and pointing at the comparison is the honest version,
+            // and comparing two runs is what this tool is for.
+            detail: `A single request on ${ROUTE_LABELS[worst.key] ?? worst.key} comes back in about ${Math.round(worst.idle)}ms. At around 70% of what this machine can serve, the slowest 5% take ${Math.round(worst.loaded)}ms — over the same network, so the difference is this server rather than the path. That is what a queue looks like from outside. Worker count and how the pool is started both change it, in directions that depend on the memory and cores you have: change one, run again, and compare the two.`,
+        });
+    }
+
     if (http.mode === 'app-url') {
         found.push({
             key: 'target',
@@ -169,28 +256,60 @@ const caveats = computed(() => {
         });
     }
 
-    // The io route's ceiling is computable (workers × 1000/io_ms, a known
-    // sleep per request), so landing at it is evidence the pool was the
-    // limit — for that route.
-    if (http.pool_limited === true) {
-        const ceiling = http.workers && http.io_ms ? Math.round(http.workers * (1000 / http.io_ms)) : null;
+    // The strongest thing in the results, and the only one that is arithmetic
+    // rather than measurement: a request on the I/O route holds a worker for
+    // its whole simulated wait, so workers x 1000/io_ms is the most the pool
+    // can serve however fast the machine is. The curve is drawn against that
+    // predicted line and lands on it.
+    //
+    // Downgraded from a warning. Under a fixed connection count, hitting the
+    // ceiling silently made the number about the pool. Now the chart shows the
+    // ceiling and the figure is labelled with the concurrency it happened at,
+    // so this is context rather than a fault — and a run where everything is
+    // understood should not render an amber box.
+    if (http.pool_ceiling?.at_ceiling === true) {
+        const ceiling = http.pool_ceiling;
 
         found.push({
-            key: 'pool-limited',
-            severity: 'medium',
-            title: 'The worker pool capped the simulated I/O test',
-            detail: ceiling
-                ? `Each request on the I/O route holds a worker for about ${http.io_ms}ms, so ${http.workers} workers can serve at most ~${ceiling.toLocaleString()} requests per second — and this run landed at that limit. That figure measures the size of the worker pool, not the speed of the machine. Raise the worker count to move the ceiling.`
-                : 'Each request on the I/O route holds a worker for the length of its simulated wait, and this run landed at the most the pool could serve. That figure measures the size of the worker pool, not the speed of the machine. Raise the worker count to move the ceiling.',
+            key: 'pool-ceiling',
+            severity: 'note',
+            title: `The worker pool is what caps the I/O route at ${Math.round(ceiling.predicted_rps).toLocaleString()} req/s`,
+            // The claim is about the *rate*, which is arithmetic, and not about
+            // the concurrency the curve happened to bend at. This used to say
+            // "which is your worker count" about whichever level the ladder
+            // landed on — 36 against a pool of 20 on the run that caught it.
+            detail: `Each request on that route holds a worker for about ${ceiling.io_ms}ms, so ${ceiling.workers} workers can serve at most ~${Math.round(ceiling.predicted_rps).toLocaleString()} a second however fast the machine is — and it flattened at ${Math.round(ceiling.observed_rps).toLocaleString()}, right on that line. That is the pool being measured rather than the machine. Raise the worker count to move the line.`,
         });
     }
 
-    if (http.oversubscribed === true) {
+    // The gap that had no detector at all. A fixed connection count could not
+    // tell "this is the maximum" from "this is as hard as we pushed", so a
+    // large host quietly reported a fraction of itself as a flat number.
+    const unsaturated = Object.entries(http.routes ?? {})
+        .filter(([, route]) => route?.throughput?.saturated === false)
+        .map(([key]) => ROUTE_LABELS[key] ?? key);
+
+    if (unsaturated.length > 0) {
+        // A run that cannot reach a maximum has to say why and what to do
+        // about it. Saying only "this is a floor" is a dead end: the load
+        // sizes itself now, so there is no setting left for a reader to turn
+        // up. When the generator's distance is the cause, the arithmetic gives
+        // both the reason and the remedy.
+        const needed = http.required_concurrency ?? null;
+        const measured = Math.max(0, ...Object.values(http.routes ?? {})
+            .flatMap((route) => (route?.curve ?? []).map((point) => point.concurrency ?? 0)));
+        const rtt = http.generator?.rtt_ms ?? null;
+        const distant = needed && measured && needed > measured && (http.generator?.mode ?? 'self') === 'external';
+
         found.push({
-            key: 'oversubscribed',
-            severity: 'note',
-            title: 'Latency figures include time spent queuing',
-            detail: `The test held ${http.connections} connections open against ${http.workers} workers — deliberately, because offering more work than the server can take is how a maximum is found. The percentiles include the wait in that queue, so they describe saturation behavior rather than what a lone user would experience.`,
+            key: 'not-saturated',
+            severity: 'medium',
+            title: distant
+                ? 'The load generator is too far away to find this server\'s limit'
+                : 'This machine was still getting faster when the test ran out of room',
+            detail: distant
+                ? `This server answers far faster than the ${rtt}ms round trip to the machine sending the traffic, so almost every connection spends its life in transit rather than at the server. Reaching this pool from there would take about ${needed.toLocaleString()} connections at once, and BenchKit offered ${measured.toLocaleString()}. Throughput on ${listOf(unsaturated)} is a floor. Run the generator from the same datacenter, or run a self-test for a number that is not bounded by the network.`
+                : `Throughput on ${listOf(unsaturated)} was still climbing at the highest concurrency BenchKit measures. Those figures are the most it could ask for, not the most this machine can serve — read them as "at least this much".`,
         });
     }
 

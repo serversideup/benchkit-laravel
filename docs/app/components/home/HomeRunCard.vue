@@ -50,7 +50,7 @@ const fallback = computed(() => primaryMetric(props.summary))
 
 /** Bars are relative to the fastest route in this run, not across runs. */
 const fastest = computed(() => routes.value.reduce(
-    (max, route) => Math.max(max, route.data.requests_per_second), 1
+    (max, route) => Math.max(max, route.data.throughput?.requests_per_second ?? 0), 1
 ))
 
 /** Fixed locale and time zone: the server and the browser must agree. */
@@ -126,7 +126,7 @@ const submittedOn = computed(() => new Date(props.summary.submitted_at).toLocale
         <div class="mt-7 border-t border-white/[0.08] pt-7">
             <div class="flex items-baseline gap-2">
                 <span class="font-mono text-5xl font-semibold tracking-tight text-white tabular-nums">
-                    {{ formatNumber(headline?.data.requests_per_second ?? fallback?.rps) }}
+                    {{ formatNumber(headline?.data.throughput?.requests_per_second ?? fallback?.rps) }}
                 </span>
                 <span class="font-mono text-sm text-neutral-400">req/sec</span>
             </div>
@@ -136,7 +136,7 @@ const submittedOn = computed(() => new Date(props.summary.submitted_at).toLocale
 
             <!-- All four routes, transposed to rows: the results page runs them
                  as columns, which needs a page width this card doesn't have.
-                 Bar for the shape, p95 for what the slow requests cost. -->
+                 Bar for the shape, response time for what a visitor waits. -->
             <div
                 v-if="routes.length"
                 class="mt-6 space-y-2.5"
@@ -153,14 +153,14 @@ const submittedOn = computed(() => new Date(props.summary.submitted_at).toLocale
                         <span
                             class="block h-full rounded-full"
                             :class="route.key === headline?.key ? 'bg-flame-500' : 'bg-white/25'"
-                            :style="{ width: `${Math.max(3, (route.data.requests_per_second / fastest) * 100)}%` }"
+                            :style="{ width: `${Math.max(3, ((route.data.throughput?.requests_per_second ?? 0) / fastest) * 100)}%` }"
                         />
                     </span>
                     <span class="w-10 shrink-0 text-right font-mono text-xs text-neutral-300 tabular-nums">
-                        {{ formatNumber(route.data.requests_per_second) }}
+                        {{ formatNumber(route.data.throughput?.requests_per_second) }}
                     </span>
                     <span class="w-14 shrink-0 text-right font-mono text-[11px] text-neutral-600 tabular-nums">
-                        {{ Math.round(route.data.p95_ms) }}ms
+                        {{ route.data.latency?.p50_ms != null ? `${Math.round(route.data.latency.p50_ms)}ms` : '—' }}
                     </span>
                 </div>
             </div>

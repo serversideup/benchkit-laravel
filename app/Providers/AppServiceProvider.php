@@ -36,7 +36,12 @@ class AppServiceProvider extends ServiceProvider
     protected function configureGeneratorRateLimits(): void
     {
         RateLimiter::for('generator', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
-        RateLimiter::for('generator-upload', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
+        // A run uploads one file per measured window rather than one per
+        // route: four routes across six concurrency levels plus a
+        // response-time pass is around twenty-eight, arriving roughly one
+        // every six seconds. Twenty a minute would have throttled a healthy
+        // generator into a timeout.
+        RateLimiter::for('generator-upload', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
     }
 
     /**

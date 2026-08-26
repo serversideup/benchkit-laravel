@@ -2,13 +2,20 @@ import { hostDetailsLine, serverLabelFor } from '@/Composables/useRunSummary';
 
 const REPO_URL = 'https://github.com/serversideup/benchkit-laravel';
 
-// Same route priority as the share card's hero: DB read is the closest
-// thing to a real Laravel page
+// Same route priority as the share card's hero and the gallery's ranking, so
+// the number in the post is the number in the image is the number the result
+// is ranked by.
+//
+// This used to lead with DB read while the card led with JSON, which meant a
+// post and its own image could quote different routes. JSON is the right one
+// of the two: the database is a confound the hardware has nothing to do with,
+// and SQLite on tmpfs against Postgres over a socket differ by more than two
+// machines do.
 const heroRoute = (run) => {
     const routes = run.benchmarks?.http?.routes ?? {};
 
-    for (const key of ['db_read', 'json', 'static']) {
-        if( routes[key]?.requests_per_second != null ) {
+    for (const key of ['json', 'static', 'db_read']) {
+        if( routes[key]?.throughput?.requests_per_second != null ) {
             return routes[key];
         }
     }
@@ -16,7 +23,7 @@ const heroRoute = (run) => {
     return null;
 };
 
-const heroRps = (run) => heroRoute(run)?.requests_per_second ?? run.summary?.http_rps ?? null;
+const heroRps = (run) => heroRoute(run)?.throughput?.requests_per_second ?? run.summary?.http_rps ?? null;
 
 // One idea per line so nothing wraps into a wall of text:
 // performance, then stack, then what it costs
@@ -24,9 +31,15 @@ const performanceLineFor = (run) => {
     const route = heroRoute(run);
 
     if( route ) {
+        // The response time comes from a separate pass below the peak, so
+        // these two are independent facts rather than one measurement said
+        // twice. A floor is marked as one.
+        const throughput = route.throughput ?? {};
+        const prefix = throughput.saturated === false ? '≥' : '';
+
         return [
-            `${Math.round(route.requests_per_second).toLocaleString('en-US')} req/s`,
-            route.p95_ms != null ? `p95 ${Math.round(route.p95_ms).toLocaleString('en-US')}ms` : null,
+            `${prefix}${Math.round(throughput.requests_per_second).toLocaleString('en-US')} req/s`,
+            route.latency?.p50_ms != null ? `${Math.round(route.latency.p50_ms).toLocaleString('en-US')}ms response` : null,
         ].filter(Boolean).join(' · ');
     }
 

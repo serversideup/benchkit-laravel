@@ -48,9 +48,16 @@ A stored run is **summary fields plus the run itself**.
   "php_variation": "fpm-nginx",
   "php_version": "8.4.1",
   "cpu_cores": 2,
-  "json_rps": 1234.5, "json_p95_ms": 3,
-  "static_rps": null, "static_p95_ms": null,
-  "db_read_rps": null, "db_read_p95_ms": null,
+  // Throughput, the concurrency it peaked at, and what one visitor waits at a rate
+  // below that. Three measurements, so three fields — the response time comes from a
+  // separate open-loop pass, not from a percentile of the saturated sweep.
+  "json_rps": 1234.5, "json_concurrency": 42, "json_p50_ms": 3,
+  "static_rps": null, "static_p50_ms": null,
+  "db_read_rps": null, "db_read_p50_ms": null,
+  "saturated": true,                // false means the figure is a floor; shown with a ≥
+  "database_driver": "sqlite",      // a filter, because engines are not on one axis
+  "clean_run": true,                // whether the measurement can be trusted, not whether the host is fast
+  "clean_missing": null,            // the leading reason it is not, when it is not
   "php_read_ms": null,
   "cost_amount": 20, "cost_currency": "EUR",
 

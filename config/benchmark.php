@@ -60,26 +60,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | HTTP Self-Test
+    | Web Server Load Test
     |--------------------------------------------------------------------------
     |
-    | Load generator configuration for the HTTP benchmark stage (oha). The
-    | duration, connection count, and simulated I/O delay below define the
-    | "standard BenchKit load" — the default every run shares so results stay
-    | comparable between hosts and image variations. Users may override them
-    | per run from the settings drawer (validated to 5-60s / 1-500 conns /
-    | 0-1000ms); non-standard values are always disclosed alongside results.
+    | Each route is measured three ways, because one test cannot answer two
+    | different questions. A discarded warmup leaves the worker pool and
+    | OPcache warm. A sweep then measures throughput at several concurrency
+    | levels, which is how much the server can take. Finally an open-loop pass
+    | offers a rate below the peak the sweep found and times the answers, which
+    | is what a visitor actually experiences.
     |
-    | This run is a closed-loop *throughput* (saturation) test: it holds a
-    | fixed connection count open and measures max requests/sec. That is the
-    | right model for "how much can this box serve" and for ranking hardware.
-    | Its tail-latency percentiles are indicative only (a fixed-connection run
-    | is subject to coordinated omission); the external-testing modal offers a
-    | coordinated-omission-corrected latency command for honest p99s.
+    | The concurrency levels are not configured. They are derived per host from
+    | its core count and its worker count (App\Support\Http\LoadProfile), and
+    | that is the point: a fixed connection count is twelve times oversubscribed
+    | on a small box and barely warm on a large one, so it is not the same test
+    | on two machines. Deriving them is what makes one setting fit every host
+    | and keeps runs comparable.
     |
-    | io_ms is the delay the /bench/io route sleeps to model one outbound
-    | dependency call — the route where PHP-FPM and worker mode converge, so
-    | users can see worker mode's lead shrink as I/O grows.
+    | io_ms is the only load parameter left. It is the delay the /bench/io route
+    | sleeps to model one outbound dependency call — the route where PHP-FPM
+    | and worker mode converge, so users can see worker mode's lead shrink as
+    | I/O grows. It changes what that one route measures rather than how hard
+    | the load pushes, and a non-standard value is disclosed with the results.
     |
     | The target URL is normally auto-detected (loopback first, APP_URL as
     | a fallback). Set BENCHMARK_HTTP_URL only when the app can't reach
@@ -89,9 +91,16 @@ return [
 
     'http' => [
         'url' => env('BENCHMARK_HTTP_URL'),
-        'duration_seconds' => 30,
-        'connections' => 50,
         'io_ms' => 100,
+
+        'sweep' => [
+            'warmup_seconds' => 3,
+            'level_seconds' => 6,
+            'latency_seconds' => 10,
+            // Busy enough to be realistic, with enough margin that a slightly
+            // lucky sweep window does not produce a rate the server misses.
+            'latency_load' => 0.70,
+        ],
     ],
 
 ];

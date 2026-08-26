@@ -3,7 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Actions\Results\HttpBenchmarkResults;
+use App\Support\GeneratorScript;
 use App\Support\GeneratorSession;
+use App\Support\Http\LoadProfile;
+use App\Support\Http\LoadSizing;
+use App\Support\HttpBenchCommand;
 use App\Support\HttpSummaryReport;
 use App\Support\RunState;
 use Illuminate\Console\Command;
@@ -31,9 +35,12 @@ class AwaitGeneratorLoad extends Command
 
         $announcedHandshake = false;
         $announcedRunning = false;
+        $phase = 'probe';
         $lastPairingPrompt = 0;
         $reported = [];
         $rejectionsPrinted = 0;
+
+        $awaiting = [];
 
         while (true) {
             $current = $session->current();
@@ -42,6 +49,23 @@ class AwaitGeneratorLoad extends Command
                 $this->line('The generator pairing disappeared. It may have expired.');
 
                 return self::FAILURE;
+            }
+
+            if ($awaiting === []) {
+                $meta = (new HttpBenchmarkResults)->readMeta();
+
+                if ($meta === null) {
+                    $this->error('No load settings were written for this run.');
+
+                    return self::FAILURE;
+                }
+
+                // The probe is one connection per route: the only measurement
+                // that separates the server from the path to it.
+                $awaiting = HttpBenchmarkResults::sweepSlots(array_fill_keys(
+                    array_keys(HttpBenchmarkResults::ROUTES),
+                    [LoadProfile::PROBE_CONCURRENCY],
+                ));
             }
 
             // BenchmarkProcess kills this process on cancel, but polling the
@@ -62,6 +86,11 @@ class AwaitGeneratorLoad extends Command
                     'source_ip' => $current['handshake']['source_ip'] ?? null,
                     'oha_version' => $current['handshake']['oha_version'] ?? null,
                     'host' => $current['handshake']['host'] ?? null,
+                    // Read back when the sweep is sized: it bounds how many
+                    // connections this machine can actually hold open.
+                    'fd_limit' => $current['handshake']['fd_limit'] ?? null,
+                    'target_ip' => $current['handshake']['target_ip'] ?? null,
+                    'rtt_worst_ms' => $current['handshake']['rtt_worst_ms'] ?? null,
                 ]);
             }
 
@@ -78,21 +107,44 @@ class AwaitGeneratorLoad extends Command
 
             $rejectionsPrinted = $this->printRejections($current, $rejectionsPrinted);
 
-            foreach ($this->newlyReceived($current, $reported) as $key) {
-                $reported[] = $key;
+            foreach ($this->newlyReceived($current, $reported, $awaiting) as $slot) {
+                $reported[] = $slot;
                 $deadline = time() + $timeout;
-                $this->printRoute($key, $current['received'][$key] ?? []);
+                $this->printSlot($slot, $current['received'][$slot] ?? [], $current['failed'][$slot] ?? null);
             }
 
-            if (count($reported) === count(HttpBenchmarkResults::ROUTES)) {
+            if (count(array_diff($awaiting, $reported)) === 0) {
+                $next = match ($phase) {
+                    'probe' => $this->armSweep($session, $current),
+                    'sweep' => $this->armLatency($session, $current),
+                    default => [],
+                };
+
+                $phase = match ($phase) {
+                    'probe' => 'sweep',
+                    'sweep' => 'latency',
+                    default => 'done',
+                };
+
+                if ($next !== []) {
+                    $awaiting = array_merge($awaiting, $next);
+                    $deadline = time() + $timeout;
+
+                    continue;
+                }
+
+                if ($phase !== 'done') {
+                    continue;
+                }
+
                 $session->finish(GeneratorSession::STATUS_DONE);
-                $this->line('External load test complete. All routes received.');
+                $this->line('External load test complete.');
 
                 return self::SUCCESS;
             }
 
             if (time() >= $deadline) {
-                return $this->timeOut($session, count($reported));
+                return $this->timeOut($session, count($reported), count($awaiting));
             }
 
             sleep(1);
@@ -108,20 +160,131 @@ class AwaitGeneratorLoad extends Command
      * @param  array<int, string>  $reported
      * @return array<int, string>
      */
-    protected function newlyReceived(array $session, array $reported): array
+    protected function newlyReceived(array $session, array $reported, array $awaiting): array
     {
         $results = new HttpBenchmarkResults;
         $ready = [];
 
-        foreach (array_keys(HttpBenchmarkResults::ROUTES) as $key) {
-            if (! in_array($key, $reported, true)
-                && array_key_exists($key, $session['received'] ?? [])
-                && $results->detail($key) !== null) {
-                $ready[] = $key;
+        foreach ($awaiting as $slot) {
+            if (in_array($slot, $reported, true)) {
+                continue;
+            }
+
+            // A window the generator gave up on counts as settled: it will
+            // never arrive, and waiting for it only costs the run its timeout.
+            // The curve is left with a gap, which is honest.
+            if (array_key_exists($slot, $session['failed'] ?? [])) {
+                $ready[] = $slot;
+
+                continue;
+            }
+
+            $path = $results->pathForSlot($slot);
+
+            if (array_key_exists($slot, $session['received'] ?? [])
+                && $path !== null
+                && $results->detail($slot, $path) !== null) {
+                $ready[] = $slot;
             }
         }
 
         return $ready;
+    }
+
+    /**
+     * Size the sweep from what one connection measured, and arm it.
+     *
+     * This is the batch that could not exist up front. A server answering in a
+     * fraction of a millisecond behind a slow link needs far more connections
+     * to reach its worker pool than the same server measured from its own
+     * machine, and only the probe can tell the two apart.
+     *
+     * @param  array<string, mixed>  $current
+     * @return array<int, string>
+     */
+    protected function armSweep(GeneratorSession $session, array $current): array
+    {
+        $results = new HttpBenchmarkResults;
+        $profile = LoadProfile::fromMeta($results->readMeta() ?? []);
+        $command = new HttpBenchCommand;
+        $rtt = $current['handshake']['rtt_ms'] ?? null;
+
+        $sizing = (new LoadSizing($results))->fromProbe($profile, $rtt);
+        $steps = $command->sweep($profile, $sizing['levels']);
+
+        if ($steps === []) {
+            return [];
+        }
+
+        $this->line(sprintf(
+            'Probe complete. The server answers in %s behind a %sms round trip — sweeping to find its ceiling.',
+            $this->serviceSummary($results, $rtt),
+            $rtt ?? '?',
+        ));
+
+        $session->rearm((new GeneratorScript)->work($steps, $command->isInsecure($profile), $current, $profile->connectTo()));
+
+        return array_map(
+            fn ($step): string => HttpBenchmarkResults::slotFor($step->route, $step->phase, $step->connections),
+            $steps
+        );
+    }
+
+    /**
+     * The fastest route's service time, which is the one the network swamps
+     * first and therefore the one worth quoting.
+     */
+    protected function serviceSummary(HttpBenchmarkResults $results, ?float $rtt): string
+    {
+        $times = array_filter(array_map(
+            fn (string $route): ?float => $results->probeServiceMs($route, $rtt),
+            array_keys(HttpBenchmarkResults::ROUTES)
+        ));
+
+        return $times === [] ? 'an unknown time' : number_format(min($times), 2).'ms';
+    }
+
+    /**
+     * Arm the response-time pass from what the sweep measured.
+     *
+     * Returns the slots it is now waiting on, or an empty array when no route
+     * earned one — every route failed, which is a finished run with nothing
+     * left to time rather than an error.
+     *
+     * @param  array<string, mixed>  $current
+     * @return array<int, string>
+     */
+    protected function armLatency(GeneratorSession $session, array $current): array
+    {
+        $results = new HttpBenchmarkResults;
+        $meta = $results->readMeta() ?? [];
+        $profile = LoadProfile::fromMeta($meta);
+        $command = new HttpBenchCommand;
+
+        $curves = [];
+
+        foreach ($meta['levels'] ?? [] as $key => $routeLevels) {
+            $curve = $results->curveFor($key, array_map('intval', (array) $routeLevels));
+
+            if ($curve !== null) {
+                $curves[$key] = $curve;
+            }
+        }
+
+        $steps = $command->latency($profile, $curves);
+
+        if ($steps === []) {
+            return [];
+        }
+
+        $this->line('Sweep complete. Measuring response times at a rate this server can hold.');
+
+        $session->rearm((new GeneratorScript)->work($steps, $command->isInsecure($profile), $current, $profile->connectTo()));
+
+        return array_map(
+            fn ($step): string => HttpBenchmarkResults::slotFor($step->route, $step->phase, $step->connections),
+            $steps
+        );
     }
 
     /**
@@ -157,15 +320,40 @@ class AwaitGeneratorLoad extends Command
     /**
      * @param  array<string, mixed>  $received
      */
-    protected function printRoute(string $key, array $received): void
+    /**
+     * A sweep window gets one line, because there are around thirty of them
+     * and the shape of the curve is what matters. A response-time window gets
+     * the full block: there are four, and they are the figures the results
+     * page publishes.
+     *
+     * @param  array<string, mixed>  $received
+     */
+    protected function printSlot(string $slot, array $received, ?array $failed = null): void
     {
-        $path = HttpBenchmarkResults::ROUTES[$key];
-        $from = isset($received['source_ip']) ? ' from '.$received['source_ip'] : '';
+        if ($failed !== null) {
+            $this->line(sprintf('  %-24s %12s   %s', $slot, 'failed', $failed['reason'] ?? 'the generator captured no output'));
+
+            return;
+        }
+
+        if ($received === []) {
+            $this->line(sprintf('  %-24s %12s', $slot, 'no result'));
+
+            return;
+        }
+
         $rps = isset($received['requests_per_second']) ? number_format((float) $received['requests_per_second'], 1) : '?';
+        $from = isset($received['source_ip']) ? ' from '.$received['source_ip'] : '';
 
-        $this->line(sprintf('Received %s%s: %s req/s', $path, $from, $rps));
+        $this->line(sprintf('  %-24s %12s req/s%s', $slot, $rps, $from));
 
-        $detail = (new HttpBenchmarkResults)->detail($key);
+        if (! str_ends_with($slot, '-latency')) {
+            return;
+        }
+
+        $results = new HttpBenchmarkResults;
+        $path = $results->pathForSlot($slot);
+        $detail = $path === null ? null : $results->detail($slot, $path);
 
         if ($detail !== null) {
             foreach ((new HttpSummaryReport)->lines($detail) as $line) {
@@ -199,14 +387,14 @@ class AwaitGeneratorLoad extends Command
      * results. The routes map is self-describing — everything downstream
      * renders only the routes that are present.
      */
-    protected function timeOut(GeneratorSession $session, int $received): int
+    protected function timeOut(GeneratorSession $session, int $received, int $expected): int
     {
         if ($received > 0) {
             $session->finish(GeneratorSession::STATUS_DONE);
             $this->line(sprintf(
-                'The generator stopped after %d of %d routes. Keeping the partial results.',
+                'The generator stopped after %d of %d measured windows. Keeping the partial results.',
                 $received,
-                count(HttpBenchmarkResults::ROUTES),
+                $expected,
             ));
 
             return self::SUCCESS;

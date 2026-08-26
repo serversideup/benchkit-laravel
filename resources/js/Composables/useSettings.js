@@ -3,14 +3,20 @@ import { useForm } from '@inertiajs/vue3';
 
 // Settings persist in localStorage because the app is ephemeral and the
 // database is not guaranteed to survive between runs. Bump SETTINGS_VERSION
-// whenever the shape changes — old payloads are discarded, not migrated.
+// only when a *retained* key changes meaning — removals are already safe,
+// because loadSavedSettings only restores keys present in `defaults`, so a
+// stored payload from an older shape loads into the new one with nothing
+// carried over. Bumping for a removal would cost everyone their other
+// preferences for a migration that has already happened by construction.
 const STORAGE_KEY = 'benchkit-settings';
 const SETTINGS_VERSION = 3;
 
-// http_duration/http_connections/http_io_ms are the "standard BenchKit
-// load" — sharing them is what keeps results comparable across hosts. Full
-// pins the standard (30s); Quick trades a shorter window (10s) for speed;
-// any other values read as a custom run and are disclosed with the results.
+// There is no duration or connection count to set. The load sizes itself
+// from the machine it is measuring — the levels come from its cores and its
+// worker count — which is what keeps one setting honest on a one-core box and
+// a thirty-two-core one. http_io_ms is the only load parameter left, and it
+// changes what the /bench/io route measures rather than how hard the load
+// pushes; a non-standard value is disclosed with the results.
 const defaults = {
     hardware: true,
     disk: true,
@@ -20,8 +26,6 @@ const defaults = {
     network: true,
     network_test_type: 'ipv4',
     http: true,
-    http_duration: 30,
-    http_connections: 50,
     http_io_ms: 100,
     // Where the load comes from: 'external' (a paired second machine drives
     // it — the honest absolute number, and the default for every preset) or
@@ -34,7 +38,7 @@ const defaults = {
     php_mode: 'full',
 };
 
-const numericKeys = ['geekbench_version', 'http_duration', 'http_connections', 'http_io_ms'];
+const numericKeys = ['geekbench_version', 'http_io_ms'];
 
 // http_generator stays out of both presets: load source is an orthogonal
 // choice, and folding it in would flip the preset buttons to "custom" the
@@ -42,12 +46,14 @@ const numericKeys = ['geekbench_version', 'http_duration', 'http_connections', '
 const { http_generator: _, ...presetDefaults } = defaults;
 
 const presets = {
+    // Quick and Full run an identical web server test. A quick-mode
+    // throughput number that could not be compared with a full-mode one would
+    // be worse than not having it, since both land in the same gallery under
+    // the same heading.
     quick: {
         hardware: false,
         network: true,
         http: true,
-        http_duration: 10,
-        http_connections: defaults.http_connections,
         http_io_ms: defaults.http_io_ms,
         php_database: true,
         php_mode: 'quick',
@@ -128,7 +134,20 @@ const durations = {
     php_full: 28,
 };
 
-const httpMinutes = (settings) => (4 * ((Number(settings.http_duration) || defaults.http_duration) + 3)) / 60;
+// Four routes, each warmed once, measured at up to six concurrency levels,
+// then timed at a steady rate. The exact level count depends on the host, so
+// this is the upper end rather than a promise.
+//
+// Kept in step with config/benchmark.php by hand. If these drift, the start
+// screen lies about how long a run takes, which is the one estimate a person
+// actually plans around.
+const HTTP_WARMUP_SECONDS = 3;
+const HTTP_LEVEL_SECONDS = 6;
+const HTTP_MAX_LEVELS = 6;
+const HTTP_LATENCY_SECONDS = 10;
+
+const httpMinutes = () =>
+    (4 * (HTTP_WARMUP_SECONDS + HTTP_MAX_LEVELS * HTTP_LEVEL_SECONDS + HTTP_LATENCY_SECONDS)) / 60;
 
 // Takes a plain settings object so the preset buttons can be labelled from the
 // same arithmetic as the live estimate, instead of a hardcoded string that

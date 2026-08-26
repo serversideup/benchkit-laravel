@@ -63,6 +63,16 @@ class BuildSubmissionDocument
     protected const MAX_STATUS_CODES = 20;
 
     /**
+     * Curve points published per route.
+     *
+     * The sweep runs at most six levels, so this is headroom rather than a
+     * limit — it exists so a hand-edited document cannot carry ten thousand
+     * points into the gallery. Every point also costs bytes in the submission
+     * token, which travels in a GitHub issue URL.
+     */
+    protected const MAX_CURVE_POINTS = 12;
+
+    /**
      * @param  array<string, mixed>  $run  A stored run snapshot (storage/app/runs).
      * @return array<string, mixed>
      */
@@ -249,8 +259,9 @@ class BuildSubmissionDocument
             // and a handshake plus per-request encryption is a large difference
             // to leave undisclosed between two otherwise identical-looking runs.
             'tls' => $this->boolean($http['tls'] ?? null),
-            'duration_seconds' => $http['duration_seconds'] ?? null,
-            'connections' => $http['connections'] ?? null,
+            // Duration and connection count are gone: the load sizes itself
+            // per route from what one connection measured, so there is no
+            // single number either could have been.
             'io_ms' => $http['io_ms'] ?? null,
             // The concurrency ceiling is config, not identity, and without it a
             // reader cannot tell a framework result from one bounded by how the
@@ -266,12 +277,17 @@ class BuildSubmissionDocument
                 'generator' => $this->generator($http['generator'] ?? null),
                 'generator_bound' => $this->boolean($http['generator_bound'] ?? null),
             ]),
-            // Whether the load offered more concurrency than the server can
-            // take (a property of the test) and whether the worker count is
-            // demonstrably what capped it (a claim needing evidence — see
-            // HttpBenchmarkResults::isPoolLimited).
-            'oversubscribed' => $this->boolean($http['oversubscribed'] ?? null),
-            'pool_limited' => $http['pool_limited'] ?? null,
+            'cores' => $http['cores'] ?? null,
+            // The concurrency it would have taken to saturate this server from
+            // wherever the load came from. Published because a run that could
+            // not reach a maximum needs to say how far short it fell.
+            'required_concurrency' => $http['required_concurrency'] ?? null,
+            // Arithmetic offered beside a measurement: a request on the I/O
+            // route holds a worker for its whole simulated wait, so the pool
+            // can serve at most workers x 1000/io_ms however fast the machine
+            // is. Publishing the prediction with the observation is what lets
+            // a reader recognise their own worker count.
+            'pool_ceiling' => $this->poolCeiling($http['pool_ceiling'] ?? null),
             'routes' => $this->object($routes),
         ];
     }
@@ -307,17 +323,120 @@ class BuildSubmissionDocument
     {
         return $this->present([
             'path' => $route['path'] ?? null,
-            'requests_per_second' => $route['requests_per_second'] ?? null,
-            // Observed, against the requested duration_seconds on the parent.
-            // A throughput figure is a count divided by a time, and this is the
-            // time it was actually divided by.
-            'elapsed_seconds' => $route['elapsed_seconds'] ?? null,
-            'success_rate' => $route['success_rate'] ?? null,
-            'p50_ms' => $route['p50_ms'] ?? null,
-            'p95_ms' => $route['p95_ms'] ?? null,
-            'p99_ms' => $route['p99_ms'] ?? null,
-            'total_requests' => $route['total_requests'] ?? null,
-            'status_codes' => $this->statusCodes($route['status_codes'] ?? null),
+            // Throughput and response time come from different measurements on
+            // purpose. The sweep answers how much the server can take and its
+            // percentiles describe a queue; the open-loop pass answers what a
+            // visitor experiences at a rate the server can hold. Publishing
+            // both from one saturated window is what schema 5 replaced.
+            'throughput' => $this->throughput($route['throughput'] ?? null),
+            'latency' => $this->latency($route['latency'] ?? null),
+            'curve' => $this->curve($route['curve'] ?? null),
+            'breaking_point' => $route['breaking_point'] ?? null,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $throughput
+     * @return array<string, mixed>|null
+     */
+    protected function throughput(?array $throughput): ?array
+    {
+        if ($throughput === null) {
+            return null;
+        }
+
+        return $this->present([
+            'requests_per_second' => $this->number($throughput['requests_per_second'] ?? null),
+            // Where the peak happened, and the cheapest level that got within a
+            // few percent of it. Two different questions, kept as two numbers.
+            'concurrency' => $throughput['concurrency'] ?? null,
+            'knee_concurrency' => $throughput['knee_concurrency'] ?? null,
+            // Observed, against the window the sweep asked for. A throughput
+            // figure is a count divided by a time, and this is the time it was
+            // actually divided by.
+            'elapsed_seconds' => $throughput['elapsed_seconds'] ?? null,
+            'success_rate' => $throughput['success_rate'] ?? null,
+            'total_requests' => $throughput['total_requests'] ?? null,
+            // False means throughput was still climbing when the sweep ran out
+            // of room, so the figure is a floor. The gallery must not rank one
+            // against a maximum.
+            'saturated' => $this->boolean($throughput['saturated'] ?? null),
+            'status_codes' => $this->statusCodes($throughput['status_codes'] ?? null),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $latency
+     * @return array<string, mixed>|null
+     */
+    protected function latency(?array $latency): ?array
+    {
+        if ($latency === null) {
+            return null;
+        }
+
+        return $this->present([
+            'achieved_rps' => $this->number($latency['achieved_rps'] ?? null),
+            'p50_ms' => $this->number($latency['p50_ms'] ?? null),
+            'p90_ms' => $this->number($latency['p90_ms'] ?? null),
+            'p95_ms' => $this->number($latency['p95_ms'] ?? null),
+            'p99_ms' => $this->number($latency['p99_ms'] ?? null),
+            'success_rate' => $latency['success_rate'] ?? null,
+            'total_requests' => $latency['total_requests'] ?? null,
+            'elapsed_seconds' => $latency['elapsed_seconds'] ?? null,
+            // Measured open-loop against a target rate, so it carries no
+            // coordinated omission. A published percentile that did not would
+            // be a different measurement wearing the same name.
+            'corrected' => $this->boolean($latency['corrected'] ?? null),
+        ]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>|null  $curve
+     * @return array<int, array<string, mixed>>|null
+     */
+    protected function curve(?array $curve): ?array
+    {
+        if ($curve === null) {
+            return null;
+        }
+
+        $points = [];
+
+        foreach ($curve as $point) {
+            if (! is_array($point) || count($points) >= self::MAX_CURVE_POINTS) {
+                continue;
+            }
+
+            $points[] = $this->present([
+                'concurrency' => $point['concurrency'] ?? null,
+                'requests_per_second' => $this->number($point['requests_per_second'] ?? null),
+                'p50_ms' => $this->number($point['p50_ms'] ?? null),
+                'p95_ms' => $this->number($point['p95_ms'] ?? null),
+                'success_rate' => $point['success_rate'] ?? null,
+            ]);
+        }
+
+        return $points === [] ? null : $points;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $ceiling
+     * @return array<string, mixed>|null
+     */
+    protected function poolCeiling(?array $ceiling): ?array
+    {
+        if ($ceiling === null) {
+            return null;
+        }
+
+        return $this->present([
+            'workers' => $ceiling['workers'] ?? null,
+            'io_ms' => $ceiling['io_ms'] ?? null,
+            'predicted_rps' => $this->number($ceiling['predicted_rps'] ?? null),
+            'observed_rps' => $this->number($ceiling['observed_rps'] ?? null),
+            'knee_concurrency' => $ceiling['knee_concurrency'] ?? null,
+            'at_ceiling' => $this->boolean($ceiling['at_ceiling'] ?? null),
         ]);
     }
 

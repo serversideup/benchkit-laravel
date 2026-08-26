@@ -2,18 +2,22 @@
 
 namespace Tests\Feature\Benchmarks;
 
+use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\BenchmarkStages;
 use App\Support\GeneratorSession;
+use App\Support\Http\LoadProfile;
 use App\Support\RunState;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Tests\Concerns\SeedsHttpResults;
 use Tests\Concerns\UsesFakeResultsPath;
 use Tests\Concerns\UsesFakeRunPath;
 use Tests\TestCase;
 
 class HttpBenchmarkTest extends TestCase
 {
+    use SeedsHttpResults;
     use UsesFakeResultsPath;
     use UsesFakeRunPath;
 
@@ -47,29 +51,46 @@ class HttpBenchmarkTest extends TestCase
         $meta = $this->meta();
         $this->assertSame('http://localhost:8080', $meta['target']);
         $this->assertSame('loopback', $meta['mode']);
-        $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
+        $this->assertNotEmpty($meta['levels']);
     }
 
-    public function test_the_http_stage_uses_requested_load_settings(): void
-    {
-        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
-
-        $this->resolveHttpStage(['http_duration' => 30, 'http_connections' => 100]);
-
-        $meta = $this->meta();
-        $this->assertSame(30, $meta['duration_seconds']);
-        $this->assertSame(100, $meta['connections']);
-    }
-
-    public function test_the_http_stage_falls_back_to_the_standard_load(): void
+    /**
+     * The concurrency levels are not a setting. They are derived from what the
+     * machine reports, because a fixed number is twelve times oversubscribed
+     * on a small box and barely warm on a large one — and those are not the
+     * same test.
+     */
+    public function test_the_http_stage_sizes_the_load_from_the_machine(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
 
         $this->resolveHttpStage();
 
-        $meta = $this->meta();
-        $this->assertSame(config('benchmark.http.duration_seconds'), $meta['duration_seconds']);
-        $this->assertSame(config('benchmark.http.connections'), $meta['connections']);
+        $levels = $this->meta()['levels'];
+
+        $this->assertSame(array_keys(HttpBenchmarkResults::ROUTES), array_keys($levels));
+
+        foreach ($levels as $route => $routeLevels) {
+            $this->assertSame(1, $routeLevels[0], "{$route} must start at one connection — that is where an honest round-trip floor is read from.");
+            $this->assertSame($routeLevels, array_values(array_unique($routeLevels)));
+            $this->assertSame($routeLevels, collect($routeLevels)->sort()->values()->all());
+        }
+    }
+
+    public function test_the_http_stage_records_the_levels_it_will_measure(): void
+    {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
+
+        $this->resolveHttpStage();
+
+        // Seeded with what the host's cores and workers imply, and replaced
+        // per route once the probe has measured what the server really costs.
+        // Recorded rather than recomputed downstream, because nothing reading
+        // a run can know what the probe found.
+        $this->assertSame(
+            LoadProfile::levels($this->meta()['cores'], $this->meta()['workers']),
+            $this->meta()['levels']['static'],
+        );
     }
 
     public function test_the_http_stage_records_the_simulated_io_delay(): void
@@ -83,16 +104,14 @@ class HttpBenchmarkTest extends TestCase
         $this->assertSame(250, $this->meta()['io_ms']);
     }
 
-    public function test_the_http_stage_command_warms_up_and_carries_the_io_delay(): void
+    public function test_the_http_stage_hands_the_load_to_its_own_driver(): void
     {
         Http::fake(['*' => Http::response('BenchKit OK', 200)]);
 
-        $command = $this->resolveHttpStage(['http_io_ms' => 150])['command'];
-
-        // The io route carries the delay as a query param; the others do not.
-        $this->assertStringContainsString('/bench/io?ms=150', $command);
-        // Every route is warmed (discarded to /dev/null) before it is measured.
-        $this->assertStringContainsString('> /dev/null', $command);
+        // The load has a step in the middle that has to be computed — the
+        // response-time pass offers a rate derived from what the sweep proved
+        // the server can hold — so it cannot be a shell chain written up front.
+        $this->assertStringContainsString('benchmark:http-load', $this->resolveHttpStage()['command']);
     }
 
     public function test_the_http_stage_rejects_redirecting_targets(): void
@@ -137,7 +156,7 @@ class HttpBenchmarkTest extends TestCase
 
     public function test_http_summary_command_prints_detailed_metrics_from_oha_json(): void
     {
-        File::put($this->resultsPath.'/http-static.json', json_encode([
+        File::put($this->resultsPath.'/http-static-c20.json', json_encode([
             'summary' => [
                 'successRate' => 1.0,
                 'requestsPerSec' => 5623.4,
@@ -153,7 +172,7 @@ class HttpBenchmarkTest extends TestCase
             'errorDistribution' => ['aborted due to deadline' => 50],
         ]));
 
-        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+        $this->artisan('benchmark:http-summary', ['slot' => 'static-c20'])
             ->assertExitCode(0)
             ->expectsOutputToContain('Requests/sec   5,623.4')
             ->expectsOutputToContain('p95 14.00')
@@ -163,14 +182,14 @@ class HttpBenchmarkTest extends TestCase
 
     public function test_http_summary_command_is_quiet_when_a_route_has_no_results(): void
     {
-        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+        $this->artisan('benchmark:http-summary', ['slot' => 'static-c20'])
             ->assertExitCode(0)
-            ->expectsOutputToContain('No results were captured for static.');
+            ->expectsOutputToContain('No results were captured for static-c20.');
     }
 
     public function test_http_summary_command_discards_runs_that_transferred_zero_bytes(): void
     {
-        File::put($this->resultsPath.'/http-static.json', json_encode([
+        File::put($this->resultsPath.'/http-static-c20.json', json_encode([
             'summary' => [
                 'successRate' => 1.0,
                 'requestsPerSec' => 175807.1,
@@ -181,55 +200,66 @@ class HttpBenchmarkTest extends TestCase
             'statusCodeDistribution' => ['200' => 1758717],
         ]));
 
-        $this->artisan('benchmark:http-summary', ['route' => 'static'])
+        $this->artisan('benchmark:http-summary', ['slot' => 'static-c20'])
             ->assertExitCode(0)
-            ->expectsOutputToContain('No results were captured for static.');
+            ->expectsOutputToContain('No results were captured for static-c20.');
     }
 
-    public function test_http_results_parses_oha_output_per_route(): void
+    public function test_http_results_report_throughput_and_response_time_from_different_measurements(): void
     {
         File::put($this->resultsPath.'/http-meta.json', json_encode([
             'target' => 'http://localhost:8080',
             'mode' => 'loopback',
-            'duration_seconds' => 10,
-            'connections' => 50,
             'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute([1, 20]),
         ]));
 
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 1234.56],
-            'latencyPercentiles' => ['p50' => 0.010, 'p95' => 0.025, 'p99' => 0.040],
-            'statusCodeDistribution' => ['200' => 12345],
-        ]));
-
-        File::put($this->resultsPath.'/http-db-read.json', json_encode([
-            'summary' => ['successRate' => 0.99, 'requestsPerSec' => 456.78],
-            'latencyPercentiles' => ['p50' => 0.050, 'p95' => 0.120, 'p99' => 0.300],
-            'statusCodeDistribution' => ['200' => 4500, '500' => 45],
-        ]));
+        $this->writeOha($this->resultsPath.'/http-static-c1.json', 100.0, 1);
+        $this->writeOha($this->resultsPath.'/http-static-c20.json', 1234.56, 20);
+        // The response-time pass runs open-loop below the peak, so its p50 is
+        // what a visitor experiences rather than the queue the sweep measured.
+        $this->writeOha($this->resultsPath.'/http-static-latency.json', 864.0, 4);
 
         $response = $this->getJson('/http/results')->assertOk();
 
         $response->assertJsonPath('http_results.mode', 'loopback');
         $response->assertJsonPath('http_results.target', 'http://localhost:8080');
         $response->assertJsonPath('http_results.io_ms', 100);
-        $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
-        $response->assertJsonPath('http_results.routes.static.p95_ms', 25);
-        $response->assertJsonPath('http_results.routes.static.total_requests', 12345);
-        $response->assertJsonPath('http_results.routes.db_read.p99_ms', 300);
-        $response->assertJsonPath('http_results.routes.db_read.total_requests', 4545);
+        $response->assertJsonPath('http_results.routes.static.throughput.requests_per_second', 1234.6);
+        $response->assertJsonPath('http_results.routes.static.throughput.concurrency', 20);
+        $response->assertJsonPath('http_results.routes.static.throughput.total_requests', 7407);
+        $response->assertJsonPath('http_results.routes.static.latency.achieved_rps', 864);
+        $response->assertJsonPath('http_results.routes.static.latency.corrected', true);
+        $this->assertCount(2, $response->json('http_results.routes.static.curve'));
         $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
+    }
+
+    public function test_a_route_with_no_response_time_pass_still_reports_its_throughput(): void
+    {
+        $this->seedMetaAndOneRoute(['workers' => 20]);
+
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.routes.static.latency', null);
+        $this->assertNotNull($response->json('http_results.routes.static.throughput'));
     }
 
     public function test_http_results_excludes_routes_that_transferred_zero_bytes(): void
     {
-        File::put($this->resultsPath.'/http-static.json', json_encode([
+        File::put($this->resultsPath.'/http-meta.json', json_encode([
+            'target' => 'http://localhost:8080',
+            'mode' => 'loopback',
+            'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute([20]),
+        ]));
+
+        File::put($this->resultsPath.'/http-static-c20.json', json_encode([
             'summary' => ['successRate' => 1.0, 'requestsPerSec' => 1234.56, 'totalData' => 1804000],
             'latencyPercentiles' => ['p50' => 0.010],
             'statusCodeDistribution' => ['200' => 12345],
         ]));
 
-        File::put($this->resultsPath.'/http-json.json', json_encode([
+        File::put($this->resultsPath.'/http-json-c20.json', json_encode([
             'summary' => ['successRate' => 1.0, 'requestsPerSec' => 155257.6, 'totalData' => 0],
             'latencyPercentiles' => ['p50' => 0.0001],
             'statusCodeDistribution' => ['200' => 1553175],
@@ -237,74 +267,116 @@ class HttpBenchmarkTest extends TestCase
 
         $response = $this->getJson('/http/results')->assertOk();
 
-        $response->assertJsonPath('http_results.routes.static.requests_per_second', 1234.6);
+        $response->assertJsonPath('http_results.routes.static.throughput.requests_per_second', 1234.6);
         $this->assertArrayNotHasKey('json', $response->json('http_results.routes'));
     }
 
     /**
      * @param  array<string, mixed>  $overrides
      */
+    /**
+     * A full sweep of the io route at the given levels, which is the route the
+     * pool ceiling is computed from.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @param  array<int, float>  $rpsByConcurrency
+     */
+    /**
+     * Levels are recorded per route, because the probe sizes them from each
+     * route's own service time. Most fixtures want the same ladder everywhere.
+     *
+     * @param  array<int, int>  $levels
+     * @return array<string, array<int, int>>
+     */
+    protected function levelsForEveryRoute(array $levels): array
+    {
+        return array_fill_keys(array_keys(HttpBenchmarkResults::ROUTES), $levels);
+    }
+
+    protected function seedSweep(array $overrides, array $rpsByConcurrency): void
+    {
+        File::put($this->resultsPath.'/http-meta.json', json_encode(array_merge([
+            'target' => 'http://localhost:8080',
+            'mode' => 'loopback',
+            'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute(array_keys($rpsByConcurrency)),
+        ], $overrides)));
+
+        foreach ($rpsByConcurrency as $connections => $rps) {
+            $this->writeOha($this->resultsPath.'/http-io-c'.$connections.'.json', $rps, $connections);
+        }
+    }
+
     protected function seedMetaAndOneRoute(array $overrides = [], ?float $ioRequestsPerSecond = null): void
     {
         File::put($this->resultsPath.'/http-meta.json', json_encode(array_merge([
             'target' => 'http://localhost:8080',
             'mode' => 'loopback',
-            'duration_seconds' => 10,
-            'connections' => 50,
             'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute([20]),
         ], $overrides)));
 
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 1234.56, 'totalData' => 1804000],
-            'latencyPercentiles' => ['p50' => 0.010],
-            'statusCodeDistribution' => ['200' => 12345],
-        ]));
+        $this->writeOha($this->resultsPath.'/http-static-c20.json', 1234.56, 20);
 
         if ($ioRequestsPerSecond !== null) {
-            File::put($this->resultsPath.'/http-io.json', json_encode([
-                'summary' => ['successRate' => 1.0, 'requestsPerSec' => $ioRequestsPerSecond, 'totalData' => 40000],
-                'latencyPercentiles' => ['p50' => 0.105],
-                'statusCodeDistribution' => ['200' => (int) $ioRequestsPerSecond * 10],
-            ]));
+            $this->writeOha($this->resultsPath.'/http-io-c20.json', $ioRequestsPerSecond, 20);
         }
     }
 
     /**
-     * Holding more connections open than the server has workers is what a
-     * saturation test is for, so this is recorded as a property of the load
-     * rather than as a fault. What it changes is how the latency figures read:
-     * they include time spent queued.
+     * The sweep replaces the run-level "was this oversubscribed" flag, which
+     * compared two settings and produced no evidence. What matters now is
+     * whether throughput ever stopped improving inside the range measured — a
+     * number the sweep never saw flatten is a floor, not a maximum.
      */
-    public function test_http_results_record_that_the_load_exceeded_the_worker_count(): void
+    public function test_http_results_report_a_curve_that_flattened_as_saturated(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20]);
+        $this->seedSweep(['workers' => 20], [1 => 10.0, 20 => 198.0, 40 => 199.0]);
 
         $response = $this->getJson('/http/results')->assertOk();
 
-        $response->assertJsonPath('http_results.workers', 20);
-        $response->assertJsonPath('http_results.oversubscribed', true);
+        $response->assertJsonPath('http_results.routes.io.throughput.saturated', true);
+        // The maximum and the concurrency it happened at. Publishing the
+        // knee's throughput under a heading that says "max" reported a route
+        // peaking at 437 req/s as 417.
+        $response->assertJsonPath('http_results.routes.io.throughput.requests_per_second', 199);
+        $response->assertJsonPath('http_results.routes.io.throughput.concurrency', 40);
+        // The cheapest level within a few percent of that peak, which is what
+        // the response-time pass holds open. A different question, kept as a
+        // different number.
+        $response->assertJsonPath('http_results.routes.io.throughput.knee_concurrency', 20);
     }
 
-    public function test_http_results_do_not_record_oversubscription_when_the_load_fits(): void
+    public function test_http_results_report_a_curve_still_climbing_as_a_floor(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 20, 'workers' => 50]);
+        $this->seedSweep(['workers' => 20], [1 => 10.0, 20 => 200.0, 40 => 400.0]);
 
         $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.oversubscribed', false);
+            ->assertJsonPath('http_results.routes.io.throughput.saturated', false);
     }
 
     /**
-     * The claim "the worker pool was the ceiling" needs evidence, and the I/O
-     * route is the only place it can be had: its service time is a known sleep,
-     * so workers x (1000/io_ms) is a real limit. 20 workers at 100ms caps it at
-     * 200 req/s, and 190 is at that cap.
+     * The claim "the worker pool is the ceiling" needs evidence, and the I/O
+     * route is the only place it can be had: its service time is a known
+     * sleep, so workers x (1000/io_ms) is a real limit. Twenty workers at
+     * 100ms caps it at 200 req/s.
+     *
+     * The sweep makes this far stronger than a single window could. It reports
+     * the prediction next to where the curve actually bent, and both landing
+     * on the worker count is a two-variable coincidence — which is what lets
+     * the results page draw a line from arithmetic and have the measurement
+     * land on it.
      */
-    public function test_http_results_flag_a_pool_ceiling_the_io_route_actually_reached(): void
+    public function test_http_results_publish_the_predicted_pool_ceiling_beside_the_measurement(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20], ioRequestsPerSecond: 190.0);
+        $this->seedSweep(['workers' => 20], [1 => 10.0, 20 => 190.0, 40 => 191.0]);
 
-        $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.pool_limited', true);
+        $response = $this->getJson('/http/results')->assertOk();
+
+        $response->assertJsonPath('http_results.pool_ceiling.predicted_rps', 200);
+        $response->assertJsonPath('http_results.pool_ceiling.observed_rps', 191);
+        $response->assertJsonPath('http_results.pool_ceiling.knee_concurrency', 20);
+        $response->assertJsonPath('http_results.pool_ceiling.at_ceiling', true);
     }
 
     /**
@@ -312,17 +384,15 @@ class HttpBenchmarkTest extends TestCase
      * settings and is evidence of nothing. On a two-core box with twenty
      * workers it reported every run as pool-bound while the actual ceiling was
      * the CPU — advising more workers, which would have made latency worse and
-     * throughput no better. An I/O route far below its computed limit is a run
-     * that was capped by something else.
+     * throughput no better. An I/O route far below its computed limit was
+     * capped by something else.
      */
     public function test_http_results_do_not_blame_the_pool_when_the_io_route_is_nowhere_near_it(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20], ioRequestsPerSecond: 60.0);
+        $this->seedSweep(['workers' => 20], [1 => 10.0, 20 => 60.0, 40 => 61.0]);
 
-        $response = $this->getJson('/http/results')->assertOk();
-
-        $response->assertJsonPath('http_results.oversubscribed', true);
-        $response->assertJsonPath('http_results.pool_limited', false);
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.pool_ceiling.at_ceiling', false);
     }
 
     /**
@@ -330,36 +400,30 @@ class HttpBenchmarkTest extends TestCase
      * the I/O route has nothing to compute a ceiling from. Either way that
      * reads as unknown, not as "fits comfortably".
      */
-    public function test_http_results_report_pool_limited_as_unknown_without_evidence(): void
+    public function test_http_results_report_no_pool_ceiling_without_a_worker_count(): void
     {
-        $this->seedMetaAndOneRoute(['workers' => null]);
+        $this->seedSweep(['workers' => null], [1 => 10.0, 20 => 190.0, 40 => 191.0]);
 
         $response = $this->getJson('/http/results')->assertOk();
 
         $response->assertJsonPath('http_results.workers', null);
-        $response->assertJsonPath('http_results.pool_limited', null);
+        $response->assertJsonPath('http_results.pool_ceiling', null);
     }
 
-    public function test_http_results_report_pool_limited_as_unknown_without_the_io_route(): void
+    public function test_http_results_report_no_pool_ceiling_without_the_io_route(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 50, 'workers' => 20]);
+        $this->seedMetaAndOneRoute(['workers' => 20]);
 
         $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.pool_limited', null);
+            ->assertJsonPath('http_results.pool_ceiling', null);
     }
 
-    /**
-     * The worker ceiling used to be recorded under an FPM-specific name. A
-     * results directory written by an older build is still worth reading.
-     */
     public function test_http_results_read_the_worker_ceiling_from_the_previous_meta_key(): void
     {
-        $this->seedMetaAndOneRoute(['connections' => 50, 'fpm_max_children' => 20]);
+        $this->seedMetaAndOneRoute(['workers' => null, 'fpm_max_children' => 20]);
 
-        $response = $this->getJson('/http/results')->assertOk();
-
-        $response->assertJsonPath('http_results.workers', 20);
-        $response->assertJsonPath('http_results.oversubscribed', true);
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.workers', 20);
     }
 
     /**
@@ -397,15 +461,24 @@ class HttpBenchmarkTest extends TestCase
             ->assertJsonPath('http_results.generator.mode', 'self');
     }
 
-    public function test_http_results_derive_self_rtt_from_the_fastest_request(): void
+    /**
+     * A self-test has nothing to measure the round trip up front, so it is
+     * taken afterwards from the single-connection level — where nothing is
+     * queued. The old figure came from the fastest request inside a saturated
+     * window, where even the quickest observation had waited behind something.
+     */
+    public function test_http_results_derive_self_rtt_from_the_uncontended_level(): void
     {
-        $this->seedMetaAndOneRoute();
-
-        File::put($this->resultsPath.'/http-json.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 900.0, 'fastest' => 0.0004, 'totalData' => 1804000],
-            'latencyPercentiles' => ['p50' => 0.010],
-            'statusCodeDistribution' => ['200' => 9000],
+        File::put($this->resultsPath.'/http-meta.json', json_encode([
+            'target' => 'http://localhost:8080',
+            'mode' => 'loopback',
+            'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute([1, 20]),
         ]));
+
+        // One connection at 2,500 req/s is a 0.4ms round trip.
+        $this->writeOha($this->resultsPath.'/http-static-c1.json', 2500.0, 1);
+        $this->writeOha($this->resultsPath.'/http-static-c20.json', 12000.0, 20);
 
         $this->getJson('/http/results')->assertOk()
             ->assertJsonPath('http_results.generator.rtt_ms', 0.4);
@@ -429,47 +502,51 @@ class HttpBenchmarkTest extends TestCase
     }
 
     /**
-     * A closed-loop generator cannot exceed connections / round-trip-floor.
-     * 50 connections over a 60ms floor caps at ~833 req/s; a run reporting
-     * 820 landed at that ceiling, so the path — not the server — was the
-     * limit. 400 req/s against the same floor is a server being measured.
+     * In a closed loop each connection holds one request at a time, so
+     * concurrency = rate x mean response time is an identity, not a model. A
+     * level where that does not hold had connections sitting idle, which is
+     * the machine driving the load running out of capacity rather than the one
+     * serving it.
+     *
+     * This replaced `rps >= connections / round-trip-floor`, which needed a
+     * fixed connection count the sweep no longer has, and could not see a
+     * generator that saturated its own CPU partway up.
      */
     public function test_http_results_flag_a_run_the_generator_capped(): void
     {
         $this->seedMetaAndOneRoute();
 
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 820.0, 'fastest' => 0.060, 'totalData' => 1804000],
-            'latencyPercentiles' => ['p50' => 0.061],
-            'statusCodeDistribution' => ['200' => 8200],
+        // 400 req/s at a 25ms mean needs ten connections busy, not twenty:
+        // half of them sat idle.
+        File::put($this->resultsPath.'/http-static-c20.json', json_encode([
+            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 400.0, 'average' => 0.025, 'fastest' => 0.020, 'totalData' => 1804000],
+            'latencyPercentiles' => ['p50' => 0.025],
+            'statusCodeDistribution' => ['200' => 4000],
         ]));
 
         $this->getJson('/http/results')->assertOk()
             ->assertJsonPath('http_results.generator_bound', true);
     }
 
-    public function test_http_results_do_not_blame_the_generator_when_the_server_was_the_limit(): void
+    public function test_http_results_do_not_blame_the_generator_when_it_kept_its_connections_busy(): void
     {
         $this->seedMetaAndOneRoute();
-
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 400.0, 'fastest' => 0.060, 'totalData' => 1804000],
-            'latencyPercentiles' => ['p50' => 0.125],
-            'statusCodeDistribution' => ['200' => 4000],
-        ]));
+        $this->writeOha($this->resultsPath.'/http-static-c20.json', 400.0, 20);
 
         $this->getJson('/http/results')->assertOk()
             ->assertJsonPath('http_results.generator_bound', false);
     }
 
-    public function test_http_results_report_generator_bound_as_unknown_without_a_latency_floor(): void
+    public function test_http_results_report_generator_bound_as_unknown_without_any_measurement(): void
     {
-        // The seeded static route carries no `fastest`, so there is no floor
-        // to compute a ceiling from.
-        $this->seedMetaAndOneRoute();
+        File::put($this->resultsPath.'/http-meta.json', json_encode([
+            'target' => 'http://localhost:8080',
+            'mode' => 'loopback',
+            'io_ms' => 100,
+            'levels' => $this->levelsForEveryRoute([20]),
+        ]));
 
-        $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.generator_bound', null);
+        $this->getJson('/http/results')->assertNotFound();
     }
 
     public function test_the_external_stage_arms_the_pairing_and_waits(): void
@@ -479,13 +556,16 @@ class HttpBenchmarkTest extends TestCase
         $session = (new GeneratorSession)->create('https://public.example.com', 'https://public.example.com');
         $run = (new RunState)->start(['http' => true], ['http'], null);
 
-        // A stale route file from a previous run must not satisfy the wait.
-        File::put($this->resultsPath.'/http-static.json', '{}');
-
-        $stage = $this->resolveHttpStage(['http_generator' => 'external', 'http_duration' => 10]);
+        $stage = $this->resolveHttpStage(['http_generator' => 'external']);
 
         $this->assertStringContainsString('benchmark:await-generator', $stage['command']);
-        $this->assertFileDoesNotExist($this->resultsPath.'/http-static.json');
+
+        // A stale result from a previous run must not satisfy the wait: in
+        // external mode a file existing is the signal that it was uploaded now.
+        $stale = $this->resultsPath.'/http-static-c'.$this->meta()['levels']['static'][0].'.json';
+        File::put($stale, '{}');
+        $this->resolveHttpStage(['http_generator' => 'external']);
+        $this->assertFileDoesNotExist($stale);
 
         $meta = $this->meta();
         $this->assertSame('https://public.example.com', $meta['target']);
@@ -497,8 +577,14 @@ class HttpBenchmarkTest extends TestCase
         $this->assertSame($run['id'], $armed['run_id']);
         // The work fragment is rendered from the run's settings, not the
         // pairing's — the single source of truth end to end.
-        $this->assertStringContainsString('oha -z 10s -c 50 --redirect 0 --insecure', $armed['work']);
+        // Rendered from the run's own profile, not the pairing's, and running
+        // whatever oha the generator has on its PATH.
+        $this->assertStringContainsString('oha -z 6s -c 1 ', $armed['work']);
+        $this->assertStringContainsString('--insecure', $armed['work']);
         $this->assertStringContainsString('oha -z 3s', $armed['work']);
+        // Each measured window uploads under its own name, so the file, the
+        // upload URL, and the pairing's record of what landed cannot disagree.
+        $this->assertStringContainsString("upload 'static-c1'", $armed['work']);
     }
 
     public function test_the_external_stage_fails_actionably_without_a_pairing(): void
@@ -516,17 +602,22 @@ class HttpBenchmarkTest extends TestCase
      * whole point — and its ceiling already has a check (pool_limited).
      * Reading its sleep as network distance would flag every healthy run.
      */
-    public function test_generator_bound_ignores_the_io_route(): void
+    /**
+     * The old detector had to exclude /bench/io: a route that sleeps is capped
+     * by the sleep, so `rate >= connections / round-trip-floor` was true there
+     * for every healthy run and the route had to be special-cased out.
+     *
+     * Little's law needs no such exemption. A sleeping route satisfies
+     * concurrency = rate x mean response time exactly like any other, so the
+     * check now covers all four routes and one fewer thing can go wrong.
+     */
+    public function test_the_generator_check_needs_no_exemption_for_the_sleeping_route(): void
     {
-        $this->seedMetaAndOneRoute(['workers' => 100], ioRequestsPerSecond: 490.0);
-
-        File::put($this->resultsPath.'/http-io.json', json_encode([
-            'summary' => ['successRate' => 1.0, 'requestsPerSec' => 490.0, 'fastest' => 0.100, 'totalData' => 40000],
-            'latencyPercentiles' => ['p50' => 0.102],
-            'statusCodeDistribution' => ['200' => 4900],
-        ]));
+        $this->seedMetaAndOneRoute(['workers' => 100]);
+        // 200 req/s at a 100ms mean is exactly twenty connections kept busy.
+        $this->writeOha($this->resultsPath.'/http-io-c20.json', 200.0, 20);
 
         $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.generator_bound', null);
+            ->assertJsonPath('http_results.generator_bound', false);
     }
 }

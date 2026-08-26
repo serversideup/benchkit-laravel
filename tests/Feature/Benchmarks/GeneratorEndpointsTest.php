@@ -5,6 +5,7 @@ namespace Tests\Feature\Benchmarks;
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\GeneratorScript;
 use App\Support\GeneratorSession;
+use App\Support\Http\LoadProfile;
 use App\Support\HttpBenchCommand;
 use App\Support\RunState;
 use Illuminate\Support\Facades\File;
@@ -32,8 +33,12 @@ class GeneratorEndpointsTest extends TestCase
         $run = (new RunState)->start(['http' => true], ['http'], null);
         (new RunState)->claim(getmypid());
 
+        $profile = new LoadProfile('https://bench.example.com', 'external', 100, 4, 20, [20]);
+        $command = new HttpBenchCommand;
+
         $work = (new GeneratorScript)->work(
-            (new HttpBenchCommand)->plan(['url' => 'https://bench.example.com', 'mode' => 'external'], 10, 50, 100),
+            $command->probe($profile),
+            $command->isInsecure($profile),
             $session,
         );
 
@@ -59,7 +64,7 @@ class GeneratorEndpointsTest extends TestCase
         $this->get('/bench/generator/'.str_repeat('0', 40).'/script')->assertNotFound();
         $this->postJson('/bench/generator/'.str_repeat('0', 40).'/handshake')->assertNotFound();
         $this->get('/bench/generator/'.str_repeat('0', 40).'/work')->assertNotFound();
-        $this->post('/bench/generator/'.str_repeat('0', 40).'/results/static')->assertNotFound();
+        $this->post('/bench/generator/'.str_repeat('0', 40).'/results/static-c20')->assertNotFound();
     }
 
     public function test_the_endpoints_do_not_exist_without_a_pairing(): void
@@ -157,18 +162,144 @@ class GeneratorEndpointsTest extends TestCase
         $work = $response->getContent();
         // The single-source guarantee: the fragment carries the same warmup,
         // flags, and route order the local chain is built from.
-        $this->assertStringContainsString('oha -z 3s -c 50 --redirect 0 --insecure', $work);
-        $this->assertStringContainsString('oha -z 10s -c 50 --redirect 0 --insecure --no-tui --output-format json', $work);
+        $this->assertStringContainsString('oha -z 3s -c 8 -t 30s --redirect 0 --insecure', $work);
+        $this->assertStringContainsString('oha -z 6s -c 1 -t 30s --redirect 0 --insecure --no-tui --output-format json', $work);
         $this->assertStringContainsString('/bench/io?ms=100', $work);
+        // Every route, in measurement order, each uploading under its own slot.
         $this->assertSame(
-            ['static', 'json', 'db-read', 'io'],
+            ['static-c1', 'json-c1', 'db-read-c1', 'io-c1'],
             array_values(array_filter(array_map(
-                fn (string $line) => preg_match("/^if upload '([a-z-]+)'/", $line, $m) ? $m[1] : null,
+                fn (string $line) => preg_match("/^if upload '([a-z0-9-]+)'/", $line, $m) ? $m[1] : null,
                 explode("\n", $work),
             ))),
         );
 
         $this->assertSame(GeneratorSession::STATUS_RUNNING, (new GeneratorSession)->current()['status']);
+    }
+
+    /**
+     * The failure this guards: a window the generator could not measure used
+     * to be indistinguishable from a slow one. It moved on, the server kept
+     * waiting, and the run sat out its whole no-progress timeout for a result
+     * nobody was going to send.
+     */
+    public function test_a_window_the_generator_could_not_measure_is_reported(): void
+    {
+        $session = $this->armed();
+
+        $this->call('POST', "/bench/generator/{$session['token']}/failed/static-c1", server: ['CONTENT_TYPE' => 'text/plain'], content: "error: Too many open files\nsecond line")
+            ->assertStatus(202);
+
+        $failed = (new GeneratorSession)->current()['failed'];
+
+        $this->assertArrayHasKey('static-c1', $failed);
+        // The reason travels with it. "No output captured" is the symptom, and
+        // the cause is only visible on the machine running the generator.
+        $this->assertStringContainsString('Too many open files', $failed['static-c1']['reason']);
+    }
+
+    public function test_a_failure_reason_is_capped_and_stripped_of_control_characters(): void
+    {
+        $session = $this->armed();
+
+        $this->call('POST', "/bench/generator/{$session['token']}/failed/static-c1", server: ['CONTENT_TYPE' => 'text/plain'], content: "bad\x00stuff".str_repeat('x', 500))
+            ->assertStatus(202);
+
+        $reason = (new GeneratorSession)->current()['failed']['static-c1']['reason'];
+
+        $this->assertLessThanOrEqual(200, mb_strlen($reason));
+        $this->assertStringNotContainsString("\x00", $reason);
+    }
+
+    public function test_a_failure_report_for_an_unknown_window_is_refused(): void
+    {
+        $session = $this->armed();
+
+        $this->post("/bench/generator/{$session['token']}/failed/etc-passwd")->assertNotFound();
+    }
+
+    /**
+     * A generator that cannot hold the concurrency the sweep asks for does not
+     * fail slowly: the connections that cannot open are counted as replies. It
+     * reports what it can hold so the server can size the sweep to fit.
+     */
+    public function test_the_handshake_records_how_many_connections_the_generator_can_hold(): void
+    {
+        $session = $this->pair();
+
+        $this->postJson("/bench/generator/{$session['token']}/handshake", [
+            'oha_version' => '1.14.0',
+            'cores' => 10,
+            'host' => 'workstation-2.local',
+            'rtt_ms' => 12.34,
+            'fd_limit' => 256,
+        ])->assertSuccessful();
+
+        $this->assertSame(256, (new GeneratorSession)->current()['handshake']['fd_limit']);
+    }
+
+    /**
+     * A run hands out two batches, and the second cannot be written down until
+     * the first has landed. Between the two the generator keeps polling, and
+     * the answer has to be "nothing new yet" rather than the batch it just
+     * finished — otherwise it re-runs every window it has already uploaded and
+     * the run never ends.
+     */
+    public function test_work_is_not_handed_out_twice(): void
+    {
+        $session = $this->armed();
+
+        $this->get("/bench/generator/{$session['token']}/work")->assertOk();
+        $this->get("/bench/generator/{$session['token']}/work")->assertNoContent();
+    }
+
+    public function test_a_second_batch_is_handed_out_once_the_server_arms_it(): void
+    {
+        $session = $this->armed();
+
+        $this->get("/bench/generator/{$session['token']}/work")->assertOk();
+
+        (new GeneratorSession)->rearm('# response times');
+
+        $this->get("/bench/generator/{$session['token']}/work")
+            ->assertOk()
+            ->assertSee('# response times');
+    }
+
+    /**
+     * Re-arming keeps what has already landed. Clearing it would erase the
+     * record of the sweep the stage is counting, and the run would sit there
+     * until it timed out on results it already had.
+     */
+    public function test_arming_a_second_batch_keeps_the_first_batch_results(): void
+    {
+        $session = $this->armed();
+
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
+            ->assertCreated();
+
+        (new GeneratorSession)->rearm('# response times');
+
+        $this->assertSame(['static-c20'], array_keys((new GeneratorSession)->current()['received']));
+    }
+
+    /**
+     * The bug this guards: the script ran its batch, printed "load test
+     * complete", and exited while the server was still arming the second one.
+     * The run then waited out its whole timeout for results nobody was coming
+     * back for.
+     */
+    public function test_the_bootstrap_script_polls_again_after_finishing_a_batch(): void
+    {
+        $session = (new GeneratorSession)->create('https://bench.example.com', 'https://bench.example.com');
+
+        $script = $this->get("/bench/generator/{$session['token']}/script")->assertOk()->getContent();
+
+        $this->assertStringContainsString('BATCHES=$((BATCHES + 1))', $script);
+        $this->assertStringContainsString('continue', $script);
+        // Finishing only counts as success once a batch has actually run;
+        // before that a retired pairing is a failure, not a clean exit.
+        $this->assertStringContainsString('[ "$BATCHES" -gt 0 ]', $script);
     }
 
     /**
@@ -198,10 +329,10 @@ class GeneratorEndpointsTest extends TestCase
         $run['pid'] = 999999999;
         File::put(config('benchmark.run_path').'/run.json', json_encode($run));
 
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
             ->assertNotFound();
 
-        $this->assertFileDoesNotExist((new HttpBenchmarkResults)->routePath('static'));
+        $this->assertFileDoesNotExist((new HttpBenchmarkResults)->sweepPath('static', 20));
     }
 
     public function test_an_upload_lands_exactly_where_oha_would_have_written_it(): void
@@ -210,13 +341,13 @@ class GeneratorEndpointsTest extends TestCase
 
         $this->call(
             'POST',
-            "/bench/generator/{$session['token']}/results/db-read",
+            "/bench/generator/{$session['token']}/results/db-read-c20",
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode($this->ohaJson()),
         )->assertCreated()->assertJsonPath('requests_per_second', 1234.6);
 
-        $this->assertFileExists((new HttpBenchmarkResults)->routePath('db_read'));
-        $this->assertSame(['db_read'], array_keys((new GeneratorSession)->current()['received']));
+        $this->assertFileExists((new HttpBenchmarkResults)->sweepPath('db_read', 20));
+        $this->assertSame(['db-read-c20'], array_keys((new GeneratorSession)->current()['received']));
     }
 
     public function test_a_second_upload_for_the_same_route_is_rejected(): void
@@ -224,9 +355,9 @@ class GeneratorEndpointsTest extends TestCase
         $session = $this->armed();
         $body = json_encode($this->ohaJson());
 
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: $body)
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: $body)
             ->assertCreated();
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: $body)
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: $body)
             ->assertStatus(409);
     }
 
@@ -235,27 +366,27 @@ class GeneratorEndpointsTest extends TestCase
         $session = $this->armed();
 
         $zeroBytes = json_encode($this->ohaJson(['summary' => ['requestsPerSec' => 175807.1, 'totalData' => 0]]));
-        $response = $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: $zeroBytes);
+        $response = $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: $zeroBytes);
         $response->assertStatus(422);
         $this->assertStringContainsString('zero bytes', $response->getContent());
 
         $noSuccesses = json_encode($this->ohaJson(['statusCodeDistribution' => ['502' => 12345]]));
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: $noSuccesses)
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: $noSuccesses)
             ->assertStatus(422);
 
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: 'not json')
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: 'not json')
             ->assertStatus(422);
 
         $rejections = (new GeneratorSession)->current()['rejections'];
         $this->assertCount(3, $rejections);
-        $this->assertFileDoesNotExist((new HttpBenchmarkResults)->routePath('static'));
+        $this->assertFileDoesNotExist((new HttpBenchmarkResults)->sweepPath('static', 20));
     }
 
     public function test_uploads_are_refused_before_the_run_arms(): void
     {
         $session = $this->pair();
 
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: json_encode($this->ohaJson()))
             ->assertNotFound();
     }
 
@@ -271,7 +402,7 @@ class GeneratorEndpointsTest extends TestCase
     {
         $session = $this->armed();
 
-        $this->call('POST', "/bench/generator/{$session['token']}/results/static", server: ['CONTENT_TYPE' => 'application/json'], content: str_repeat('x', 1_048_577))
+        $this->call('POST', "/bench/generator/{$session['token']}/results/static-c20", server: ['CONTENT_TYPE' => 'application/json'], content: str_repeat('x', 1_048_577))
             ->assertStatus(413);
     }
 }

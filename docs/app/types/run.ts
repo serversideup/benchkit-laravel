@@ -1,14 +1,54 @@
+/** One level of a route's sweep. */
+export interface CurvePoint {
+    concurrency: number
+    requests_per_second: number
+    p50_ms?: number | null
+    p95_ms?: number | null
+    success_rate?: number | null
+}
+
+/** How much the route could take, measured closed-loop at rising concurrency. */
+export interface HttpThroughput {
+    requests_per_second: number
+    /** Where the peak happened. */
+    concurrency: number
+    /** The cheapest level within a few percent of it — what the latency pass held open. */
+    knee_concurrency?: number | null
+    success_rate?: number
+    total_requests?: number
+    /** Wall time the load generator observed, against the window the sweep asked for. */
+    elapsed_seconds?: number | null
+    /** False means the sweep never saw it flatten, so this is a floor. */
+    saturated?: boolean | null
+    status_codes?: Record<string, number>
+}
+
+/**
+ * What a visitor waits, measured open-loop at a rate below the peak.
+ *
+ * A separate pass on purpose: percentiles taken while a server is saturated
+ * describe the queue in front of it, not the server.
+ */
+export interface HttpLatency {
+    achieved_rps?: number | null
+    p50_ms?: number | null
+    p90_ms?: number | null
+    p95_ms?: number | null
+    p99_ms?: number | null
+    success_rate?: number
+    total_requests?: number
+    elapsed_seconds?: number | null
+    /** Always true on a published run; the validator rejects anything else. */
+    corrected?: boolean
+}
+
 export interface HttpRoute {
     path?: string
-    requests_per_second: number
-    success_rate: number
-    p50_ms: number
-    p95_ms: number
-    p99_ms: number
-    total_requests?: number
-    /** Wall time the load generator observed, against the requested duration. */
-    elapsed_seconds?: number | null
-    status_codes?: Record<string, number>
+    throughput: HttpThroughput
+    latency?: HttpLatency | null
+    curve?: CurvePoint[] | null
+    /** The lowest concurrency at which the route stopped answering correctly. */
+    breaking_point?: number | null
 }
 
 export interface PhpHeadline {
@@ -89,11 +129,34 @@ export interface RunIndex {
     php_version: string | null
     cpu_cores: number | null
     json_rps: number | null
-    json_p95_ms: number | null
+    /** The concurrency the peak happened at — 462 req/s at 147 and at 20 are different machines. */
+    json_concurrency: number | null
+    /**
+     * The median from the open-loop pass, not a percentile from the sweep.
+     * The sweep's percentiles describe a queue, and the tail of a short window
+     * swings several-fold between runs on a busy host while the median holds.
+     * A column people sort by has to be stable.
+     */
+    json_p50_ms: number | null
     static_rps: number | null
-    static_p95_ms: number | null
+    static_p50_ms: number | null
     db_read_rps: number | null
-    db_read_p95_ms: number | null
+    db_read_p50_ms: number | null
+    /**
+     * False when the sweep never saw throughput flatten, so the figure is the
+     * most BenchKit could ask for rather than the most the machine can serve.
+     * Shown with a ≥ and left out of the ranked sort.
+     */
+    saturated: boolean | null
+    /** SQLite and Postgres in one ranked column is a misleading comparison. */
+    database_driver: string | null
+    /**
+     * Whether this measurement can be trusted alongside somebody else's — not
+     * whether the host is fast. See docs/shared/run/clean.mjs.
+     */
+    clean_run: boolean | null
+    /** The leading reason it is not clean, for a chip on the row. */
+    clean_missing: string | null
     /**
      * Where the HTTP load came from: 'self' when the server drove its own load
      * (sharing CPU with what it measured), 'external' when a second machine
@@ -268,7 +331,12 @@ export function loadMode(entry: Pick<RunIndex, 'load_mode' | 'json_rps' | 'stati
 export interface PrimaryMetric {
     label: string
     rps: number
-    p95_ms: number | null
+    /** Where the peak happened. */
+    concurrency: number | null
+    /** What one visitor waits at a rate below the peak. */
+    p50_ms: number | null
+    /** A floor rather than a maximum; render it with a ≥. */
+    isFloor: boolean
 }
 
 /**
@@ -278,13 +346,23 @@ export interface PrimaryMetric {
  */
 export function primaryMetric(entry: RunIndex): PrimaryMetric | null {
     const candidates: Array<[string, number | null, number | null]> = [
-        ['JSON', entry.json_rps, entry.json_p95_ms],
-        ['static', entry.static_rps, entry.static_p95_ms],
-        ['DB read', entry.db_read_rps, entry.db_read_p95_ms]
+        ['JSON', entry.json_rps, entry.json_p50_ms],
+        ['static', entry.static_rps, entry.static_p50_ms],
+        ['DB read', entry.db_read_rps, entry.db_read_p50_ms]
     ]
 
-    for (const [label, rps, p95_ms] of candidates) {
-        if (rps != null) return { label, rps, p95_ms }
+    for (const [label, rps, p50_ms] of candidates) {
+        if (rps != null) {
+            return {
+                label,
+                rps,
+                // Only JSON carries a concurrency column; the fallbacks are for
+                // runs that measured nothing else, where it would be absent.
+                concurrency: label === 'JSON' ? entry.json_concurrency : null,
+                p50_ms,
+                isFloor: entry.saturated === false
+            }
+        }
     }
 
     return null

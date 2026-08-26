@@ -403,12 +403,13 @@ const metrics = computed(() => {
     const benchmarks = preview.value!.benchmarks ?? {}
     // Keyed lookup over a shape declared key-by-key, same as the result page.
     const routes = (benchmarks.http?.routes ?? {}) as Record<string, HttpRoute | undefined>
-    const hero = ['db_read', 'json', 'static'].map(key => routes[key]).find(row => row?.requests_per_second != null)
+    // JSON leads, matching the gallery's ranking and the share card.
+    const hero = ['json', 'static', 'db_read'].map(key => routes[key]).find(row => row?.throughput?.requests_per_second != null)
     const ms = (value: number) => value >= 1 ? `${value.toFixed(1)}ms` : `${Math.round(value * 1000)}µs`
 
     return [
-        hero && { label: 'requests/sec', value: Math.round(hero.requests_per_second).toLocaleString('en-US') },
-        hero?.p95_ms != null && { label: 'p95 latency', value: ms(hero.p95_ms) },
+        hero && { label: 'requests/sec', value: (hero.throughput.saturated === false ? '≥' : '') + Math.round(hero.throughput.requests_per_second).toLocaleString('en-US') },
+        hero?.latency?.p50_ms != null && { label: 'response time', value: ms(hero.latency.p50_ms) },
         benchmarks.php?.headline?.read?.milliseconds != null && { label: 'PHP read', value: ms(benchmarks.php.headline.read.milliseconds) },
         benchmarks.geekbench && { label: 'Geekbench multi', value: benchmarks.geekbench.multi?.toLocaleString('en-US') },
         benchmarks.cfspeedtest?.download_mbps != null && { label: 'download', value: `${Math.round(benchmarks.cfspeedtest.download_mbps)} Mbps` }

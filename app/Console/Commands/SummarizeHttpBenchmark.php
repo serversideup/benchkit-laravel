@@ -7,24 +7,35 @@ use App\Support\HttpSummaryReport;
 use Illuminate\Console\Command;
 
 /**
- * Prints a detailed console summary for one completed HTTP load-test route.
- * Invoked from the streamed benchmark subprocess after oha writes its JSON,
- * so the run's live log shows the full result rather than just "Completed".
+ * Prints a detailed console summary for one completed measured window.
+ *
+ * A window is addressed by its slot — `static-c20` for a sweep level,
+ * `io-latency` for a response-time pass — because a route no longer has one
+ * result. Useful for reading a finished results directory by hand; the run's
+ * own console gets its lines from the driver as each window completes.
  */
 class SummarizeHttpBenchmark extends Command
 {
-    protected $signature = 'benchmark:http-summary {route}';
+    protected $signature = 'benchmark:http-summary {slot : A measured window, such as static-c20 or io-latency}';
 
-    protected $description = 'Print a detailed summary of a completed HTTP load-test route from its oha JSON';
+    protected $description = 'Print a detailed summary of one completed measured window from its oha JSON';
 
     public function handle(): int
     {
-        $route = $this->argument('route');
+        $slot = $this->argument('slot');
+        $results = new HttpBenchmarkResults;
+        $path = $results->pathForSlot($slot);
 
-        $detail = (new HttpBenchmarkResults)->detail($route);
+        if ($path === null) {
+            $this->error("{$slot} is not a measured window this run could have produced.");
+
+            return self::FAILURE;
+        }
+
+        $detail = $results->detail($slot, $path);
 
         if ($detail === null) {
-            $this->line("  No results were captured for {$route}.");
+            $this->line("  No results were captured for {$slot}.");
 
             return self::SUCCESS;
         }

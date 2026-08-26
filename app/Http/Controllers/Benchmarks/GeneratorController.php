@@ -70,7 +70,12 @@ class GeneratorController extends Controller
             return response("This run is finished.\n", 410, ['Content-Type' => 'text/plain']);
         }
 
-        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)) {
+        // Armed means there is a batch waiting that has not been collected.
+        // Running means one has, and the generator is either working through
+        // it or waiting for the next — either way there is nothing new to
+        // hand over, and handing back the same batch would make it re-run
+        // every window it has already uploaded.
+        if ($session['status'] !== GeneratorSession::STATUS_ARMED) {
             $this->session->touch();
 
             return response()->noContent();
@@ -81,10 +86,41 @@ class GeneratorController extends Controller
         return response($session['work'] ?? '', 200, ['Content-Type' => 'text/x-shellscript; charset=utf-8']);
     }
 
-    public function upload(Request $request, string $token, string $route): JsonResponse|Response
+    /**
+     * A window the generator could not measure.
+     *
+     * Without this a failed window is indistinguishable from a slow one: the
+     * generator moves on, the server keeps waiting for a result that is never
+     * coming, and the whole run sits there until its no-progress timeout
+     * expires. Saying so costs one request and lets the rest of the run
+     * finish with an honest gap in the curve.
+     */
+    public function failed(Request $request, string $token, string $slot): Response
     {
         $session = $this->authorized($token);
-        $key = str_replace('-', '_', $route);
+
+        if (! in_array($session['status'], [GeneratorSession::STATUS_ARMED, GeneratorSession::STATUS_RUNNING], true)) {
+            abort(404);
+        }
+
+        if ((new HttpBenchmarkResults)->pathForSlot($slot) === null) {
+            abort(404);
+        }
+
+        // Whatever the generator's own tooling said, capped hard: it is a
+        // diagnostic from another machine, not something to trust with length.
+        $reason = mb_substr(preg_replace('/[\x00-\x1F\x7F]/', ' ', (string) $request->getContent()), 0, 200);
+
+        $this->session->recordFailed($slot, $request->ip(), trim($reason) ?: null);
+
+        return response("Recorded.\n", 202, ['Content-Type' => 'text/plain']);
+    }
+
+    public function upload(Request $request, string $token, string $slot): JsonResponse|Response
+    {
+        $session = $this->authorized($token);
+        $results = new HttpBenchmarkResults;
+        $path = $results->pathForSlot($slot);
 
         // A pairing only reads as armed or running while its run is the live
         // one — GeneratorSession retires it otherwise — so this is also what
@@ -93,27 +129,26 @@ class GeneratorController extends Controller
             abort(404);
         }
 
-        if (! array_key_exists($key, HttpBenchmarkResults::ROUTES)) {
+        if ($path === null) {
             abort(404);
         }
 
         $body = $request->getContent();
 
         if (strlen($body) > self::MAX_UPLOAD_BYTES) {
-            return $this->reject($key, $request->ip(), 'the upload is larger than any oha result file', 413);
+            return $this->reject($slot, $request->ip(), 'the upload is larger than any oha result file', 413);
         }
 
         if (($reason = $this->malformed($body)) !== null) {
-            return $this->reject($key, $request->ip(), $reason, 422);
+            return $this->reject($slot, $request->ip(), $reason, 422);
         }
 
-        // First writer wins, atomically: exclusive create fails if the route
+        // First writer wins, atomically: exclusive create fails if the window
         // already landed, so a second generator cannot overwrite a result.
-        $results = new HttpBenchmarkResults;
-        $handle = @fopen($results->routePath($key), 'x');
+        $handle = @fopen($path, 'x');
 
         if ($handle === false) {
-            return $this->reject($key, $request->ip(), 'this route already has a result — first upload wins', 409);
+            return $this->reject($slot, $request->ip(), 'this measurement already has a result — first upload wins', 409);
         }
 
         fwrite($handle, $body);
@@ -122,7 +157,7 @@ class GeneratorController extends Controller
         $data = json_decode($body, true);
         $requestsPerSecond = round((float) $data['summary']['requestsPerSec'], 1);
 
-        $this->session->recordReceived($key, $requestsPerSecond, $request->ip());
+        $this->session->recordReceived($slot, $requestsPerSecond, $request->ip());
 
         return response()->json(['status' => 'accepted', 'requests_per_second' => $requestsPerSecond], 201);
     }
@@ -176,7 +211,7 @@ class GeneratorController extends Controller
      * Handshake fields are informational, so they are sanitized rather than
      * rejected — a generator with an odd hostname should still pair.
      *
-     * @return array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, source_ip: string|null}
+     * @return array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, rtt_worst_ms: float|null, fd_limit: int|null, target_ip: string|null, source_ip: string|null}
      */
     protected function describeGenerator(Request $request): array
     {
@@ -184,12 +219,28 @@ class GeneratorController extends Controller
         $host = $request->input('host');
         $cores = filter_var($request->input('cores'), FILTER_VALIDATE_INT);
         $rtt = filter_var($request->input('rtt_ms'), FILTER_VALIDATE_FLOAT);
+        $descriptors = filter_var($request->input('fd_limit'), FILTER_VALIDATE_INT);
+        $targetIp = filter_var($request->input('target_ip'), FILTER_VALIDATE_IP);
+        $worstRtt = filter_var($request->input('rtt_worst_ms'), FILTER_VALIDATE_FLOAT);
 
         return [
             'oha_version' => is_string($version) && preg_match('/^[0-9A-Za-z._+-]{1,20}$/', $version) ? $version : null,
             'cores' => $cores !== false && $cores > 0 && $cores <= 4096 ? $cores : null,
             'host' => is_string($host) ? mb_substr(preg_replace('/[\x00-\x1F\x7F]/', '', $host), 0, 60) : null,
             'rtt_ms' => $rtt !== false && $rtt >= 0 && $rtt <= 60_000 ? round($rtt, 2) : null,
+            // One connection is one open file. A generator that cannot hold
+            // the concurrency the sweep asks for does not fail slowly — the
+            // connections that cannot open are counted as replies, which
+            // produced a static route reporting 17,201 req/s where the level
+            // below it managed 398.
+            'fd_limit' => $descriptors !== false && $descriptors > 0 && $descriptors <= 1_048_576 ? $descriptors : null,
+            // Where the target's name resolved to from the generator's side.
+            // Every window is driven against this rather than the name, so a
+            // run cannot fail on a resolver that has had enough.
+            'target_ip' => $targetIp !== false ? $targetIp : null,
+            // The slowest of the same five samples rtt_ms is the fastest of.
+            // Every percentile the run publishes inherits the difference.
+            'rtt_worst_ms' => $worstRtt !== false && $worstRtt >= 0 && $worstRtt <= 60_000 ? round($worstRtt, 2) : null,
             'source_ip' => $request->ip(),
         ];
     }

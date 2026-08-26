@@ -11,8 +11,11 @@ const SETTING_LABELS = {
     network: 'Network test',
     network_test_type: 'Network protocol',
     http: 'Web server load test',
-    http_duration: 'Load test duration',
-    http_connections: 'Load test connections',
+    // Duration and connection count are gone: the load sizes itself from the
+    // machine, so there is no setting to have differed. Left in the map they
+    // would render "Load test duration: 30s → —" on any comparison touching a
+    // run from before, which is noise about something nobody can set.
+    http_io_ms: 'Simulated I/O delay',
     php_database: 'PHP benchmarks',
     php_mode: 'PHP suite',
 };
@@ -33,7 +36,7 @@ const ENVIRONMENT_PATHS = [
     { path: 'build_version', label: 'BenchKit build' },
 ];
 
-import { headlineMilliseconds } from '@/Composables/useRunSummary';
+import { httpFormat, headlineMilliseconds } from '@/Composables/useRunSummary';
 
 // The full phpbench suite runs the same subjects every time, so the total
 // mean is comparable between runs. Null in quick mode (headline-only) —
@@ -52,15 +55,21 @@ export const suiteTotalMs = (php) => {
 // same realism-first ordering as the run page and share card.
 export const METRICS = {
     http: [
-        { path: 'routes.db_read.requests_per_second', label: 'DB read', unit: 'req/s', betterWhen: 'higher' },
-        { path: 'routes.json.requests_per_second', label: 'JSON API', unit: 'req/s', betterWhen: 'higher' },
-        { path: 'routes.static.requests_per_second', label: 'Static', unit: 'req/s', betterWhen: 'higher' },
-        { path: 'routes.db_read.p50_ms', label: 'DB read p50', unit: 'ms', betterWhen: 'lower' },
-        { path: 'routes.db_read.p95_ms', label: 'DB read p95', unit: 'ms', betterWhen: 'lower' },
-        { path: 'routes.db_read.p99_ms', label: 'DB read p99', unit: 'ms', betterWhen: 'lower' },
+        { path: 'routes.db_read.throughput.requests_per_second', label: 'DB read', unit: 'req/s', betterWhen: 'higher' },
+        { path: 'routes.json.throughput.requests_per_second', label: 'JSON API', unit: 'req/s', betterWhen: 'higher' },
+        { path: 'routes.static.throughput.requests_per_second', label: 'Static', unit: 'req/s', betterWhen: 'higher' },
+        // The I/O route earns a row now that its number means something. Under
+        // a fixed connection count it only reported where the pool capped it;
+        // with the curve you can see whether the bend moved.
+        { path: 'routes.io.throughput.requests_per_second', label: 'I/O-bound', unit: 'req/s', betterWhen: 'higher' },
+        // Measured at a steady rate below the peak, so these describe what a
+        // visitor experiences rather than a queue.
+        { path: 'routes.db_read.latency.p50_ms', label: 'DB read p50 · under load', unit: 'ms', betterWhen: 'lower' },
+        { path: 'routes.db_read.latency.p95_ms', label: 'DB read p95 · under load', unit: 'ms', betterWhen: 'lower' },
+        { path: 'routes.db_read.latency.p99_ms', label: 'DB read p99 · under load', unit: 'ms', betterWhen: 'lower' },
         // Success only earns a row when something actually failed — 100%
         // on both sides is the expected state, not information
-        { accessor: (http) => http?.routes?.db_read?.success_rate != null ? http.routes.db_read.success_rate * 100 : null, path: 'success_rate', label: 'Success rate', unit: '%', betterWhen: 'higher', hideWhenBothAre: 100 },
+        { accessor: (http) => http?.routes?.db_read?.throughput?.success_rate != null ? http.routes.db_read.throughput.success_rate * 100 : null, path: 'success_rate', label: 'Success rate', unit: '%', betterWhen: 'higher', hideWhenBothAre: 100 },
     ],
     php: [
         { accessor: (php) => headlineMilliseconds(php, 'create'), path: 'headline.create.milliseconds', label: 'Create · 100 records', unit: 'ms', betterWhen: 'lower' },
@@ -79,6 +88,17 @@ export const METRICS = {
         { path: 'geekbench.0.multi', label: 'Geekbench multi-core', unit: '', betterWhen: 'higher' },
     ],
 };
+
+/**
+ * Whether two runs measured the web server the same way.
+ *
+ * A run from before the sweep held a fixed connection count and reported one
+ * point on a curve, and its percentiles were measured under saturation rather
+ * than at a steady rate below the peak. Those numbers describe different work,
+ * so subtracting them would produce a confident delta between two things that
+ * were never the same measurement. Same reasoning as crudComparable below.
+ */
+const httpComparable = (a, b) => httpFormat(a?.benchmarks?.http) === httpFormat(b?.benchmarks?.http);
 
 const CRUD_OPERATIONS = ['create', 'read', 'update', 'delete'];
 
@@ -115,7 +135,7 @@ const SETTING_FORMATS = {
     php_mode: (value) => ({ full: 'Full suite', quick: 'Quick' })[value] ?? value,
     network_test_type: (value) => typeof value === 'string' ? value.replace(/^ipv/i, 'IPv') : value,
     geekbench_version: (value) => value != null ? `v${value}` : value,
-    http_duration: (value) => value != null ? `${value}s` : value,
+    http_io_ms: (value) => value != null ? `${value}ms` : value,
 };
 
 // The single most meaningful delta to lead with — same realism-first
@@ -123,9 +143,9 @@ const SETTING_FORMATS = {
 export const headlineDelta = (metricDeltas) => {
     const all = Object.values(metricDeltas).flat();
     const candidates = [
-        'routes.db_read.requests_per_second',
-        'routes.json.requests_per_second',
-        'routes.static.requests_per_second',
+        'routes.db_read.throughput.requests_per_second',
+        'routes.json.throughput.requests_per_second',
+        'routes.static.throughput.requests_per_second',
         'headline.create.milliseconds',
         'geekbench.0.multi',
     ];
@@ -213,6 +233,11 @@ export const compareRuns = (runA, runB) => {
     if( commonStages.includes('php') && !crudComparable(runA, runB) ) {
         delete metricDeltas.php;
         notes.push('One of these runs measured the database benchmarks before BenchKit made the four CRUD operations comparable — read was a single query returning 100 rows, and create and update timed PHP datetime work alongside the query. Those numbers describe different work, so they are not subtracted here.');
+    }
+
+    if( commonStages.includes('http') && !httpComparable(runA, runB) ) {
+        delete metricDeltas.http;
+        notes.push('One of these runs measured the web server before BenchKit sized the load to the machine — it held a fixed 50 connections and reported one point on the curve, and its response times were measured while the server was saturated rather than at a steady rate below its peak. Those numbers describe different work, so they are not subtracted here.');
     }
 
     return { commonStages, exclusiveStages, settingsDiff, environmentDiff, metricDeltas, notes };

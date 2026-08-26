@@ -12,6 +12,8 @@ const entries = computed<RunIndex[]>(() => data.value?.runs ?? [])
 const query = ref('')
 const variation = ref<string>('all')
 const verifiedOnly = ref(false)
+const cleanOnly = ref(false)
+const engine = ref<string>('all')
 
 /**
  * A partition, not a filter: self-tested runs (the server drove its own load)
@@ -51,7 +53,7 @@ const activeLoadMode = computed<'external' | 'self'>(() =>
 const SORTS = [
     { key: 'latest', label: 'Latest' },
     { key: 'fastest', label: 'Fastest' },
-    { key: 'latency', label: 'Lowest latency' }
+    { key: 'latency', label: 'Fastest response' }
 ] as const
 
 const sort = ref<typeof SORTS[number]['key']>('latest')
@@ -59,6 +61,18 @@ const sort = ref<typeof SORTS[number]['key']>('latest')
 /** Built from the data, so a new image variation needs no code change here. */
 const variations = computed(() => [...new Set(entries.value
     .map(entry => entry.php_variation)
+    .filter((value): value is string => Boolean(value)))].sort())
+
+/**
+ * The database engine, as a filter rather than a footnote.
+ *
+ * SQLite runs inside the PHP process with no connection cost and no
+ * contention; Postgres over a socket has both. Those differ by more than two
+ * machines do, so a DB read column that mixes them is comparing engines while
+ * appearing to compare hosts.
+ */
+const engines = computed(() => [...new Set(entries.value
+    .map(entry => entry.database_driver)
     .filter((value): value is string => Boolean(value)))].sort())
 
 /**
@@ -77,7 +91,7 @@ interface IndexedRun {
     entry: RunIndex
     haystack: string
     rps: number
-    p95: number
+    p50: number
     recency: string
     loadMode: 'self' | 'external' | null
 }
@@ -92,7 +106,7 @@ const indexed = computed<IndexedRun[]>(() => entries.value.map((entry) => {
             .join(' ')
             .toLowerCase(),
         rps: metric?.rps ?? 0,
-        p95: metric?.p95_ms ?? Number.POSITIVE_INFINITY,
+        p50: metric?.p50_ms ?? Number.POSITIVE_INFINITY,
         recency: `${entry.submitted_at}${entry.run_id}`,
         loadMode: loadMode(entry)
     }
@@ -102,11 +116,15 @@ const filtered = computed(() => {
     const needle = query.value.trim().toLowerCase()
     const image = variation.value
     const maintainer = verifiedOnly.value
+    const clean = cleanOnly.value
+    const driver = engine.value
     const partition = activeLoadMode.value
 
     return indexed.value.filter((row) => {
         if (row.loadMode != null && row.loadMode !== partition) return false
         if (image !== 'all' && row.entry.php_variation !== image) return false
+        if (driver !== 'all' && row.entry.database_driver !== driver) return false
+        if (clean && !row.entry.clean_run) return false
         if (maintainer && !row.entry.verified) return false
         if (needle && !row.haystack.includes(needle)) return false
 
@@ -117,8 +135,20 @@ const filtered = computed(() => {
 const sorted = computed(() => {
     const rows = [...filtered.value]
 
-    if (sort.value === 'fastest') return rows.sort((a, b) => b.rps - a.rps)
-    if (sort.value === 'latency') return rows.sort((a, b) => a.p95 - b.p95)
+    // A floor cannot be ranked against maximums: a run whose sweep never
+    // flattened measured the most BenchKit could ask for, not the most the
+    // machine can serve, and putting the two on one axis buries whichever host
+    // happened to be under-measured.
+    if (sort.value === 'fastest') {
+        return rows.sort((a, b) => {
+            if (a.entry.saturated === false && b.entry.saturated !== false) return 1
+            if (b.entry.saturated === false && a.entry.saturated !== false) return -1
+
+            return b.rps - a.rps
+        })
+    }
+
+    if (sort.value === 'latency') return rows.sort((a, b) => a.p50 - b.p50)
 
     return rows.sort((a, b) => b.recency.localeCompare(a.recency))
 })
@@ -129,7 +159,7 @@ const PAGE_SIZE = 25
 const shown = ref(PAGE_SIZE)
 const visible = computed(() => sorted.value.slice(0, shown.value))
 
-watch([query, variation, verifiedOnly, sort, activeLoadMode], () => shown.value = PAGE_SIZE)
+watch([query, variation, verifiedOnly, cleanOnly, engine, sort, activeLoadMode], () => shown.value = PAGE_SIZE)
 
 /** Built here rather than as nested <template> fragments, which the linter's
  *  newline rules would break across lines and pad with stray whitespace. */
@@ -223,6 +253,25 @@ useSeoMeta({
                         </div>
 
                         <div
+                            v-if="engines.length > 1"
+                            class="flex items-center gap-1 rounded-lg bg-white/[0.03] p-1"
+                        >
+                            <button
+                                v-for="option in ['all', ...engines]"
+                                :key="option"
+                                type="button"
+                                :aria-pressed="engine === option"
+                                class="cursor-pointer rounded-md px-2.5 py-1.5 text-sm transition-colors duration-200"
+                                :class="engine === option
+                                    ? 'bg-white/[0.07] text-neutral-200'
+                                    : 'text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300'"
+                                @click="engine = option"
+                            >
+                                {{ option === 'all' ? 'Any database' : option }}
+                            </button>
+                        </div>
+
+                        <div
                             v-if="variations.length > 1"
                             class="flex flex-wrap items-center gap-1"
                         >
@@ -258,6 +307,23 @@ useSeoMeta({
                                 {{ option.label }}
                             </button>
                         </div>
+
+                        <button
+                            type="button"
+                            :aria-pressed="cleanOnly"
+                            title="Nothing about how this was measured undermines the numbers: driven from another machine, pushed until it stopped speeding up, every request answered, and the app set up the way you would deploy it"
+                            class="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors duration-200"
+                            :class="cleanOnly
+                                ? 'bg-flame-500/15 text-flame-400'
+                                : 'text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300'"
+                            @click="cleanOnly = !cleanOnly"
+                        >
+                            <UIcon
+                                name="i-lucide-target"
+                                class="size-3.5"
+                            />
+                            Clean runs
+                        </button>
 
                         <button
                             type="button"
@@ -318,13 +384,16 @@ useSeoMeta({
                                     <th class="w-[14%] px-4 py-4 text-right font-normal">
                                         Req/s
                                     </th>
-                                    <th class="w-[10%] px-4 py-4 text-right font-normal">
-                                        p95
-                                    </th>
                                     <th class="w-[9%] px-4 py-4 text-right font-normal">
+                                        Concurrent
+                                    </th>
+                                    <th class="w-[10%] px-4 py-4 text-right font-normal">
+                                        response
+                                    </th>
+                                    <th class="w-[8%] px-4 py-4 text-right font-normal">
                                         Cost
                                     </th>
-                                    <th class="w-[20%] px-6 py-4 font-normal">
+                                    <th class="w-[16%] px-6 py-4 font-normal">
                                         Shared by
                                     </th>
                                 </tr>
@@ -332,7 +401,7 @@ useSeoMeta({
                             <tbody>
                                 <tr v-if="!visible.length">
                                     <td
-                                        colspan="6"
+                                        colspan="7"
                                         class="px-6 py-16 text-center"
                                     >
                                         <p class="text-sm text-neutral-400">
@@ -363,6 +432,15 @@ useSeoMeta({
                                                 class="size-3.5 shrink-0 text-flame-500"
                                                 aria-label="Run by a maintainer"
                                             />
+                                            <!-- About the measurement, never about the machine: a
+                                                 modest host measured carefully earns this and a fast
+                                                 one measured through a laptop on hotel wifi does not. -->
+                                            <UIcon
+                                                v-if="row.entry.clean_run"
+                                                name="i-lucide-target"
+                                                class="size-3.5 shrink-0 text-emerald-400"
+                                                aria-label="Clean run — nothing about how this was measured undermines the numbers"
+                                            />
                                         </div>
                                         <div class="mt-0.5 flex items-center gap-2 text-sm text-neutral-500">
                                             <span class="truncate">{{ machineLine(row.entry) }}</span>
@@ -373,6 +451,15 @@ useSeoMeta({
                                                 class="shrink-0 rounded border border-amber-500/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-amber-400/90"
                                             >
                                                 Self-tested
+                                            </span>
+                                            <!-- A filter that only hides things teaches nothing. The
+                                                 reason travels with the row so someone reading it
+                                                 learns what a trustworthy run looks like. -->
+                                            <span
+                                                v-else-if="row.entry.clean_missing"
+                                                class="shrink-0 truncate rounded border border-white/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-neutral-500"
+                                            >
+                                                {{ row.entry.clean_missing }}
                                             </span>
                                         </div>
                                     </td>
@@ -386,7 +473,13 @@ useSeoMeta({
                                     </td>
                                     <td class="px-4 py-5 text-right">
                                         <div class="font-mono text-base text-white tabular-nums">
-                                            {{ formatNumber(primaryMetric(row.entry)?.rps) }}
+                                            <!-- A run whose sweep never flattened measured the most
+                                                 BenchKit could ask for, not the most the machine can
+                                                 serve. It is also kept out of the ranked sort. -->
+                                            <span
+                                                v-if="primaryMetric(row.entry)?.isFloor"
+                                                class="text-amber-400"
+                                            >≥</span>{{ formatNumber(primaryMetric(row.entry)?.rps) }}
                                         </div>
                                         <!-- primaryMetric falls back JSON, static, DB read, so the
                                              route has to travel with the number to stay honest. -->
@@ -395,7 +488,10 @@ useSeoMeta({
                                         </div>
                                     </td>
                                     <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
-                                        {{ primaryMetric(row.entry)?.p95_ms ?? '—' }}<span class="text-neutral-500">ms</span>
+                                        {{ primaryMetric(row.entry)?.concurrency ?? '—' }}
+                                    </td>
+                                    <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
+                                        {{ formatNumber(primaryMetric(row.entry)?.p50_ms) }}<span class="text-neutral-500">ms</span>
                                     </td>
                                     <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
                                         {{ monthlyCostLabel(row.entry.cost_amount, row.entry.cost_currency) ?? '—' }}

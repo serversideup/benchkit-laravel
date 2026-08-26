@@ -123,7 +123,7 @@ const heroRoute = computed(() => {
     for (const { key, label } of HERO_ROUTES) {
         const data = display.value.http?.routes?.[key];
 
-        if( data?.requests_per_second != null ) {
+        if( data?.throughput?.requests_per_second != null ) {
             return { key, label, data };
         }
     }
@@ -131,17 +131,25 @@ const heroRoute = computed(() => {
     return null;
 });
 
-const heroNumber = computed(() => Math.round(heroRoute.value?.data.requests_per_second ?? 0).toLocaleString());
+// A figure the sweep never saw flatten is the most BenchKit could ask for
+// rather than the most this machine can serve. A card is glanced at and
+// quoted, which makes it the worst possible place to publish a floor as if it
+// were a maximum.
+const heroIsFloor = computed(() => heroRoute.value?.data?.throughput?.saturated === false);
 
-// Throughput and its full latency story — req/s alone hides what the tail
-// paid for it
+const heroNumber = computed(() => (heroIsFloor.value ? '≥' : '')
+    + Math.round(heroRoute.value?.data?.throughput?.requests_per_second ?? 0).toLocaleString());
+
+// The concurrency it took, and what one visitor waits at a rate below it.
+// Three percentiles from the same saturated window used to sit here, which
+// said the same thing three times and none of them was a response time.
 const heroContext = computed(() => {
     const data = heroRoute.value?.data ?? {};
 
-    return ['p50', 'p95', 'p99']
-        .filter((percentile) => data[`${percentile}_ms`] != null)
-        .map((percentile) => `${percentile} ${Math.round(data[`${percentile}_ms`]).toLocaleString()}ms`)
-        .join(' · ');
+    return [
+        data.throughput?.concurrency != null ? `at ${data.throughput.concurrency.toLocaleString()} concurrent` : null,
+        data.latency?.p50_ms != null ? `${Math.round(data.latency.p50_ms).toLocaleString()}ms response` : null,
+    ].filter(Boolean).join(' · ');
 });
 
 // The poster number scales down for hosts fast enough to earn extra digits

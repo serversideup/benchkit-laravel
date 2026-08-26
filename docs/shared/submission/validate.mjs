@@ -18,7 +18,7 @@ import { CURRENCIES, findPrivacyLeaks, indexFields, measurementDigest, runsPathF
 // so consumers back-fill generator.mode = "self" and no published number
 // changes meaning. An addition like that partitions the gallery; it does not
 // supersede anything.
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /**
  * Why each superseded version is rejected rather than warned about. A bump
@@ -29,7 +29,8 @@ export const SCHEMA_VERSION = 4
 const SUPERSEDED_SCHEMAS = {
     1: 'CRUD subjects rebuilt their own state inside the timed body, so delete reported about 2.4x its real cost',
     2: 'create and update timed PHP datetime work that read and delete did not, and read measured one query returning 100 rows against the other three running 100 statements',
-    3: 'warmup revolutions ran each subject body without rebuilding its fixture, so delete measured 100 statements that matched no rows and reported roughly half its real cost'
+    3: 'warmup revolutions ran each subject body without rebuilding its fixture, so delete measured 100 statements that matched no rows and reported roughly half its real cost',
+    4: 'the load test held a fixed 50 connections and reported one point on a curve as a maximum, and measured its response times while the server was saturated, so they described a queue rather than a visitor'
 }
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/
@@ -197,21 +198,67 @@ export async function validateSubmission(doc, filepath = null) {
         for (const key of routeKeys) {
             const r = routes[key]
             if (r == null) continue
-            isNum(r.requests_per_second, `http.routes.${key}.requests_per_second`, { min: 0, max: MAX_RPS })
-            for (const p of ['p50_ms', 'p95_ms', 'p99_ms']) isNum(r[p], `http.routes.${key}.${p}`, { min: 0, max: MAX_MS })
-            if (r.success_rate != null) isNum(r.success_rate, `http.routes.${key}.success_rate`, { min: 0, max: 1 })
-            // Wall time the load generator observed, against the duration the
-            // run asked for below. A throughput figure is a count over a time,
-            // and this is the time it was actually divided by.
-            if (r.elapsed_seconds != null) isNum(r.elapsed_seconds, `http.routes.${key}.elapsed_seconds`, { min: 0, max: 3600 })
+
+            // Throughput and response time come from different measurements,
+            // so they are checked as different things. A document that folded
+            // them back together would be a schema-4 run wearing a 5.
+            const t = r.throughput
+            if (t == null) {
+                err(`http.routes.${key}.throughput is missing`)
+            } else {
+                isNum(t.requests_per_second, `http.routes.${key}.throughput.requests_per_second`, { min: 0, max: MAX_RPS })
+                isNum(t.concurrency, `http.routes.${key}.throughput.concurrency`, { min: 1, max: 100_000 })
+                if (t.success_rate != null) isNum(t.success_rate, `http.routes.${key}.throughput.success_rate`, { min: 0, max: 1 })
+                // Wall time the load generator observed, against the window the
+                // sweep asked for. A throughput figure is a count over a time,
+                // and this is the time it was actually divided by.
+                if (t.elapsed_seconds != null) isNum(t.elapsed_seconds, `http.routes.${key}.throughput.elapsed_seconds`, { min: 0, max: 3600 })
+                if (t.saturated != null && typeof t.saturated !== 'boolean') err(`http.routes.${key}.throughput.saturated must be a boolean`)
+                if (t.saturated === false) {
+                    warn(`${key} throughput was still climbing when the sweep ran out of room, so it is a floor rather than a maximum — the gallery shows it with a ≥ and leaves it out of the ranked sort`)
+                }
+            }
+
+            const l = r.latency
+            if (l != null) {
+                for (const p of ['p50_ms', 'p90_ms', 'p95_ms', 'p99_ms']) {
+                    if (l[p] != null) isNum(l[p], `http.routes.${key}.latency.${p}`, { min: 0, max: MAX_MS })
+                }
+                // A percentile measured closed-loop at saturation is a
+                // different quantity wearing the same name, and the whole
+                // reason schema 4 is superseded.
+                if (l.corrected !== true) {
+                    err(`http.routes.${key}.latency was not measured open-loop with coordinated-omission correction`)
+                }
+            }
+
+            const curve = r.curve
+            if (curve != null) {
+                if (!Array.isArray(curve) || curve.length < 2) {
+                    err(`http.routes.${key}.curve must be an array of at least two points`)
+                } else {
+                    let previous = 0
+                    for (const point of curve) {
+                        isNum(point?.concurrency, `http.routes.${key}.curve[].concurrency`, { min: 1, max: 100_000 })
+                        isNum(point?.requests_per_second, `http.routes.${key}.curve[].requests_per_second`, { min: 0, max: MAX_RPS })
+                        // Strictly increasing: a curve is only readable as one
+                        // if its x axis goes one way.
+                        if (Number(point?.concurrency) <= previous) {
+                            err(`http.routes.${key}.curve is not ordered by increasing concurrency`)
+                            break
+                        }
+                        previous = Number(point?.concurrency)
+                    }
+                }
+            }
         }
         // Both container-internal ports report mode "loopback", so without this
         // a run paying for a TLS handshake and per-request encryption looks
         // identical to a plaintext one.
         if (http.tls != null && typeof http.tls !== 'boolean') err('http.tls must be a boolean')
         if (http.workers != null) isNum(http.workers, 'http.workers', { min: 1, max: 100_000 })
-        if (http.pool_limited != null && typeof http.pool_limited !== 'boolean') err('http.pool_limited must be a boolean')
-        if (http.oversubscribed != null && typeof http.oversubscribed !== 'boolean') err('http.oversubscribed must be a boolean')
+        if (http.required_concurrency != null) isNum(http.required_concurrency, 'http.required_concurrency', { min: 1, max: 1_000_000 })
+        if (http.pool_ceiling != null && typeof http.pool_ceiling !== 'object') err('http.pool_ceiling must be an object')
         // Not fatal — the run is real, it just isn't a framework comparison.
         // Surfacing it in review is what keeps the gallery interpretable.
 

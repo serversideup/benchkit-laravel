@@ -100,14 +100,27 @@ class SubmissionTest extends TestCase
                     'routes' => [
                         'json' => [
                             'path' => '/bench/json',
-                            'requests_per_second' => 12481.42,
-                            'elapsed_seconds' => 10.03,
-                            'success_rate' => 1.0,
-                            'p50_ms' => 1.8,
-                            'p95_ms' => 2.14,
-                            'p99_ms' => 4.02,
-                            'total_requests' => 124814,
-                            'status_codes' => ['200' => 124814, 'not-a-code' => 5],
+                            'throughput' => [
+                                'requests_per_second' => 12481.42,
+                                'concurrency' => 42,
+                                'knee_concurrency' => 42,
+                                'elapsed_seconds' => 10.03,
+                                'success_rate' => 1.0,
+                                'total_requests' => 124814,
+                                'saturated' => true,
+                                'status_codes' => ['200' => 124814, 'not-a-code' => 5],
+                            ],
+                            'latency' => [
+                                'achieved_rps' => 8737.0,
+                                'p50_ms' => 1.8,
+                                'p95_ms' => 2.14,
+                                'p99_ms' => 4.02,
+                                'corrected' => true,
+                            ],
+                            'curve' => [
+                                ['concurrency' => 1, 'requests_per_second' => 520.0, 'p50_ms' => 1.9, 'p95_ms' => 2.2, 'success_rate' => 1.0],
+                                ['concurrency' => 42, 'requests_per_second' => 12481.42, 'p50_ms' => 3.3, 'p95_ms' => 5.1, 'success_rate' => 1.0],
+                            ],
                         ],
                     ],
                 ],
@@ -287,7 +300,7 @@ class SubmissionTest extends TestCase
         $http = $this->getJson("/runs/{$id}/submission")->json('document.benchmarks.http');
 
         $this->assertTrue($http['tls']);
-        $this->assertSame(10.03, $http['routes']['json']['elapsed_seconds']);
+        $this->assertSame(10.03, $http['routes']['json']['throughput']['elapsed_seconds']);
     }
 
     /**
@@ -391,7 +404,7 @@ class SubmissionTest extends TestCase
 
         $this->assertCount(1, $document['benchmarks']['php']['subjects']);
         $this->assertSame('CrudBenchmark', $document['benchmarks']['php']['subjects'][0]['benchmark']);
-        $this->assertSame(['200' => 124814], $document['benchmarks']['http']['routes']['json']['status_codes']);
+        $this->assertSame(['200' => 124814], $document['benchmarks']['http']['routes']['json']['throughput']['status_codes']);
     }
 
     public function test_subjects_are_capped_so_a_full_run_cannot_grow_without_bound(): void
@@ -447,8 +460,10 @@ class SubmissionTest extends TestCase
         $this->assertStringContainsString('| Laravel | 13.0.1 |', $body);
 
         // Right-aligned numeric columns, and no trailing zeros on the figures.
-        $this->assertStringContainsString('| --- | ---: | ---: |', $body);
-        $this->assertStringContainsString('| JSON API | 12,481.4 req/s | 2.14 ms |', $body);
+        $this->assertStringContainsString('| --- | ---: | ---: | ---: |', $body);
+        // Three measurements, three columns: the sweep's peak, where it peaked,
+        // and a response time from a separate pass below that peak.
+        $this->assertStringContainsString('| JSON API | 12,481.4 req/s | 42 | 1.8 ms |', $body);
     }
 
     public function test_the_title_says_what_was_benchmarked_how_and_where(): void
@@ -566,13 +581,14 @@ class SubmissionTest extends TestCase
         $id = $this->seedSensitiveRun('20260806-205611-kitr', [
             'meta' => ['label' => 'Bare run'],
             'benchmarks' => ['http' => ['routes' => ['json' => [
-                'requests_per_second' => 1000.0, 'p50_ms' => 1.0, 'p95_ms' => 2.0, 'p99_ms' => 3.0,
+                'throughput' => ['requests_per_second' => 1000.0, 'concurrency' => 20, 'saturated' => true],
+                'latency' => ['p50_ms' => 1.0, 'p95_ms' => 2.0, 'p99_ms' => 3.0],
             ]]]],
         ]);
 
         $body = urldecode(parse_url($this->getJson("/runs/{$id}/submission")->json('issue_url'), PHP_URL_QUERY));
 
-        $this->assertStringContainsString('| JSON API | 1,000 req/s | 2 ms |', $body);
+        $this->assertStringContainsString('| JSON API | 1,000 req/s | 20 | 1 ms |', $body);
         // No placeholder rows: the table's length is itself a signal of how
         // much the submitter told us, so a dash would be worse than a gap.
         $this->assertStringNotContainsString('| DB read |', $body);

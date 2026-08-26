@@ -108,7 +108,7 @@ class GeneratorSession
     }
 
     /**
-     * @param  array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, source_ip: string|null}  $handshake
+     * @param  array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, fd_limit: int|null, source_ip: string|null}  $handshake
      * @return array<string, mixed>
      */
     public function recordHandshake(array $handshake): array
@@ -135,6 +135,44 @@ class GeneratorSession
             'work' => $work,
             'received' => [],
             'rejections' => [],
+        ]);
+    }
+
+    /**
+     * Hand the same run its next batch of work.
+     *
+     * A run is armed twice: once with the sweep, and again with the
+     * response-time pass, whose offered rate is a fraction of what the sweep
+     * proved the server can hold and so cannot be written down until the sweep
+     * has landed.
+     *
+     * Unlike arm(), this keeps what has already been received. Clearing it
+     * would erase the record of the windows the wait is counting, and the
+     * stage would sit there until it timed out on results it already had.
+     */
+    /**
+     * A window the generator ran but could not produce a result for.
+     *
+     * Kept next to `received` because the wait treats them the same way: both
+     * mean "stop waiting for this one". They differ only in whether a number
+     * came back, and the curve shows that by having a gap.
+     *
+     * @return array<string, mixed>
+     */
+    public function recordFailed(string $slot, ?string $ip = null, ?string $reason = null): array
+    {
+        $session = $this->current() ?? [];
+        $failed = $session['failed'] ?? [];
+        $failed[$slot] = ['at' => now()->utc()->toIso8601String(), 'source_ip' => $ip, 'reason' => $reason];
+
+        return $this->merge(['failed' => $failed, 'last_seen_at' => now()->utc()->toIso8601String()]);
+    }
+
+    public function rearm(string $work): array
+    {
+        return $this->merge([
+            'status' => self::STATUS_ARMED,
+            'work' => $work,
         ]);
     }
 

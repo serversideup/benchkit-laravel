@@ -5,7 +5,9 @@ namespace App\Support;
 use App\Actions\Results\CloudflareSpeedTestResults;
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Actions\Specs\PhpSpecs;
+use App\Actions\Specs\ServerSpecs;
 use App\Actions\Specs\WebRuntimeSpecs;
+use App\Support\Http\LoadProfile;
 use RuntimeException;
 
 /**
@@ -126,10 +128,6 @@ class BenchmarkStages
             throw new RuntimeException('The application could not reach itself over HTTP. Set BENCHMARK_HTTP_URL to a URL this server can reach.');
         }
 
-        $duration = (int) ($settings['http_duration'] ?? config('benchmark.http.duration_seconds'));
-        $connections = (int) ($settings['http_connections'] ?? config('benchmark.http.connections'));
-        $ioMs = (int) ($settings['http_io_ms'] ?? config('benchmark.http.io_ms'));
-
         BenchmarkHttpItems::ensure();
 
         // Ask the target what PHP looks like over there before loading it. This
@@ -139,16 +137,27 @@ class BenchmarkStages
         // external mode — the probe is the app asking itself, not load.
         $webRuntime = (new WebRuntimeSpecs)->capture($target['url']);
         $workers = $this->workerCeiling($webRuntime);
+
+        // The load is sized from the machine rather than from a fixed number,
+        // so one setting fits a one-core box and a thirty-two-core box. Both
+        // ceilings are needed: the CPU routes bend near the core count and
+        // /bench/io bends at the worker count, and a sweep seeded from only
+        // one of them steps straight over the other.
+        $profile = LoadProfile::fromSettings($target, $settings, $this->coreCount(), $workers);
         $results = new HttpBenchmarkResults;
 
         if (($settings['http_generator'] ?? 'self') === 'external') {
-            return $this->externalHttpStage($results, $duration, $connections, $ioMs, $workers);
+            return $this->externalHttpStage($results, $profile);
         }
 
-        $results->writeMeta($target, $duration, $connections, $ioMs, $workers);
+        $results->writeMeta($target, $profile, $workers);
 
         return [
-            'command' => (new HttpBenchCommand)->build($target, $duration, $connections, $ioMs),
+            'command' => sprintf(
+                '%s %s benchmark:http-load',
+                config('benchmark.php_binary'),
+                escapeshellarg(base_path('artisan'))
+            ),
             'collect' => null,
         ];
     }
@@ -161,7 +170,7 @@ class BenchmarkStages
      *
      * @return array{command: string, collect: ?string}
      */
-    protected function externalHttpStage(HttpBenchmarkResults $results, int $duration, int $connections, int $ioMs, ?int $workers): array
+    protected function externalHttpStage(HttpBenchmarkResults $results, LoadProfile $profile): array
     {
         $session = (new GeneratorSession)->current();
 
@@ -169,23 +178,33 @@ class BenchmarkStages
             throw new RuntimeException('External load test selected but no generator is paired. Open BenchKit, choose "External load test", and run the pairing command on a second machine.');
         }
 
-        // In external mode a route file's existence means "uploaded during
+        // In external mode a result file's existence means "uploaded during
         // this run", so a previous run's files cannot be allowed to satisfy
         // the wait. The results directory deliberately survives runs.
-        foreach (array_keys(HttpBenchmarkResults::ROUTES) as $key) {
-            @unlink($results->routePath($key));
-        }
+        $results->clearRouteResults();
 
         // The generator hits the pairing's public origin, not the loopback
-        // the self-test would use.
+        // the self-test would use, so the profile is rebound to it.
         $target = ['url' => $session['target_url'], 'mode' => 'external'];
+        $profile = $profile->against($target);
 
-        $results->writeMeta($target, $duration, $connections, $ioMs, $workers, $this->generatorMeta($session));
+        $results->writeMeta($target, $profile, $profile->workers, $this->generatorMeta($session));
 
         $runId = (new RunState)->current()['id'] ?? '';
+        $command = new HttpBenchCommand;
 
+        // Only the probe is armed here. Each later batch depends on what the
+        // one before it measured — the sweep's levels come from how long the
+        // server took at one connection, and the response-time pass offers a
+        // fraction of what the sweep proved it can hold — so neither can be
+        // written down yet. The waiting command arms them in turn, and the
+        // generator picks each up on the same poll it already uses.
+        // The generator has not handshaked yet at this point, so there is no
+        // address to pin the probe to. The batches that follow are armed after
+        // it has, and carry one.
         (new GeneratorSession)->arm($runId, (new GeneratorScript)->work(
-            (new HttpBenchCommand)->plan($target, $duration, $connections, $ioMs),
+            $command->probe($profile),
+            $command->isInsecure($profile),
             $session,
         ));
 
@@ -233,6 +252,20 @@ class BenchmarkStages
      *
      * @param  array<string, mixed>|null  $webRuntime
      */
+    /**
+     * Cores the machine reports, for sizing the sweep's lower levels.
+     *
+     * Null rather than a guess when it cannot be read: LoadProfile falls back
+     * to a wide spread, which is honest, where a fabricated core count would
+     * put the levels confidently in the wrong place.
+     */
+    protected function coreCount(): ?int
+    {
+        $cores = (new ServerSpecs)->execute()['cpu_cores'] ?? null;
+
+        return is_numeric($cores) ? (int) $cores : null;
+    }
+
     protected function workerCeiling(?array $webRuntime): ?int
     {
         $workers = $webRuntime['runtime']['workers']

@@ -37,7 +37,7 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
     }
 
     if (sort.value === 'latency') {
-        return (primaryMetric(a)?.p95_ms ?? Infinity) - (primaryMetric(b)?.p95_ms ?? Infinity)
+        return (primaryMetric(a)?.p50_ms ?? Infinity) - (primaryMetric(b)?.p50_ms ?? Infinity)
     }
 
     return b.submitted_at.localeCompare(a.submitted_at) || b.run_id.localeCompare(a.run_id)
@@ -131,7 +131,7 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                                         Req/s
                                     </th>
                                     <th class="w-[11%] px-4 py-3 text-right font-normal">
-                                        p95
+                                        response
                                     </th>
                                     <th class="w-[10%] px-4 py-3 text-right font-normal">
                                         Cost
@@ -198,7 +198,7 @@ const sorted = computed(() => [...filtered.value].sort((a, b) => {
                                         </div>
                                     </td>
                                     <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
-                                        {{ primaryMetric(entry)?.p95_ms ?? '—' }}<span class="text-neutral-600">ms</span>
+                                        {{ primaryMetric(entry)?.p50_ms ?? '—' }}<span class="text-neutral-600">ms</span>
                                     </td>
                                     <td class="px-4 py-5 text-right font-mono text-xs text-neutral-400 tabular-nums">
                                         {{ monthlyCostLabel(entry.cost_amount, entry.cost_currency) ?? '—' }}

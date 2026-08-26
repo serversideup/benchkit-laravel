@@ -141,13 +141,16 @@ class CreateRunSnapshot
      */
     protected function summarize(array $benchmarks, array $environment): array
     {
+        // Throughput and response time now come from different measurements,
+        // so the summary reads each from where it was actually measured: the
+        // peak of the sweep, and the open-loop pass that ran below it.
         $heroRoute = collect(['db_read', 'json', 'static'])
             ->map(fn (string $key) => $benchmarks['http']['routes'][$key] ?? null)
-            ->first(fn (?array $route) => isset($route['requests_per_second']));
+            ->first(fn (?array $route) => isset($route['throughput']['requests_per_second']));
 
         return [
-            'http_rps' => $heroRoute['requests_per_second'] ?? null,
-            'http_p95_ms' => $heroRoute['p95_ms'] ?? null,
+            'http_rps' => $heroRoute['throughput']['requests_per_second'] ?? null,
+            'http_p95_ms' => $heroRoute['latency']['p95_ms'] ?? null,
             'php_create_ms' => $benchmarks['php']['headline']['create']['milliseconds'] ?? null,
             'geekbench_single' => $benchmarks['yabs']['geekbench'][0]['single'] ?? null,
             'geekbench_multi' => $benchmarks['yabs']['geekbench'][0]['multi'] ?? null,

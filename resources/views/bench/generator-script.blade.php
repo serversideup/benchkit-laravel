@@ -81,23 +81,60 @@ step "$TARGET is reachable"
 # the server is. One curl invocation reuses the connection, so only the
 # first request pays for the TCP and TLS handshakes — the same footing oha's
 # kept-alive connections run on.
-RTT=$($CURL -w '%{time_total}\n' \
+# Both ends of the five samples, not just the floor.
+#
+# The minimum is the best the path can do and is what the concurrency
+# arithmetic needs. The spread is what every percentile inherits: a laptop on
+# wifi answers most requests in twelve milliseconds and occasionally stalls for
+# a hundred, and that stall lands in p95 looking exactly like a slow server.
+# Measuring it here is the only chance to tell the two apart.
+RTT_SAMPLES=$($CURL -w '%{time_total}\n' \
     -o /dev/null "$TARGET/bench/static" -o /dev/null "$TARGET/bench/static" \
     -o /dev/null "$TARGET/bench/static" -o /dev/null "$TARGET/bench/static" \
-    -o /dev/null "$TARGET/bench/static" | sort -n | head -n 1)
+    -o /dev/null "$TARGET/bench/static" | sort -n)
+
+RTT=$(printf '%s\n' "$RTT_SAMPLES" | head -n 1)
+RTT_WORST=$(printf '%s\n' "$RTT_SAMPLES" | tail -n 1)
+RTT_WORST_MS=$(awk -v t="$RTT_WORST" 'BEGIN { printf "%.2f", t * 1000 }')
+
+# The address the name resolved to, reported so the run can be driven without
+# asking the resolver again.
+#
+# Every measured window is a fresh process that looks the name up before it
+# starts, and a run is thirty of them interleaved with windows that saturate
+# this machine. A local resolver put under that gave up partway through and
+# every window after it failed with "no records found" — a DNS answer, in the
+# middle of a test that has nothing to do with DNS.
+TARGET_IP=$($CURL -o /dev/null -w '%{remote_ip}' "$TARGET/bench/static" 2>/dev/null || echo)
 RTT_MS=$(awk -v t="$RTT" 'BEGIN { printf "%.2f", t * 1000 }')
 
 CORES=$( (nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 0) | head -n 1 | tr -dc '0-9')
 HOST=$(hostname 2>/dev/null | cut -c1-60 | sed 's/[\\"]//g')
 
+# One connection is one open file, so the concurrency this machine can offer is
+# bounded by its descriptor limit — and macOS ships a soft limit of 256, which
+# is below what a fast server behind a slow link needs. Raising the soft limit
+# to the hard one needs no privileges. What is left after that is reported, so
+# the server can size the sweep to what this machine can actually hold open
+# rather than asking for connections that fail instantly and count as replies.
+HARD_FD=$(ulimit -Hn 2>/dev/null || echo)
+
+case "$HARD_FD" in
+    unlimited|'') ulimit -n 65536 2>/dev/null || true ;;
+    *) ulimit -n "$HARD_FD" 2>/dev/null || true ;;
+esac
+
+FD_LIMIT=$(ulimit -n 2>/dev/null | tr -dc '0-9')
+[ -n "$FD_LIMIT" ] || FD_LIMIT=256
+
 $CURL -o /dev/null -X POST -H 'Content-Type: application/json' \
-    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS}" \
+    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS,\"fd_limit\":${FD_LIMIT},\"target_ip\":\"$TARGET_IP\",\"rtt_worst_ms\":$RTT_WORST_MS}" \
     "$BASE/bench/generator/$TOKEN/handshake" \
     || fail 'The server did not accept the handshake.' \
 '    The pairing may have expired or been replaced. Start over in BenchKit
     to get a new command.'
 
-step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip"
+step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip ${C_DIM}·${C_RESET}${C_TEXT} ${FD_LIMIT} connections available"
 
 blank
 note 'Waiting for the run to reach its web server stage.'
@@ -105,36 +142,68 @@ note 'Leave this terminal open. It starts on its own.'
 
 WORK=$(mktemp)
 TICKS=0
+BATCHES=0
+STATUS=
+
+# A run hands out its work in two batches. The first is the concurrency sweep;
+# the second times response times at a rate derived from what the sweep proved
+# the server can hold, so it cannot exist until the sweep has landed. That is
+# why this polls again after finishing a batch instead of exiting — the server
+# says when there is nothing left.
+#
+# 204 means "armed, nothing new yet": keep waiting. 200 only ever arrives with
+# work that has not been run, because the server flips the pairing to running
+# the moment it hands a batch over.
+fetch_work() {
+    while :; do
+        CODE=$($CURL -o "$WORK" -w '%{http_code}' "$BASE/bench/generator/$TOKEN/work" 2>/dev/null || echo 000)
+
+        case "$CODE" in
+            200) STATUS=work; return 0 ;;
+            410) STATUS=finished; return 0 ;;
+            404) STATUS=gone; return 0 ;;
+        esac
+
+        TICKS=$((TICKS + 1))
+
+        # On a terminal the wait redraws one line; piped to a log it stays quiet
+        # until there is something worth a new line.
+        if [ -n "$TTY" ]; then
+            printf '%s  %sWaiting… %ss%s' "$ERASE" "$C_DIM" "$((TICKS * 2))" "$C_RESET"
+        elif [ $((TICKS % 15)) -eq 0 ]; then
+            note "Still waiting… ($((TICKS * 2))s elapsed)"
+        fi
+
+        sleep 2
+    done
+}
 
 while :; do
-    CODE=$($CURL -o "$WORK" -w '%{http_code}' "$BASE/bench/generator/$TOKEN/work" 2>/dev/null || echo 000)
+    fetch_work
 
-    case "$CODE" in
-        200) break ;;
-        404|410)
-            rm -f "$WORK"
-            if [ -n "$TTY" ]; then printf '%s' "$ERASE"; fi
-            fail 'This pairing is no longer valid.' \
-'    The run finished, was cancelled, or a newer command replaced this one.
-    Start over in BenchKit to get a new command.' ;;
-    esac
+    if [ "$STATUS" = work ]; then
+        if [ -n "$TTY" ]; then printf '%s' "$ERASE"; fi
 
-    TICKS=$((TICKS + 1))
+        sh "$WORK"
+        BATCHES=$((BATCHES + 1))
+        TICKS=0
 
-    # On a terminal the wait redraws one line; piped to a log it stays quiet
-    # until there is something worth a new line.
-    if [ -n "$TTY" ]; then
-        printf '%s  %sWaiting… %ss%s' "$ERASE" "$C_DIM" "$((TICKS * 2))" "$C_RESET"
-    elif [ $((TICKS % 15)) -eq 0 ]; then
-        note "Still waiting… ($((TICKS * 2))s elapsed)"
+        continue
     fi
 
-    sleep 2
+    # Finishing is only good news once something has actually run. Before that
+    # it means the pairing was retired out from under us.
+    if [ "$STATUS" = finished ] && [ "$BATCHES" -gt 0 ]; then
+        break
+    fi
+
+    rm -f "$WORK"
+    if [ -n "$TTY" ]; then printf '%s' "$ERASE"; fi
+    fail 'This pairing is no longer valid.' \
+'    The run finished, was cancelled, or a newer command replaced this one.
+    Start over in BenchKit to get a new command.'
 done
 
-if [ -n "$TTY" ]; then printf '%s' "$ERASE"; fi
-
-sh "$WORK"
 rm -f "$WORK"
 
 blank

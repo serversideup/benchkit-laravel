@@ -213,15 +213,32 @@ class RunSessionTest extends TestCase
         ])])->assertStatus(422)->assertJsonValidationErrors('settings.network_test_type');
     }
 
+    /**
+     * The simulated delay is the only load parameter left to get wrong. There
+     * is no duration or connection count to validate, because the load sizes
+     * itself from the machine rather than from anything a client sends.
+     */
     public function test_http_load_settings_are_validated(): void
+    {
+        $this->postJson('/run', ['settings' => $this->settings([
+            'http' => true,
+            'http_io_ms' => 9000,
+        ])])->assertStatus(422)
+            ->assertJsonValidationErrors(['settings.http_io_ms']);
+    }
+
+    /**
+     * A tab left open from before the change still posts the retired keys.
+     * They are ignored rather than rejected — nothing reads them, and failing
+     * the run would strand anyone who had not reloaded.
+     */
+    public function test_retired_load_settings_from_an_old_client_are_ignored(): void
     {
         $this->postJson('/run', ['settings' => $this->settings([
             'http' => true,
             'http_duration' => 600,
             'http_connections' => 5000,
-            'http_io_ms' => 9000,
-        ])])->assertStatus(422)
-            ->assertJsonValidationErrors(['settings.http_duration', 'settings.http_connections', 'settings.http_io_ms']);
+        ])])->assertSuccessful();
     }
 
     /**

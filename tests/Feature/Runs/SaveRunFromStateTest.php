@@ -4,9 +4,9 @@ namespace Tests\Feature\Runs;
 
 use App\Actions\Runs\SaveRunFromState;
 use App\Support\RunState;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\SeedsHttpResults;
 use Tests\Concerns\UsesFakeResultsPath;
 use Tests\Concerns\UsesFakeRunPath;
 use Tests\TestCase;
@@ -17,7 +17,7 @@ use Tests\TestCase;
  */
 class SaveRunFromStateTest extends TestCase
 {
-    use UsesFakeResultsPath;
+    use SeedsHttpResults, UsesFakeResultsPath;
     use UsesFakeRunPath;
 
     protected RunState $state;
@@ -34,18 +34,7 @@ class SaveRunFromStateTest extends TestCase
 
     protected function writeHttpFixtures(): void
     {
-        File::put($this->resultsPath.'/http-meta.json', json_encode([
-            'target' => 'http://localhost:8080',
-            'mode' => 'loopback',
-            'duration_seconds' => 10,
-            'connections' => 50,
-        ]));
-
-        File::put($this->resultsPath.'/http-static.json', json_encode([
-            'summary' => ['requestsPerSec' => 34.1, 'successRate' => 1.0, 'totalData' => 1804000],
-            'latencyPercentiles' => ['p50' => 1.84974, 'p95' => 2.33328, 'p99' => 2.39664],
-            'statusCodeDistribution' => ['200' => 251],
-        ]));
+        $this->seedHttpResults(levels: [1, 4, 20], mode: 'standard');
     }
 
     public function test_a_finished_run_is_written_to_the_run_history(): void

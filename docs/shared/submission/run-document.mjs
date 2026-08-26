@@ -16,6 +16,7 @@
 // detail it summarizes.
 
 import { sha256Hex } from './token.mjs'
+import { cleanRun } from '../run/clean.mjs'
 
 const RUNS_DIR = 'docs/data/runs'
 
@@ -199,6 +200,12 @@ export const runsPathFor = id => `${RUNS_DIR}/${id.slice(0, 4)}-${id.slice(4, 6)
 const num = value => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 const route = (run, key) => run?.benchmarks?.http?.routes?.[key] ?? null
 
+const saturatedOn = (run, key) => {
+    const saturated = route(run, key)?.throughput?.saturated
+
+    return typeof saturated === 'boolean' ? saturated : null
+}
+
 /**
  * The queryable columns for one run: everything the gallery list renders,
  * filters on, or sorts by, so a listing never has to open a run in full. Pure
@@ -216,12 +223,39 @@ export const indexFields = (run) => {
         php_variation: run?.environment?.php?.php_variation ?? null,
         php_version: run?.environment?.php?.php_version ?? null,
         cpu_cores: Number.parseInt(String(run?.environment?.server?.cpu_cores ?? ''), 10) || null,
-        json_rps: num(route(run, 'json')?.requests_per_second),
-        json_p95_ms: num(route(run, 'json')?.p95_ms),
-        static_rps: num(route(run, 'static')?.requests_per_second),
-        static_p95_ms: num(route(run, 'static')?.p95_ms),
-        db_read_rps: num(route(run, 'db_read')?.requests_per_second),
-        db_read_p95_ms: num(route(run, 'db_read')?.p95_ms),
+        // Throughput, the concurrency it took, and what one visitor waits at a
+        // rate below that. Three measurements, so three columns.
+        //
+        // The response time is the median from the open-loop pass, not a p95
+        // from the sweep. Two reasons: the sweep's percentiles describe a
+        // queue rather than a visitor, and the tail of a short window swings
+        // several-fold between runs on a busy host while the median holds
+        // steady. A column people sort by has to be stable.
+        json_rps: num(route(run, 'json')?.throughput?.requests_per_second),
+        json_concurrency: num(route(run, 'json')?.throughput?.concurrency),
+        json_p50_ms: num(route(run, 'json')?.latency?.p50_ms),
+        static_rps: num(route(run, 'static')?.throughput?.requests_per_second),
+        static_p50_ms: num(route(run, 'static')?.latency?.p50_ms),
+        db_read_rps: num(route(run, 'db_read')?.throughput?.requests_per_second),
+        db_read_p50_ms: num(route(run, 'db_read')?.latency?.p50_ms),
+        // False means the sweep never saw throughput flatten, so the figure is
+        // the most it could ask for rather than the most the machine can
+        // serve. Ranking a floor against maximums buries hosts for the wrong
+        // reason, so the gallery shows these with a ≥ and leaves them out of
+        // the ranked sort.
+        saturated: saturatedOn(run, 'json'),
+        // SQLite on tmpfs against Postgres over a socket differ by more than
+        // two machines do, so the engine is a filter rather than a footnote.
+        database_driver: typeof run?.environment?.database?.driver === 'string'
+            ? run.environment.database.driver
+            : null,
+        // Whether this measurement can be trusted for comparison — see
+        // cleanRun(). Not whether the host is fast: a slow machine
+        // measured properly earns it and a fast one measured sloppily does not.
+        clean_run: cleanRun(run).ok,
+        // Just the first reason, kept short: enough for a chip that says why a
+        // run fell short, without the index growing a paragraph per entry.
+        clean_missing: cleanRun(run).reasons[0] ?? null,
         // The partition axis: self-tested and externally-driven throughput are
         // two different measurements and never share a column. A run with HTTP
         // results but no generator block predates external mode, which

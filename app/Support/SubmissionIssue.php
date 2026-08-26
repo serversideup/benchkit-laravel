@@ -195,22 +195,38 @@ class SubmissionIssue
 
         foreach (self::ROUTE_LABELS as $key => $label) {
             $route = $routes[$key] ?? null;
+            $throughput = $route['throughput'] ?? null;
 
-            if (! is_array($route) || ! isset($route['requests_per_second'])) {
+            if (! is_array($throughput) || ! isset($throughput['requests_per_second'])) {
                 continue;
             }
 
+            // Three columns because they are three measurements. Throughput
+            // comes from the sweep, the concurrency is where it peaked, and the
+            // response time comes from a separate pass below that peak — so
+            // none of them is a restatement of another.
+            //
+            // A figure the sweep never saw flatten carries its own mark: it is
+            // the most BenchKit could ask for rather than the most this machine
+            // can serve, and it must not read as a maximum in a table people
+            // scan.
             $rows[] = sprintf(
-                '| %s | %s req/s | %s |',
+                '| %s | %s%s req/s | %s | %s |',
                 $label,
-                self::number((float) $route['requests_per_second'], 1),
-                isset($route['p95_ms']) ? self::number((float) $route['p95_ms']).' ms' : '—',
+                ($throughput['saturated'] ?? null) === false ? '≥' : '',
+                self::number((float) $throughput['requests_per_second'], 1),
+                isset($throughput['concurrency']) ? self::number((float) $throughput['concurrency']) : '—',
+                isset($route['latency']['p50_ms']) ? self::number((float) $route['latency']['p50_ms']).' ms' : '—',
             );
         }
 
         // Right-aligned numeric columns: figures compare by eye only when their
         // digits line up.
-        return $rows === [] ? null : implode("\n", ['| Route | Throughput | p95 |', '| --- | ---: | ---: |', ...$rows]);
+        return $rows === [] ? null : implode("\n", [
+            '| Route | Max throughput | At concurrency | Response time |',
+            '| --- | ---: | ---: | ---: |',
+            ...$rows,
+        ]);
     }
 
     /**

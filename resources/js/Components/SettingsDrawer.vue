@@ -119,16 +119,6 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-3 mt-4" v-show="form.http">
-                            <div class="flex flex-col">
-                                <label for="http-duration" class="text-sm text-[#CECFD2] font-mono font-medium">Duration (seconds)</label>
-                                <input type="number" id="http-duration" v-model.number="form.http_duration" min="5" max="60" step="1"
-                                    class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
-                            </div>
-                            <div class="flex flex-col">
-                                <label for="http-connections" class="text-sm text-[#CECFD2] font-mono font-medium">Connections</label>
-                                <input type="number" id="http-connections" v-model.number="form.http_connections" min="1" max="500" step="1"
-                                    class="mt-1.5 w-full px-3 py-2 rounded-lg border border-[#373A41] bg-transparent text-sm text-[#CECFD2] font-mono focus:outline-none focus:border-[#61656C] focus:ring-0 focus:ring-offset-0" />
-                            </div>
                             <div class="col-span-2 flex flex-col">
                                 <label for="http-io-ms" class="text-sm text-[#CECFD2] font-mono font-medium">Simulated I/O response (ms)</label>
                                 <input type="number" id="http-io-ms" v-model.number="form.http_io_ms" min="0" max="1000" step="10"
@@ -137,9 +127,9 @@
                             </div>
                         </div>
 
-                        <p v-show="form.http && !standardHttpLoad" class="mt-2.5 text-xs text-[#94979C] font-mono">
-                            Custom load — results won't be directly comparable with standard BenchKit runs.
-                            <button @click="resetHttpLoad()" type="button" class="text-[#CECFD2] underline underline-offset-2 hover:text-white cursor-pointer">Reset to standard load</button>
+                        <p v-show="form.http && !standardIoDelay" class="mt-2.5 text-xs text-[#94979C] font-mono">
+                            Custom I/O delay — the I/O route won't be comparable with other BenchKit runs. The other three still are.
+                            <button @click="resetIoDelay()" type="button" class="text-[#CECFD2] underline underline-offset-2 hover:text-white cursor-pointer">Reset to 100ms</button>
                         </p>
                     </div>
 
@@ -188,19 +178,13 @@ const {
     previewStatuses
 } = useBenchmarkQueue()
 
-// The standard BenchKit load — deviating is allowed but always called out,
-// since custom loadgen settings make results incomparable with other runs.
-// Both preset windows (Quick 10s, Full 30s) count as standard; only the
-// connection count, I/O delay, and an off-preset duration read as custom.
-const standardHttpLoad = computed(() =>
-    Number(form.http_connections) === 50
-    && Number(form.http_io_ms) === 100
-    && [10, 30].includes(Number(form.http_duration))
-)
+// There is no duration or connection count to deviate from any more — the
+// load sizes itself from the machine. The simulated delay is the one load
+// parameter left, and it contaminates exactly one route rather than all four,
+// which is worth saying rather than calling the whole run non-standard.
+const standardIoDelay = computed(() => Number(form.http_io_ms) === 100)
 
-const resetHttpLoad = () => {
-    form.http_duration = 30
-    form.http_connections = 50
+const resetIoDelay = () => {
     form.http_io_ms = 100
 }
 
@@ -233,17 +217,13 @@ const discard = () => {
 }
 
 // Clamp to the backend's validation bounds so a stray or emptied input can
-// never fail the stage mid-run; empty falls back to the standard load
-const clampHttpLoad = () => {
-    const clamp = (value, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(value)) || fallback));
-
-    form.http_duration = clamp(form.http_duration, 30, 5, 60);
-    form.http_connections = clamp(form.http_connections, 50, 1, 500);
-    form.http_io_ms = clamp(form.http_io_ms, 100, 0, 1000);
+// never fail the stage mid-run; empty falls back to the standard delay
+const clampIoDelay = () => {
+    form.http_io_ms = Math.min(1000, Math.max(0, Math.round(Number(form.http_io_ms)) || 100));
 }
 
 const save = () => {
-    clampHttpLoad();
+    clampIoDelay();
     saveSettings();
     close();
 }

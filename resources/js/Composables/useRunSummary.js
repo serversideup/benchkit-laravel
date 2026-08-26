@@ -175,6 +175,25 @@ const headlineOperation = (php, key) => {
         : headline;
 };
 
+/**
+ * Which measurement shape a run carries.
+ *
+ * Detected from the data rather than from schema_version, because it is
+ * `benchmarks.http` that changed and the same page renders both. This is the
+ * pattern already used for CRUD comparability and for load mode.
+ */
+export const httpFormat = (http) =>
+    Object.values(http?.routes ?? {}).some((route) => Array.isArray(route?.curve)) ? 'sweep' : 'fixed';
+
+/**
+ * The throughput figure a run leads with, from whichever route measured one.
+ * Static first: it is the framework floor, the one number every host has.
+ */
+const heroThroughput = (http) =>
+    http?.routes?.static?.throughput?.requests_per_second
+    ?? http?.routes?.static?.requests_per_second
+    ?? null;
+
 export const runDisplay = (run) => {
     const stages = Object.fromEntries(
         ['yabs', 'cfspeedtest', 'http', 'php'].map((stage) => [stage, run.stages_completed.includes(stage)]),
@@ -189,28 +208,28 @@ export const runDisplay = (run) => {
     return {
         stages,
         http: http ? {
-            rps: http.routes?.static?.requests_per_second ?? null,
-            p95: http.routes?.static?.p95_ms ?? null,
-            json_rps: http.routes?.json?.requests_per_second ?? null,
-            db_rps: http.routes?.db_read?.requests_per_second ?? null,
-            mode: http.mode ?? null,
-            tls: http.tls ?? null,
+            // Everything the snapshot recorded, minus the target — that is the
+            // submitter's own URL or an internal hostname, and this object
+            // feeds the share-card renderer.
+            //
+            // Spread rather than enumerated. The old hand-maintained list had
+            // already failed once: leaving a key out silently removed the
+            // worker chip and the pool warning from runs whose snapshots
+            // recorded them, and the new shape has three times as many keys to
+            // forget. A drop-list of one is safer than an allow-list of
+            // fifteen.
+            ...(({ target, ...rest }) => rest)(http),
+            format: httpFormat(http),
             octane: run.environment?.php?.octane ?? false,
-            duration_seconds: http.duration_seconds ?? null,
-            connections: http.connections ?? null,
-            io_ms: http.io_ms ?? null,
-            // Both of these are read off the display object by HttpPanel and
-            // RunCaveats. Leaving them out of the mapping meant the worker
-            // count chip and the pool-bound warning could never appear, even
-            // on runs whose snapshot recorded them.
-            workers: http.workers ?? null,
-            oversubscribed: http.oversubscribed ?? null,
-            pool_limited: http.pool_limited ?? null,
             // Snapshots from before external mode carry no generator block;
             // they could only have been self-tests.
             generator: http.generator ?? { mode: 'self' },
-            generator_bound: http.generator_bound ?? null,
-            routes: http.routes ?? {},
+            // Flat aliases the share card gates on. Derived rather than
+            // copied: which route leads is a decision, not a field.
+            rps: heroThroughput(http),
+            p95: http.routes?.static?.latency?.p95_ms ?? null,
+            json_rps: http.routes?.json?.throughput?.requests_per_second ?? null,
+            db_rps: http.routes?.db_read?.throughput?.requests_per_second ?? null,
         } : null,
         php: php ? {
             create: headlineOperation(php, 'create'),

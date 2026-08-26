@@ -31,7 +31,7 @@ class AssembleResultsDocument
      *        environment now describes the process that served the load test
      *        rather than the CLI process that assembled the document.
      */
-    public const SCHEMA_VERSION = 4;
+    public const SCHEMA_VERSION = 5;
 
     /**
      * Merge environment specs and all benchmark outputs into a single

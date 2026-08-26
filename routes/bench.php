@@ -42,6 +42,16 @@ Route::middleware('throttle:generator')->group(function (): void {
     Route::get('/bench/generator/{token}/work', [GeneratorController::class, 'work']);
 });
 
-Route::post('/bench/generator/{token}/results/{route}', [GeneratorController::class, 'upload'])
+// One slot per measured window: `static-c20` for a sweep level, `io-latency`
+// for a response-time pass. The server decides which names it is waiting for,
+// so an unrecognised one is a 404 rather than a file.
+Route::post('/bench/generator/{token}/results/{slot}', [GeneratorController::class, 'upload'])
     ->middleware('throttle:generator-upload')
-    ->where('route', 'static|json|db-read|io');
+    ->where('slot', '(?:static|json|db-read|io)-(?:c[0-9]{1,4}|latency)');
+
+// A window the generator could not measure. Reported so the run stops waiting
+// for it rather than sitting out its whole timeout on a result nobody is
+// coming back with.
+Route::post('/bench/generator/{token}/failed/{slot}', [GeneratorController::class, 'failed'])
+    ->middleware('throttle:generator-upload')
+    ->where('slot', '(?:static|json|db-read|io)-(?:c[0-9]{1,4}|latency)');

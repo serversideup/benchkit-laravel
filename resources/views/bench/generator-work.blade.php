@@ -25,7 +25,8 @@ upload() {
     UPLOAD_NOTE=''
 
     if [ ! -s "$FILE" ]; then
-        UPLOAD_NOTE='no output captured'
+        UPLOAD_NOTE=$(head -n 1 "$TMP/err.txt" 2>/dev/null | cut -c1-90)
+        [ -n "$UPLOAD_NOTE" ] || UPLOAD_NOTE='no output captured'
 
         return 1
     fi
@@ -51,15 +52,24 @@ upload() {
     return 1
 }
 
-# A route occupies one line for its whole life: claimed while it runs, then
-# rewritten in place with the number it measured.
-route_start() {
+# A window the generator could not measure. Best effort: if this request does
+# not land the run falls back to its no-progress timeout, which is what used to
+# happen every time.
+report_failed() {
+    $CURL -o /dev/null -X POST -H 'Content-Type: text/plain' \
+        --data-binary "@$TMP/err.txt" \
+        "$BASE/bench/generator/$TOKEN/failed/$1" >/dev/null 2>&1 || true
+}
+
+# A measured window occupies one line for its whole life: claimed while it
+# runs, then rewritten in place with the number it measured.
+step_start() {
     if [ -n "$TTY" ]; then
         printf '  %s%s%s  %-16s %srunning…%s' "$C_DIM" "$1" "$C_RESET" "$2" "$C_DIM" "$C_RESET"
     fi
 }
 
-route_done() {
+step_done() {
     if [ -n "$TTY" ]; then printf '%s' "$ERASE"; fi
 
     if [ "$4" = ok ]; then
@@ -75,19 +85,31 @@ route_done() {
 
 blank
 rule
-printf '  %sLoad test%s %s·%s %s routes %s·%s {{ $routes[0]['duration_seconds'] }}s each at {{ $routes[0]['connections'] }} connections\n' \
-    "$C_BOLD$C_TEXT" "$C_RESET" "$C_DIM" "$C_RESET" '{{ count($routes) }}' "$C_DIM" "$C_RESET"
+printf '  %sLoad test%s %s·%s %s measured windows\n' \
+    "$C_BOLD$C_TEXT" "$C_RESET" "$C_DIM" "$C_RESET" '{{ $measured }}'
 rule
 blank
-@foreach ($routes as $route)
-route_start '{{ $loop->iteration }}/{{ count($routes) }}' {!! $route['path_quoted'] !!}
-oha -z {{ $route['warmup_seconds'] }}s {!! $route['load_flags'] !!} {!! $route['url_quoted'] !!} > /dev/null 2>&1 || true
-oha -z {{ $route['duration_seconds'] }}s {!! $route['load_flags'] !!} --no-tui --output-format json {!! $route['url_quoted'] !!} > "$TMP/{{ $route['upload_key'] }}.json" 2>/dev/null || true
-RPS=$(sed -n 's/.*"requestsPerSec":[[:space:]]*\([0-9.eE+-]*\).*/\1/p' "$TMP/{{ $route['upload_key'] }}.json" 2>/dev/null | head -n 1)
+@foreach ($steps as $step)
+@if ($step['capture'])
+step_start '{{ $step['done'] }}/{{ $measured }}' {!! $step['label_quoted'] !!}
+# stderr is kept rather than discarded. A window that produced nothing used
+# to say only "no output captured", which is the symptom and never the cause —
+# and the cause is on the machine running this script, where nobody can see it.
+{!! $step['command'] !!} > "$TMP/out.json" 2> "$TMP/err.txt" || true
+RPS=$(sed -n 's/.*"requestsPerSec":[[:space:]]*\([0-9.eE+-]*\).*/\1/p' "$TMP/out.json" 2>/dev/null | head -n 1)
 
-if upload '{{ $route['upload_key'] }}' "$TMP/{{ $route['upload_key'] }}.json"; then
-    route_done '{{ $loop->iteration }}/{{ count($routes) }}' {!! $route['path_quoted'] !!} "$RPS" ok
+if upload '{{ $step['slot'] }}' "$TMP/out.json"; then
+    step_done '{{ $step['done'] }}/{{ $measured }}' {!! $step['label_quoted'] !!} "$RPS" ok
 else
-    route_done '{{ $loop->iteration }}/{{ count($routes) }}' {!! $route['path_quoted'] !!} "$RPS" "$UPLOAD_NOTE"
+    # Tell the server this one is not coming, or it waits out its whole
+    # timeout for a result nobody is going to send.
+    report_failed '{{ $step['slot'] }}'
+    step_done '{{ $step['done'] }}/{{ $measured }}' {!! $step['label_quoted'] !!} "$RPS" "$UPLOAD_NOTE"
 fi
+@else
+{!! $step['command'] !!} > /dev/null 2>&1 || true
+# A moment between windows so one does not measure the last one's sockets
+# still draining. Cheap next to a six-second window.
+sleep 1
+@endif
 @endforeach

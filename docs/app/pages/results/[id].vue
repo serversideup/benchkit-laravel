@@ -187,7 +187,7 @@
                         </p>
                         <div class="mt-2">
                             <p class="text-5xl text-white font-mono font-medium leading-none tabular-nums">
-                                {{ round(benchRoute.data.requests_per_second) }}
+                                {{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
                                 req/s
@@ -230,7 +230,7 @@
                         </p>
                         <div class="mt-auto pt-4">
                             <p class="text-4xl text-white font-mono font-medium leading-none tabular-nums">
-                                {{ round(benchRoute.data.requests_per_second) }}
+                                {{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
                                 req/s
@@ -673,14 +673,19 @@ const routes = computed(() => {
     const routeData = http.value.routes ?? {}
     return Object.keys(ROUTES)
         .map(key => ({ key, data: (routeData as Record<string, HttpRoute | undefined>)[key] }))
-        .filter((r): r is { key: string, data: HttpRoute } => r.data?.requests_per_second != null)
+        .filter((r): r is { key: string, data: HttpRoute } => r.data?.throughput?.requests_per_second != null)
         .map(({ key, data }) => {
             const values: Record<string, number> = {}
             const widths: Record<string, number> = {}
+            // Percentiles come from the open-loop pass, which measured them at a
+            // rate the server could hold — so they describe a visitor rather
+            // than the queue the sweep deliberately builds.
+            const latency = data.latency ?? {}
+            const read = (key: string): number | null => (latency as Record<string, number | null | undefined>)[`${key}_ms`] ?? null
             // Bars scale within each route to its own slowest percentile.
-            const routeMax = Math.max(1, ...PERCENTILES.map(p => data[`${p.key}_ms`]).filter(v => v != null))
+            const routeMax = Math.max(1, ...PERCENTILES.map(p => read(p.key)).filter((v): v is number => v != null))
             PERCENTILES.forEach((p) => {
-                const raw = data[`${p.key}_ms`]
+                const raw = read(p.key)
                 values[p.key] = raw != null ? Math.round(raw) : 0
                 widths[p.key] = raw != null ? Math.max(2, (raw / routeMax) * 100) : 0
             })
