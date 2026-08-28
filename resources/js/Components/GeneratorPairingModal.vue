@@ -44,7 +44,7 @@
                                     class="text-[#94979C] underline decoration-[#373A41] underline-offset-4 transition-colors duration-200 hover:text-[#CECFD2] hover:decoration-[#61656C]">
                                     Testing from another machine guide
                                 </a>
-                                on how to get the most accyurate results.
+                                on how to get the most accurate results.
                             </p>
 
                             <!-- The one thing to act on, so it carries the most weight on the

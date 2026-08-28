@@ -116,6 +116,13 @@ export default defineNuxtConfig({
                 ]
             },
             {
+                title: 'Benchmarks & Methodology',
+                contentCollection: 'docs',
+                contentFilters: [
+                    { field: 'path', operator: 'LIKE', value: '/docs/benchmarks%' }
+                ]
+            },
+            {
                 title: 'Configuration',
                 contentCollection: 'docs',
                 contentFilters: [
@@ -127,13 +134,6 @@ export default defineNuxtConfig({
                 contentCollection: 'docs',
                 contentFilters: [
                     { field: 'path', operator: 'LIKE', value: '/docs/image-variations%' }
-                ]
-            },
-            {
-                title: 'Benchmarks & Methodology',
-                contentCollection: 'docs',
-                contentFilters: [
-                    { field: 'path', operator: 'LIKE', value: '/docs/benchmarks%' }
                 ]
             },
             {

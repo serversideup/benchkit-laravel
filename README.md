@@ -22,10 +22,10 @@ It's a standalone app rather than a package you install. Spin it up, run a bench
 | --- | --- | --- |
 | Hardware | [YABS](https://github.com/masonr/yet-another-bench-script) | CPU and disk, through Geekbench and fio |
 | Network | [cfspeedtest](https://github.com/code-inflation/cfspeedtest) | Latency and bandwidth to Cloudflare |
-| Web server load | [oha](https://github.com/hatoo/oha) | Requests per second and latency, per route |
+| Web server load | [oha](https://github.com/hatoo/oha) | Max throughput and response time, per route |
 | PHP and database | [phpbench](https://phpbench.readthedocs.io/) | Timing for individual PHP and database operations |
 
-Every run uses the same load settings unless you change them, which is what makes it meaningful to put your numbers next to somebody else's.
+Every run measures the same way — probe, sweep to the top, then hold a steady rate below it — which is what makes it meaningful to put your numbers next to somebody else's.
 
 [How each stage works →](https://serversideup.net/open-source/benchkit/docs/benchmarks)
 
@@ -47,6 +47,7 @@ Open `http://<your-server-ip>/` in your browser and press **Start Benchmark**.
 
 A few things worth knowing:
 
+- **The load test runs from a second machine by default.** Start Benchmark hands you a one-line command to paste there. No second machine? Pick **Test from this server instead** in the same dialog.
 - **The run belongs to the server**, not to your browser. Close the tab, reload the page, or follow along from your phone without disturbing it.
 - **The volume holds your run history.** Without it, your results disappear with the container.
 - **Pick Quick or Full** in the settings drawer before you start. BenchKit estimates how long your choice will take.
@@ -85,7 +86,7 @@ You can also share a run as an image on X with [#BenchKit](https://x.com/search?
 - **[Adding a real database](https://serversideup.net/open-source/benchkit/docs/configuration/adding-databases)** — point BenchKit at MySQL, MariaDB, or Postgres instead of the default SQLite.
 - **[Customizing the image](https://serversideup.net/open-source/benchkit/docs/configuration/customizing-the-image)** — change OPcache, JIT, and the FPM pool with environment variables.
 - **[Reading your results](https://serversideup.net/open-source/benchkit/docs/benchmarks/reading-your-results)** — what a number tells you, and the limits that apply to it.
-- **[Testing from your own machine](https://serversideup.net/open-source/benchkit/docs/benchmarks/testing-from-your-own-machine)** — point oha at the load test endpoints from another machine.
+- **[Testing from another machine](https://serversideup.net/open-source/benchkit/docs/benchmarks/testing-from-another-machine)** — point oha at the load test endpoints from another machine.
 - **[FAQ](https://serversideup.net/open-source/benchkit/docs/faq)** — the questions we get most often.
 
 > The documentation source lives in the [`docs/`](./docs) directory — a standalone Nuxt site deployed to Cloudflare Pages.
