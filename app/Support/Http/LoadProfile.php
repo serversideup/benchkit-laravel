@@ -175,7 +175,11 @@ class LoadProfile
     public function parallelism(?string $route = null): ?int
     {
         if ($route === HttpBenchmarkResults::IO_ROUTE) {
-            return $this->workers;
+            // Falls back to the core count rather than to the blind default: a
+            // runtime that declares no worker count is not a small one, and a
+            // sleeping route sized from the blind default swept a 64-core host
+            // to 32 connections and reported the ladder's own end as a result.
+            return $this->workers ?? $this->cores;
         }
 
         if ($this->cores !== null && $this->workers !== null) {

@@ -14,9 +14,9 @@ namespace App\Support\Http;
 class LoadCurve
 {
     /**
-     * How much the top level has to beat the one below it before the curve is
-     * treated as still climbing rather than flattened. Below this the server
-     * stopped converting concurrency into throughput, which is the bend.
+     * The share of a curve's opening slope that its closing slope has to keep
+     * before it counts as still climbing. Below this the server has stopped
+     * converting concurrency into throughput, which is the bend.
      */
     protected const IMPROVEMENT = 0.05;
 
@@ -140,10 +140,17 @@ class LoadCurve
     /**
      * Whether throughput actually flattened inside the range measured.
      *
-     * If the highest level was still the fastest by a clear margin, the server
-     * had more to give and was never found — so the figure is the most
-     * BenchKit managed to ask for, not the most the machine can serve. The
-     * results page has to say so rather than print it flat.
+     * Asked as a slope rather than as a ratio between the last two levels,
+     * because the ladder is geometric and those two can be a factor of four
+     * apart. A plain ratio reads "five percent faster" as still climbing even
+     * when the five percent cost four times the connections — measured on a
+     * 64-thread host, throughput rose 5.3% between 128 and 512 connections
+     * while the tail went from 7ms to 49ms, and the run published a flat
+     * curve as a floor.
+     *
+     * Normalised against the curve's own opening slope, so it needs no view of
+     * what the host ought to manage: a route that has stopped scaling returns a
+     * small fraction of the throughput per connection it returned at the start.
      */
     public function isSaturated(): bool
     {
@@ -153,10 +160,31 @@ class LoadCurve
             return false;
         }
 
+        $opening = $this->slopeBetween($clean[0], $clean[1]);
+
+        if ($opening <= 0) {
+            return true;
+        }
+
         $top = end($clean);
         $below = prev($clean);
 
-        return $top['result']->requestsPerSecond <= $below['result']->requestsPerSecond * (1 + self::IMPROVEMENT);
+        return $this->slopeBetween($below, $top) <= $opening * self::IMPROVEMENT;
+    }
+
+    /**
+     * Requests a second gained per connection added between two levels.
+     *
+     * @param  array{concurrency: int, result: StepResult}  $from
+     * @param  array{concurrency: int, result: StepResult}  $to
+     */
+    protected function slopeBetween(array $from, array $to): float
+    {
+        $connections = $to['concurrency'] - $from['concurrency'];
+
+        return $connections <= 0
+            ? 0.0
+            : ($to['result']->requestsPerSecond - $from['result']->requestsPerSecond) / $connections;
     }
 
     /**
