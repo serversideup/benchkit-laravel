@@ -298,10 +298,29 @@ class HttpBenchmarkTest extends TestCase
         $this->assertSame(512, $reach['connections']);
         $this->assertEquals(3.0, $reach['idle_ms']);
         $this->assertEquals(1.5, $reach['transport_rtt_ms']);
-        $this->assertEquals(0.5, $reach['network_share'], 'Half of every request never reached the server.');
+        // Connections busy and loaded latency barely above idle: this run really
+        // was bounded by the path, so half of each request was the wire.
+        $this->assertEqualsWithDelta(0.5, $reach['network_share'], 0.01, 'Half of every request never reached the server.');
         $this->assertEquals(333.3, $reach['rps_per_connection']);
         $this->assertEquals(170649.6, $reach['offered_rps_ceiling']);
         $this->assertSame('benchkit', $reach['capped_by']);
+    }
+
+    /**
+     * Measured on a 32-core EPYC with the generator in the same datacenter,
+     * 0.43ms away. Half of an *unloaded* request there is wire, which read as
+     * distance — but under load each request took 11ms, of which 4% was wire
+     * and the rest was the server's own queue. Sharing against the idle figure
+     * blamed the network for a server that was simply working.
+     */
+    public function test_the_share_of_a_request_spent_on_the_wire_is_measured_under_load(): void
+    {
+        $this->seedReach(transportRttMs: 0.43, idleMs: 0.86, topConnections: 512, peakRps: 45372.0);
+
+        $reach = $this->getJson('/http/results')->assertOk()->json('http_results.reach');
+
+        $this->assertEqualsWithDelta(11.29, $reach['loaded_ms'], 0.05);
+        $this->assertLessThan(0.1, $reach['network_share'], 'A queueing server is not a distant one.');
     }
 
     public function test_http_results_say_when_the_generator_ran_out_of_connections(): void

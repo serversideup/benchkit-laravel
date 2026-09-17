@@ -366,6 +366,7 @@ class HttpBenchmarkResults extends BenchmarkResults
         $curve = $curves[$fastest];
         $connections = $curve->topConcurrency();
         $perConnection = round(1000 / $idleMs, 1);
+        $loadedMs = $curve->peakLatencyMs();
 
         return [
             'route' => $fastest,
@@ -373,10 +374,17 @@ class HttpBenchmarkResults extends BenchmarkResults
             'busy_connections' => $curve->busyConnections(),
             'peak_rps' => $curve->peakRps(),
             'idle_ms' => round($idleMs, 2),
+            'loaded_ms' => $loadedMs,
             'transport_rtt_ms' => $transport,
-            // How much of a request never reached the server. Above a half the
-            // connection count, not the machine, is what bounds the run.
-            'network_share' => $transport === null ? null : round(min(1.0, $transport / $idleMs), 3),
+            // How much of a request never reached the server, measured at the
+            // concurrency the run actually offered rather than at rest. A
+            // server queueing under load spends most of a request on itself
+            // however close the generator is, and the idle figure would call
+            // that distance: on a fast host answering in under a millisecond,
+            // half of an unloaded request is wire while a loaded one is 4%.
+            'network_share' => $transport === null || ($loadedMs ?? 0) <= 0
+                ? null
+                : round(min(1.0, $transport / $loadedMs), 3),
             'rps_per_connection' => $perConnection,
             'offered_rps_ceiling' => $connections === null ? null : round($connections * $perConnection, 1),
             'capped_by' => $this->cappedBy($connections, $fdLimit),

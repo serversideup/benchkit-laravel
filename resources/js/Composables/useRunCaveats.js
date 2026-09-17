@@ -108,7 +108,7 @@ const unsaturatedCaveat = (http, routes) => {
         case 'distant':
             return {
                 title: 'The generator is too far away to find the limit',
-                detail: `${ROUTE_LABELS[reach.route] ?? reach.route} answers in ${reach.idle_ms}ms, and ${reach.transport_rtt_ms}ms of that is the trip to the generator. One connection can carry ${rounded(reach.rps_per_connection)} requests a second, so the ${rounded(reach.connections)} BenchKit can open cap the offered rate at ${rounded(reach.offered_rps_ceiling)}. ${named} topped out there, so those figures are a floor set by the path.`,
+                detail: `Even under load, ${reach.transport_rtt_ms}ms of each ${reach.loaded_ms ?? reach.idle_ms}ms request was the trip to the generator rather than the server. One connection can carry ${rounded(reach.rps_per_connection)} requests a second, so the ${rounded(reach.connections)} BenchKit can open cap the offered rate at ${rounded(reach.offered_rps_ceiling)}. ${named} topped out there, so those figures are a floor set by the path.`,
                 fix: 'Run the generator in the same datacenter, or self-test for a number the network cannot bound.',
             };
         case 'descriptors':
@@ -127,7 +127,9 @@ const unsaturatedCaveat = (http, routes) => {
         default:
             return {
                 title: 'The limit was never reached',
-                detail: `Throughput on ${named} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
+                detail: reach.capped_by === 'benchkit' && reach.loaded_ms != null
+                    ? `${named} ${were(routes)} still climbing at ${rounded(reach.connections)} connections, which is BenchKit's own ceiling rather than anything about this server. Each request took ${reach.loaded_ms}ms there against ${reach.idle_ms}ms idle, so the queue is this machine's and the figures are a floor.`
+                    : `Throughput on ${named} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
                 fix: null,
             };
     }

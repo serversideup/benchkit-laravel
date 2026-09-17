@@ -120,6 +120,14 @@ class LoadCurve
      * which separates a run bounded by the path from one bounded by the machine
      * driving the load. The mean, because that is what the identity is stated in.
      */
+    /** What one request cost at the peak, queueing included. */
+    public function peakLatencyMs(): ?float
+    {
+        $result = $this->peakResult();
+
+        return $result?->averageSeconds === null ? null : round($result->averageSeconds * 1000, 2);
+    }
+
     public function busyConnections(): ?float
     {
         $result = $this->peakResult();

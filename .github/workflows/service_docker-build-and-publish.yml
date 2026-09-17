@@ -76,7 +76,7 @@ jobs:
         echo "${MATRIX_JSON}" | jq '.'
 
     - name: Upload the build scripts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: build-scripts
         path: scripts
@@ -95,7 +95,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Download build scripts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: build-scripts
           path: scripts
