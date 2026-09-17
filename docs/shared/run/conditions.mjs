@@ -36,6 +36,19 @@ export const failingRoutes = http => Object.entries(routesOf(http))
         .some(code => Number(code) < 200 || Number(code) >= 300))
     .map(([key]) => key)
 
+/**
+ * Routes that stopped answering correctly partway up the sweep, with the level
+ * they gave out at.
+ *
+ * Different from a route that flattened: this one had more to give and
+ * something else refused. A connection limit is the usual cause, and the
+ * concurrency it happened at is the number to go looking with.
+ */
+export const brokenRoutes = http => Object.entries(routesOf(http))
+    .filter(([, route]) => route?.breaking_point != null)
+    .map(([key, route]) => ({ key, at: route.breaking_point }))
+    .sort((a, b) => a.at - b.at)
+
 export const generatorBound = http => http?.generator_bound === true
 
 export const selfTested = http => (http?.generator?.mode ?? 'self') !== 'external'

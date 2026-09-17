@@ -15,6 +15,7 @@
  */
 
 import {
+    brokenRoutes,
     debugMode,
     failingRoutes,
     generatorBound,
@@ -127,7 +128,10 @@ const unsaturatedCaveat = (http, routes) => {
         default:
             return {
                 title: 'The limit was never reached',
-                detail: reach.capped_by === 'benchkit' && reach.loaded_ms != null
+                // reach describes one route — the quickest — so its latencies
+                // only belong in this sentence when that is a route the
+                // sentence is about.
+                detail: reach.capped_by === 'benchkit' && reach.loaded_ms != null && routes.includes(reach.route)
                     ? `${named} ${were(routes)} still climbing at ${rounded(reach.connections)} connections, which is BenchKit's own ceiling rather than anything about this server. Each request took ${reach.loaded_ms}ms there against ${reach.idle_ms}ms idle, so the queue is this machine's and the figures are a floor.`
                     : `Throughput on ${named} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
                 fix: null,
@@ -292,7 +296,26 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    const unsaturated = unsaturatedRoutes(http);
+    // A route that gave out has a better answer than "it was still climbing",
+    // and the level it gave out at is the number to go looking with.
+    const broken = brokenRoutes(http);
+
+    if (broken.length > 0) {
+        const worst = broken[0];
+
+        found.push({
+            key: 'breaking-point',
+            severity: 'medium',
+            title: `${ROUTE_LABELS[worst.key] ?? worst.key} stopped answering at ${rounded(worst.at)} connections`,
+            detail: 'It was still gaining throughput when requests began failing, so its figure is what it reached before that rather than what this server can serve. Something the route depends on caps out there, and a connection limit is the usual reason.',
+            fix: 'Raise the limit on whatever the route depends on, then run again.',
+        });
+    }
+
+    // Routes that broke are explained above; calling them "still climbing"
+    // names the symptom and hides the cause.
+    const brokenKeys = broken.map((route) => route.key);
+    const unsaturated = unsaturatedRoutes(http).filter((key) => ! brokenKeys.includes(key));
 
     if (unsaturated.length > 0) {
         found.push({ key: 'not-saturated', severity: 'medium', ...unsaturatedCaveat(http, unsaturated) });

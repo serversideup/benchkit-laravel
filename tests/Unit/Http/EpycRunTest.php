@@ -89,11 +89,31 @@ class EpycRunTest extends TestCase
      * default and swept a 64-core host to 32 connections, reporting the end of
      * its own ladder as the machine's ceiling.
      */
-    public function test_the_sleeping_route_is_sized_from_the_cores_when_no_worker_count_is_declared(): void
+    public function test_the_sleeping_route_is_sized_past_the_pool_when_no_worker_count_is_declared(): void
     {
         $profile = new LoadProfile('https://x', 'app-url', 100, 64, null, []);
+        $levels = $profile->levelsFor(101.45, 0.5, 'io');
 
-        $this->assertSame(64, $profile->parallelism('io'));
-        $this->assertGreaterThan(200, max($profile->levelsFor(101.45, 0.43, 'io')));
+        // The run that prompted this held about 128 sleeping requests at once.
+        // Sized from the cores alone the sweep stopped at 257 — barely past the
+        // bend — and reported the end of its own ladder as the machine's limit.
+        $this->assertSame(128, $profile->parallelism('io'));
+        $this->assertGreaterThanOrEqual(512, max($levels), 'The bend needs points on the far side of it.');
+        $this->assertContains(129, $levels, 'A level should land on the predicted bend.');
+    }
+
+    /**
+     * db_read kept gaining throughput right up to the level it started failing
+     * at, so it never flattened and never will — the honest reading is where it
+     * gave out, not that the sweep stopped short.
+     */
+    public function test_a_route_that_gave_out_is_reported_by_where_it_broke(): void
+    {
+        $curve = $this->curve('db_read', [
+            [1, 817.2, 1.2], [3, 2399.0, 1.21], [11, 8384.0, 1.27], [39, 22764.6, 1.61],
+        ]);
+
+        $this->assertFalse($curve->isSaturated());
+        $this->assertSame(22764.6, $curve->peakRps(), 'The peak is what it reached before it broke.');
     }
 }

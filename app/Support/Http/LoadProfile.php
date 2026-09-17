@@ -31,6 +31,18 @@ class LoadProfile
     /** Stands in for the pool when the host exposed neither a core count nor a worker count. */
     protected const BLIND_PARALLELISM = 8;
 
+    /**
+     * Slots per core assumed for a sleeping route when the runtime declares no
+     * worker count.
+     *
+     * Only a worker-mode runtime leaves it undeclared — a process-per-request
+     * pool is read from pm.max_children — and multiplexing past the core count
+     * is what worker mode is for, so the cores alone are a floor rather than an
+     * estimate. FrankenPHP, the runtime this applies to in practice, defaults
+     * to two threads per core.
+     */
+    protected const BLIND_SLOTS_PER_CORE = 2;
+
     /** One connection, nothing queued: the only measurement that separates the server from the path. */
     public const PROBE_CONCURRENCY = 1;
 
@@ -175,11 +187,12 @@ class LoadProfile
     public function parallelism(?string $route = null): ?int
     {
         if ($route === HttpBenchmarkResults::IO_ROUTE) {
-            // Falls back to the core count rather than to the blind default: a
-            // runtime that declares no worker count is not a small one, and a
-            // sleeping route sized from the blind default swept a 64-core host
-            // to 32 connections and reported the ladder's own end as a result.
-            return $this->workers ?? $this->cores;
+            // A sleeping route is bounded by slots, not by cores, so an
+            // undeclared pool cannot be read as the core count: sized that way
+            // on a 64-core host the sweep stopped at 257 connections while the
+            // runtime held about 128, leaving one measured point past the bend
+            // and no way to show the curve flatten.
+            return $this->workers ?? ($this->cores === null ? null : $this->cores * self::BLIND_SLOTS_PER_CORE);
         }
 
         if ($this->cores !== null && $this->workers !== null) {
