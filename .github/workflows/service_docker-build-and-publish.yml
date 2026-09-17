@@ -15,6 +15,13 @@ on:
         type: string
         default: 'scripts/conf/php-versions.yml'
         description: 'The path to the PHP versions file.'
+      php-versions-branch:
+        type: string
+        # Pinned to the release branch while it is ahead of main: it drops the
+        # EOL PHP versions and bullseye, and moves Alpine to 3.23/3.24. Set
+        # back to 'main' once that branch merges.
+        default: 'release/webserver-improvements-and-fixes'
+        description: 'The serversideup/docker-php branch to read the PHP version matrix from.'
       assemble-docker-tags-file:
           type: string
           default: 'scripts/assemble-docker-tags.sh'
@@ -50,7 +57,7 @@ jobs:
     - name: Prepare PHP versions for the matrix. 😎
       run: |
         chmod +x ./scripts/configure-php-versions.sh
-        ./scripts/configure-php-versions.sh
+        ./scripts/configure-php-versions.sh --branch "${{ inputs.php-versions-branch }}"
     
     - name: Ensure our PHP Versions file exists.
       run: |

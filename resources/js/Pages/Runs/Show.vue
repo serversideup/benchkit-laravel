@@ -49,12 +49,10 @@
             <HostDetailsPanel v-if="detailsOpen" class="mt-5" :run-id="run.id" :meta="meta"
                 @updated="meta = $event" @close="detailsOpen = false" />
 
-            <!-- Answered before someone spends a submission finding out. The
-                 caveats below are the detail; this is the verdict. -->
-            <CleanRunStatus v-if="display.http" class="rise-in mt-8" style="animation-delay: 140ms;" :run="run" />
-
-            <RunCaveats class="rise-in mt-4" style="animation-delay: 150ms;"
-                :environment="run.environment" :http="display.http" />
+            <!-- The verdict and everything that changes how the numbers
+                 should be read, answered before someone spends a submission
+                 finding out. -->
+            <RunCaveats class="rise-in mt-8" style="animation-delay: 140ms;" :run="run" :http="display.http" />
 
             <!-- Separate cards rather than divisions of one long box: it gives each
                  measurement its own edge and lets the page breathe. -->
@@ -74,7 +72,7 @@
         </div>
 
         <ShareModal :open="shareOpen" :run="runWithMeta" @close="shareOpen = false" />
-        <SubmitModal :open="submitOpen" :run="runWithMeta" @close="submitOpen = false" @share="submitOpen = false; shareOpen = true" />
+        <SubmitModal :open="submitOpen" :run="runWithMeta" @close="submitOpen = false" />
     </div>
 </template>
 
@@ -88,7 +86,6 @@ import IconXLogo from '@/Components/Icons/IconXLogo.vue';
 import IconArrowUpRight from '@/Components/Icons/IconArrowUpRight.vue';
 import RunMetaEditor from '@/Components/Runs/RunMetaEditor.vue';
 import HostDetailsPanel from '@/Components/Runs/HostDetailsPanel.vue';
-import CleanRunStatus from '@/Components/Runs/CleanRunStatus.vue';
 import RunCaveats from '@/Components/Runs/RunCaveats.vue';
 import HttpPanel from '@/Components/Runs/HttpPanel.vue';
 import PhpCrudPanel from '@/Components/Runs/PhpCrudPanel.vue';

@@ -12,27 +12,39 @@ const TEXT_FIELDS = ['provider', 'plan', 'datacenter'];
 const FIELDS = [...TEXT_FIELDS, 'cost_amount', 'cost_currency'];
 const HISTORY_LIMIT = 6;
 
-// Seeds the provider datalist so the common answers are a pick rather than a
-// free-text guess. Every distinct spelling of "DigitalOcean" that gets typed
+// Seeds the provider suggestions so the common answers are a pick rather than
+// a free-text guess. Every distinct spelling of "DigitalOcean" that gets typed
 // becomes its own filter chip in the public gallery, so nudging people onto a
 // canonical name here is worth more than it looks.
+//
+// `name` is what gets stored and shown; `aliases` only ever feed matching. The
+// split is what lets "amazon", "gcp", "digital ocean" and "linode" all find
+// their entry without any of that ending up in the gallery as the host's name.
+// The one place an old name is displayed is Akamai, because people still call
+// it Linode and the label is the only thing that says otherwise.
 export const KNOWN_PROVIDERS = [
-    'AWS',
-    'Akamai',
-    'DigitalOcean',
-    'Fly.io',
-    'Google Cloud',
-    'Hetzner',
-    'Hostinger',
-    'Laravel Cloud',
-    'Linode',
-    'OVH',
-    'Oracle Cloud',
-    'Railway',
-    'Render',
-    'Scaleway',
-    'Self-Hosted',
-    'Vultr',
+    { name: 'AWS', aliases: ['Amazon Web Services', 'Amazon', 'EC2', 'Lightsail'] },
+    { name: 'Akamai (Linode)', aliases: ['Linode'] },
+    { name: 'Azure', aliases: ['Microsoft Azure', 'Microsoft'] },
+    { name: 'Cloudways', aliases: [] },
+    { name: 'Contabo', aliases: [] },
+    { name: 'DigitalOcean', aliases: ['Digital Ocean', 'DO'] },
+    { name: 'Fly.io', aliases: ['Fly'] },
+    { name: 'Google Cloud', aliases: ['GCP', 'Google Cloud Platform', 'GCE', 'Google'] },
+    { name: 'Hetzner', aliases: ['Hetzner Cloud'] },
+    { name: 'Hostinger', aliases: [] },
+    { name: 'IONOS', aliases: ['1&1', '1and1'] },
+    { name: 'Laravel Cloud', aliases: ['Laravel'] },
+    { name: 'Netcup', aliases: [] },
+    { name: 'OVH', aliases: ['OVHcloud'] },
+    { name: 'Oracle Cloud', aliases: ['OCI', 'Oracle', 'Oracle Cloud Infrastructure'] },
+    { name: 'RackNerd', aliases: [] },
+    { name: 'Railway', aliases: [] },
+    { name: 'Render', aliases: [] },
+    { name: 'Scaleway', aliases: [] },
+    { name: 'Self-Hosted', aliases: ['Self Hosted', 'On-prem', 'On premise', 'Bare metal', 'Homelab', 'Proxmox'] },
+    { name: 'UpCloud', aliases: [] },
+    { name: 'Vultr', aliases: [] },
 ];
 
 // v2 stored cost as one free-text string ("$24/mo", "20 EUR"), which made it
