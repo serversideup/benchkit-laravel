@@ -119,6 +119,67 @@ class GeneratorEndpointsTest extends TestCase
         }
     }
 
+    /**
+     * The two round trips measure different things and must stay apart: rtt_ms
+     * is a whole request and contains the server's own work, transport_rtt_ms
+     * is the TCP handshake and does not. Sizing a sweep from the first is what
+     * made a fast host look unreachable.
+     */
+    public function test_the_handshake_keeps_the_transport_round_trip_apart_from_the_request_it_rode_on(): void
+    {
+        $session = $this->pair();
+
+        $this->postJson("/bench/generator/{$session['token']}/handshake", [
+            'rtt_ms' => 2.4,
+            'transport_rtt_ms' => 1.5,
+        ])->assertOk();
+
+        $handshake = (new GeneratorSession)->current()['handshake'];
+
+        $this->assertSame(2.4, $handshake['rtt_ms']);
+        $this->assertSame(1.5, $handshake['transport_rtt_ms']);
+    }
+
+    /**
+     * Jitter across the two sample sets can put the handshake above the request
+     * that carried it. Left alone that yields a negative service time, which
+     * reads as a server too fast to measure.
+     */
+    public function test_a_transport_round_trip_longer_than_the_request_it_rode_on_is_clamped(): void
+    {
+        $session = $this->pair();
+
+        $this->postJson("/bench/generator/{$session['token']}/handshake", [
+            'rtt_ms' => 1.8,
+            'transport_rtt_ms' => 3.0,
+        ])->assertOk();
+
+        $this->assertSame(1.8, (new GeneratorSession)->current()['handshake']['transport_rtt_ms']);
+    }
+
+    public function test_a_generator_that_could_not_measure_the_network_reports_nothing_for_it(): void
+    {
+        $session = $this->pair();
+
+        $this->postJson("/bench/generator/{$session['token']}/handshake", [
+            'rtt_ms' => 1.8,
+            'transport_rtt_ms' => null,
+        ])->assertOk();
+
+        $this->assertNull((new GeneratorSession)->current()['handshake']['transport_rtt_ms']);
+    }
+
+    public function test_the_pairing_script_measures_the_round_trip_without_the_server_in_it(): void
+    {
+        $session = $this->pair();
+
+        $script = $this->get("/bench/generator/{$session['token']}/script")->assertOk()->getContent();
+
+        $this->assertStringContainsString('%{time_connect}', $script);
+        $this->assertStringContainsString('%{time_namelookup}', $script);
+        $this->assertStringContainsString('transport_rtt_ms', $script);
+    }
+
     public function test_the_handshake_records_the_generator_description(): void
     {
         $session = $this->pair();

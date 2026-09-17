@@ -9,9 +9,26 @@
  * what to do about it. Naming the setting is the least useful part; someone
  * reading their first run does not yet know why OPcache matters.
  *
- * 'high' means the numbers are wrong. 'medium' means they are right but easy
- * to misread. 'note' means neither.
+ * The conditions themselves are shared with the gallery; only the wording is
+ * here. 'high' means the numbers are wrong, 'medium' that they are right and
+ * easy to misread, 'note' neither.
  */
+
+import {
+    debugMode,
+    failingRoutes,
+    generatorBound,
+    memoryDatabase,
+    notOptimized,
+    opcacheOff,
+    pathJitterMs,
+    selfTested,
+    tailUnderLoad,
+    undersizedPool,
+    unsafeWrites,
+    unsaturatedCause,
+    unsaturatedRoutes,
+} from '@shared/run/conditions.mjs';
 
 /** What each route is called in a sentence, rather than by its key. */
 const ROUTE_LABELS = {
@@ -26,8 +43,12 @@ const listOf = (items) => items.length <= 1
     ? (items[0] ?? '')
     : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
-/** Filesystems that are memory pretending to be storage. */
-const MEMORY_FILESYSTEMS = ['tmpfs', 'ramfs', 'memory'];
+const labelled = (keys) => listOf(keys.map((key) => ROUTE_LABELS[key] ?? key));
+
+/** Route lists read as a subject, so the verb has to agree with how many. */
+const were = (keys) => (keys.length === 1 ? 'was' : 'were');
+
+const rounded = (value) => Math.round(value).toLocaleString();
 
 /**
  * A run that measured something other than the host it names. The load
@@ -46,59 +67,78 @@ export const SUBMISSION_BLOCKERS = ['failed-requests', 'generator-bound'];
 export const SUBMISSION_WARNINGS = ['debug', 'memory-database', 'unoptimized', 'opcache'];
 
 /**
- * What the gallery should be told about this run before it accepts it.
- *
- * Deliberately not "is it clean". A self-test is the zero-setup default and a
- * run that never saturated is honest about its own ceiling; both fail the
- * clean check and both belong in the gallery, labelled. Only two things make a
- * run unpublishable, and they are the two that measured something else.
- */
-/**
  * Read order: worst first, so the list answers "what do I fix" from the top
  * and the notes gather at the bottom where they belong.
  *
  * A blocker outranks every other issue because it says the run measured
  * something else entirely — next to that, a setting being wrong is a detail.
- * The sort is stable, so the order each tier is detected in is preserved; that
- * order is the sequence an operator would work through them in.
+ * The sort is stable, so each tier keeps the order it was detected in, which
+ * is the sequence an operator would work through them in.
  */
 const SEVERITY_RANK = { high: 1, medium: 2, note: 3 };
 
 const rankOf = (caveat) => (SUBMISSION_BLOCKERS.includes(caveat.key) ? 0 : SEVERITY_RANK[caveat.severity] ?? 3);
 
+/**
+ * What the gallery should be told about this run before it accepts it.
+ *
+ * Not "is it clean". A self-test is the zero-setup default and a run that never
+ * saturated is honest about its own ceiling; both fail the clean check and both
+ * belong in the gallery, labelled. Only two things make a run unpublishable,
+ * and they are the two that measured something else.
+ */
 export const submissionGate = (caveats) => ({
     blockers: caveats.filter((caveat) => SUBMISSION_BLOCKERS.includes(caveat.key)),
     warnings: caveats.filter((caveat) => SUBMISSION_WARNINGS.includes(caveat.key)),
 });
 
 /**
- * Cores this run could never have used. Only meaningful for a server that ties
- * a request to a worker for its duration — a worker-mode runtime multiplexes,
- * so the comparison does not hold there.
+ * How a run that never found its limit should be explained.
+ *
+ * Deliberately quotes no projected connection count. In a closed loop
+ * concurrency = rate x response time is an identity, so any figure derived from
+ * the measurement is one the run already offered; a number for what it would
+ * have taken needs a capacity estimate the run does not have.
  */
-const idleCoresFor = (environment, http) => {
-    const workers = http?.workers;
-    const cores = coresFor(environment);
-    const perRequest = environment?.php?.runtime?.mode === 'process-per-request';
+const unsaturatedCaveat = (http, routes) => {
+    const reach = http.reach ?? {};
+    const named = labelled(routes);
 
-    if (!perRequest || !workers || !cores) {
-        return 0;
+    switch (unsaturatedCause(http)) {
+        case 'distant':
+            return {
+                title: 'The generator is too far away to find the limit',
+                detail: `${ROUTE_LABELS[reach.route] ?? reach.route} answers in ${reach.idle_ms}ms, and ${reach.transport_rtt_ms}ms of that is the trip to the generator. One connection can carry ${rounded(reach.rps_per_connection)} requests a second, so the ${rounded(reach.connections)} BenchKit can open cap the offered rate at ${rounded(reach.offered_rps_ceiling)}. ${named} topped out there, so those figures are a floor set by the path.`,
+                fix: 'Run the generator in the same datacenter, or self-test for a number the network cannot bound.',
+            };
+        case 'descriptors':
+            return {
+                title: 'The generator ran out of connections',
+                detail: `Its descriptor limit stopped the sweep at ${rounded(reach.connections)} connections, and ${named} ${were(routes)} still climbing there.`,
+                fix: 'Raise the generator\'s open file limit with `ulimit -n 65536`, or run it from a machine with a higher hard limit.',
+                command: 'ulimit -n 65536',
+            };
+        case 'idle':
+            return {
+                title: 'The generator could not keep its connections busy',
+                detail: `About ${rounded(reach.busy_connections)} of ${rounded(reach.connections)} connections were carrying a request at the peak, so ${named} measured the machine driving the load rather than this one.`,
+                fix: 'Run again from a machine with more headroom.',
+            };
+        default:
+            return {
+                title: 'The limit was never reached',
+                detail: `Throughput on ${named} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
+                fix: null,
+            };
     }
-
-    return Math.max(0, cores - workers);
 };
-
-const coresFor = (environment) => Number.parseInt(String(environment?.server?.cpu_cores ?? ''), 10) || null;
 
 export const runCaveats = ({ environment, http: httpInput } = {}) => {
     const found = [];
-    const cores = coresFor(environment);
-    const idleCores = idleCoresFor(environment, httpInput);
     const env = environment ?? {};
     const http = httpInput ?? {};
-    const opcache = env.php?.op_cache;
 
-    if (env.laravel?.environment?.debug_mode === true) {
+    if (debugMode(env)) {
         found.push({
             key: 'debug',
             severity: 'high',
@@ -109,10 +149,10 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    // Written for someone who has never heard of fsync, because that is who
-    // reads this. The settings behind it stay in the Environment panel, where
-    // they are config to look up rather than a sentence to read.
-    if (MEMORY_FILESYSTEMS.includes(String(env.database?.filesystem ?? '').toLowerCase())) {
+    // Written for someone who has not met fsync. The settings behind it stay in
+    // the Environment panel, where they are config to look up rather than a
+    // sentence to read.
+    if (memoryDatabase(env)) {
         found.push({
             key: 'memory-database',
             severity: 'high',
@@ -120,7 +160,7 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
             detail: 'Writes never reached a disk, so create, update and delete are far faster than this host would manage.',
             fix: 'Point the database at disk-backed storage and run again.',
         });
-    } else if (Object.values(env.database?.durability ?? {}).some((value) => ['off', '0'].includes(String(value).toLowerCase()))) {
+    } else if (unsafeWrites(env)) {
         found.push({
             key: 'unsafe-writes',
             severity: 'medium',
@@ -130,13 +170,7 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    // Config and route caches are files on disk, so the command line and the
-    // web process agree about them — unlike OPcache, which each SAPI holds
-    // separately. That makes this safe to read from the run's own environment.
-    const laravelCache = env.laravel?.cache ?? {};
-    const uncached = ['config', 'routes', 'events'].filter((key) => laravelCache[key] === false);
-
-    if (uncached.length > 0 || String(env.php?.ini?.['opcache.validate_timestamps'] ?? '0') === '1') {
+    if (notOptimized(env)) {
         found.push({
             key: 'unoptimized',
             severity: 'high',
@@ -147,7 +181,7 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    if (opcache != null && String(opcache) !== '1') {
+    if (opcacheOff(env)) {
         found.push({
             key: 'opcache',
             severity: 'high',
@@ -158,11 +192,10 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    // Arithmetic, not a heuristic. In a closed loop concurrency = rate x
-    // response time is an identity; a level where that did not hold had
-    // connections sitting idle, which is the machine driving the load running
-    // out of capacity rather than the one serving it.
-    if (http.generator_bound === true) {
+    // In a closed loop concurrency = rate x response time is an identity; a
+    // level where that did not hold had connections sitting idle, which is the
+    // machine driving the load running out of capacity rather than this one.
+    if (generatorBound(http)) {
         const rtt = http.generator?.rtt_ms ?? null;
 
         found.push({
@@ -176,70 +209,57 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    // Arithmetic again: a process-per-request server cannot keep more cores
-    // busy than it has workers. The shipped pool is a fixed 20 regardless of
-    // hardware, so every machine bigger than that measures a fraction of
-    // itself unless the operator raised it.
-    if (idleCores > 0) {
+    // A process-per-request server cannot keep more cores busy than it has
+    // workers, and the shipped pool does not scale with the hardware.
+    const pool = undersizedPool(env, http);
+
+    if (pool) {
         found.push({
             key: 'undersized-pool',
             severity: 'medium',
-            title: `Only ${http.workers} of ${cores} cores were usable`,
-            detail: `PHP serves one request per worker, so ${idleCores} cores sat idle for the whole test and this result is below what the hardware can do.`,
-            fix: `Set \`PHP_FPM_PM_MAX_CHILDREN=${cores}\`, restart, and run again.`,
-            command: `PHP_FPM_PM_MAX_CHILDREN=${cores}`,
+            title: `Only ${pool.workers} of ${pool.cores} cores were usable`,
+            detail: `PHP serves one request per worker, so ${pool.idleCores} cores sat idle for the whole test and this result is below what the hardware can do.`
+                + (pool.memoryBound
+                    ? ` A request spends much of its life waiting rather than computing, so the pool is bounded by memory rather than by cores: this machine has room for about ${pool.suggested.toLocaleString()} workers.`
+                    : ''),
+            fix: `Raise \`PHP_FPM_PM_MAX_CHILDREN\` to ${pool.suggested.toLocaleString()}, restart, and run again.`,
+            command: `PHP_FPM_PM_MAX_CHILDREN=${pool.suggested}`,
         });
     }
 
     // oha's success rate is transport-level, so a route answering 503 to
     // everything reports as a perfect run — and a faster one than a working
     // server, because an error is cheap to produce.
-    const failing = Object.entries(http.routes ?? {})
-        .filter(([, route]) => Object.keys(route?.throughput?.status_codes ?? {})
-            .some((code) => Number(code) < 200 || Number(code) >= 300))
-        .map(([key]) => ROUTE_LABELS[key] ?? key);
+    const failing = failingRoutes(http);
 
     if (failing.length > 0) {
         found.push({
             key: 'failed-requests',
             severity: 'high',
             title: 'Some requests failed',
-            detail: `${listOf(failing)} answered with errors, and an error is far cheaper to serve than a real response.`,
+            detail: `${labelled(failing)} answered with errors, and an error is far cheaper to serve than a real response.`,
             fix: 'Fix those routes and run again. Nothing here is comparable until you do.',
         });
     }
 
     // The single-connection level is the same request over the same network
-    // with nothing queued, so it is what the path and the framework cost
-    // before load is a factor.
-    //
-    // Measured against the idle *median*, not the idle tail. The tail of a
-    // six-second window is one or two requests and moves wildly — the same
-    // route measured an idle p95 of 18ms in one run and 93ms in the next,
-    // which silently stopped this firing. The idle median sat at 12-13ms in
-    // both, on both pool settings.
-    const TAIL_GROWTH = 5;
-
-    const strained = Object.entries(http.routes ?? {})
-        .map(([key, route]) => ({
-            key,
-            idle: (route?.curve ?? []).find((point) => point.concurrency === 1)?.p50_ms ?? null,
-            loaded: route?.latency?.p95_ms ?? null,
-        }))
-        .filter(({ idle, loaded }) => idle != null && loaded != null && loaded > idle * TAIL_GROWTH);
+    // with nothing queued, so it is what the path and the framework cost before
+    // load is a factor.
+    const strained = tailUnderLoad(http);
 
     if (strained.length > 0) {
-        const worst = strained.reduce((a, b) => (b.loaded / b.idle > a.loaded / a.idle ? b : a));
+        const worst = strained[0];
+        const jitter = pathJitterMs(http);
+        const jittery = jitter !== null && jitter > worst.loaded - worst.idle;
 
         found.push({
             key: 'tail-under-load',
             severity: 'medium',
             title: 'Response times climb once this server is busy',
-            detail: `${ROUTE_LABELS[worst.key] ?? worst.key} answers in ${Math.round(worst.idle)}ms alone, but at 70% of capacity the slowest 5% take ${Math.round(worst.loaded)}ms. That is a queue, seen from outside.`,
-            // Deliberately not "keep the pool warm". That was measured on the
-            // machine this text was written for and made the median three
-            // times worse, because a resident pool needs memory that box did
-            // not have. Comparing two runs is what this tool is for.
+            detail: `${ROUTE_LABELS[worst.key] ?? worst.key} answers in ${Math.round(worst.idle)}ms alone, but under load the slowest 5% take ${Math.round(worst.loaded)}ms. That is a queue, seen from outside.`
+                + (jittery ? ` The path to the generator wobbled by ${Math.round(jitter)}ms on an idle server, which is enough to account for this on its own.` : ''),
+            // Not "keep the pool warm": a resident pool needs memory a small box
+            // does not have, and comparing two runs is what this tool is for.
             fix: 'Change the worker count, run again, and compare the two.',
         });
     }
@@ -254,62 +274,31 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
         });
     }
 
-    // The strongest thing in the results, and the only one that is arithmetic
-    // rather than measurement: a request on the I/O route holds a worker for
-    // its whole simulated wait, so workers x 1000/io_ms is the most the pool
-    // can serve however fast the machine is. The curve lands on that line.
-    //
-    // A note, not a warning: the chart draws the ceiling and the figure is
-    // labelled with the concurrency it happened at, so nothing is hidden.
+    // Arithmetic rather than measurement: a request on the I/O route holds a
+    // worker for its whole simulated wait, so the pool bounds it however fast
+    // the machine is. A note, because the chart draws the ceiling and the
+    // figure is labelled with the concurrency it happened at.
     if (http.pool_ceiling?.at_ceiling === true) {
         const ceiling = http.pool_ceiling;
 
         found.push({
             key: 'pool-ceiling',
             severity: 'note',
-            title: `The worker pool caps the I/O route at ~${Math.round(ceiling.predicted_rps).toLocaleString()} req/s`,
-            // The claim is about the rate, which is arithmetic, not about the
-            // concurrency the curve happened to bend at.
-            detail: `Each request there holds a worker for ${ceiling.io_ms}ms, so ${ceiling.workers} workers cannot beat that however fast the machine is. It flattened at ${Math.round(ceiling.observed_rps).toLocaleString()}, right on the line.`,
+            title: `The worker pool caps the I/O route at ~${rounded(ceiling.predicted_rps)} req/s`,
+            detail: `Each request there holds a worker for ${ceiling.io_ms}ms, so ${ceiling.workers} workers cannot beat that however fast the machine is. It flattened at ${rounded(ceiling.observed_rps)}, right on the line.`,
             fix: 'Raise the worker count to move the line.',
         });
     }
 
-    // The gap that had no detector at all. A fixed connection count could not
-    // tell "this is the maximum" from "this is as hard as we pushed", so a
-    // large host quietly reported a fraction of itself as a flat number.
-    const unsaturated = Object.entries(http.routes ?? {})
-        .filter(([, route]) => route?.throughput?.saturated === false)
-        .map(([key]) => ROUTE_LABELS[key] ?? key);
+    const unsaturated = unsaturatedRoutes(http);
 
     if (unsaturated.length > 0) {
-        const needed = http.required_concurrency ?? null;
-        const measured = Math.max(0, ...Object.values(http.routes ?? {})
-            .flatMap((route) => (route?.curve ?? []).map((point) => point.concurrency ?? 0)));
-        const rtt = http.generator?.rtt_ms ?? null;
-        const distant = needed && measured && needed > measured && (http.generator?.mode ?? 'self') === 'external';
-
-        found.push({
-            key: 'not-saturated',
-            severity: 'medium',
-            title: distant
-                ? 'The generator is too far away to find the limit'
-                : 'The limit was never reached',
-            detail: distant
-                ? `This server answers faster than the ${rtt}ms round trip to the generator, so saturating it would take about ${needed.toLocaleString()} connections and BenchKit could offer ${measured.toLocaleString()}. Throughput on ${listOf(unsaturated)} is a floor.`
-                : `Throughput on ${listOf(unsaturated)} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
-            // The load sizes itself, so there is no setting left to turn up.
-            // When distance is the cause the arithmetic gives the remedy;
-            // otherwise there honestly isn't one.
-            fix: distant
-                ? 'Run the generator in the same datacenter, or self-test for a number the network cannot bound.'
-                : null,
-        });
+        found.push({ key: 'not-saturated', severity: 'medium', ...unsaturatedCaveat(http, unsaturated) });
     }
 
     // Context, not a defect: the self-test is the zero-setup default and the
     // right instrument for comparing configurations on one machine.
-    if (Object.keys(http.routes ?? {}).length > 0 && (http.generator?.mode ?? 'self') === 'self') {
+    if (Object.keys(http.routes ?? {}).length > 0 && selfTested(http)) {
         found.push({
             key: 'self-test',
             severity: 'note',

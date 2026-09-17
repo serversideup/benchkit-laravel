@@ -7,6 +7,7 @@ use App\Actions\Results\HttpBenchmarkResults;
 use App\Actions\Specs\PhpSpecs;
 use App\Actions\Specs\ServerSpecs;
 use App\Actions\Specs\WebRuntimeSpecs;
+use App\Support\Http\GeneratorHandshake;
 use App\Support\Http\LoadProfile;
 use RuntimeException;
 
@@ -220,44 +221,21 @@ class BenchmarkStages
      * details in when it does.
      *
      * @param  array<string, mixed>  $session
-     * @return array{mode: string, rtt_ms: float|null, source_ip: string|null, oha_version: string|null, host: string|null}
+     * @return array<string, mixed>
      */
     protected function generatorMeta(array $session): array
     {
-        $handshake = $session['handshake'] ?? null;
+        $handshake = GeneratorHandshake::fromArray($session['handshake'] ?? null);
 
-        return [
-            'mode' => 'external',
-            'rtt_ms' => $handshake['rtt_ms'] ?? null,
-            'source_ip' => $handshake['source_ip'] ?? null,
-            'oha_version' => $handshake['oha_version'] ?? null,
-            'host' => $handshake['host'] ?? null,
-        ];
+        return [...$handshake->toMeta(), 'mode' => GeneratorHandshake::MODE_EXTERNAL];
     }
 
-    /**
-     * How many requests this server will process at once — an FPM pool size, a
-     * FrankenPHP thread count, an Octane worker count — when the environment
-     * exposes one. Recorded with the load settings so the results can flag a run
-     * whose concurrency exceeded it, because past that point the throughput
-     * figure describes the ceiling rather than the application.
-     *
-     * Taken from the serving process when it could be reached, because that is
-     * the pool the load test is about to run against. The local probe is the
-     * fallback: it reads the same pool file from the CLI, which is right often
-     * enough to be worth having and is all that was ever available before.
-     *
-     * Null when nothing could be detected, which is a real answer on a managed
-     * platform and never a fabricated default.
-     *
-     * @param  array<string, mixed>|null  $webRuntime
-     */
     /**
      * Cores the machine reports, for sizing the sweep's lower levels.
      *
      * Null rather than a guess when it cannot be read: LoadProfile falls back
-     * to a wide spread, which is honest, where a fabricated core count would
-     * put the levels confidently in the wrong place.
+     * to a wide spread, where a fabricated core count would put the levels
+     * confidently in the wrong place.
      */
     protected function coreCount(): ?int
     {
@@ -266,6 +244,17 @@ class BenchmarkStages
         return is_numeric($cores) ? (int) $cores : null;
     }
 
+    /**
+     * How many requests this server will process at once — an FPM pool size, a
+     * FrankenPHP thread count, an Octane worker count.
+     *
+     * Read from the serving process where possible, because that is the pool
+     * the load test is about to run against; the CLI probe is the fallback.
+     * Null when nothing could be detected, which is a real answer on a managed
+     * platform and never a fabricated default.
+     *
+     * @param  array<string, mixed>|null  $webRuntime
+     */
     protected function workerCeiling(?array $webRuntime): ?int
     {
         $workers = $webRuntime['runtime']['workers']

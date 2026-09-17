@@ -56,27 +56,27 @@ class RunHttpLoad extends Command
         ));
         $this->newLine();
 
-        // A self-test drives its own load, so the round trip is whatever the
-        // loopback costs — near enough to nothing that the probe measures the
-        // server almost directly.
-        $rtt = $meta['generator']['rtt_ms'] ?? null;
+        // A self-test drives its own load, so the transport round trip is
+        // whatever loopback costs — near enough to nothing that the probe
+        // measures the server directly.
+        $transportRtt = $meta['generator']['transport_rtt_ms'] ?? null;
         $this->connectTo = $profile->connectTo();
 
         if (! $this->runSteps($command, $command->probe($profile), $insecure)) {
             return self::FAILURE;
         }
 
-        $sizing = (new LoadSizing($results))->fromProbe($profile, $rtt);
+        $levels = (new LoadSizing($results))->fromProbe($profile, $transportRtt);
 
         $this->newLine();
-        $this->line(sprintf('  Sweeping at %s', $this->describe($sizing['levels'])));
+        $this->line(sprintf('  Sweeping at %s', $this->describe($levels)));
         $this->newLine();
 
-        if (! $this->runSteps($command, $command->sweep($profile, $sizing['levels']), $insecure)) {
+        if (! $this->runSteps($command, $command->sweep($profile, $levels), $insecure)) {
             return self::FAILURE;
         }
 
-        $curves = $this->curves($results, $sizing['levels']);
+        $curves = $this->curves($results, $levels);
 
         $this->newLine();
 
@@ -102,6 +102,8 @@ class RunHttpLoad extends Command
             if ($step->isMeasured()) {
                 $this->report($step, $result);
             }
+
+            sleep(HttpBenchCommand::SETTLE_SECONDS);
         }
 
         return true;

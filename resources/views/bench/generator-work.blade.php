@@ -108,8 +108,6 @@ else
 fi
 @else
 {!! $step['command'] !!} > /dev/null 2>&1 || true
-# A moment between windows so one does not measure the last one's sockets
-# still draining. Cheap next to a six-second window.
-sleep 1
 @endif
+sleep {{ \App\Support\HttpBenchCommand::SETTLE_SECONDS }}
 @endforeach

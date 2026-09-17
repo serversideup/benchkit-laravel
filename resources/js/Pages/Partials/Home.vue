@@ -82,6 +82,7 @@
 </template>
 
 <script setup>
+import { OPTIMIZABLE_CACHES, debugMode, opcacheOff, undersizedPool, workerFootprintMb } from '@shared/run/conditions.mjs';
 import { computed, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import Server from '@/Pages/Partials/Server.vue';
@@ -108,11 +109,8 @@ const blockers = computed(() => {
     const page = usePage().props;
     const found = [];
 
-    // ini_get('opcache.enable') reports '1'/'0' as strings, and is absent
-    // entirely when the extension isn't loaded — which is also "no OPcache".
-    const opcache = page.php?.op_cache;
-
-    if (opcache == null || String(opcache) !== '1') {
+    // Absent entirely when the extension isn't loaded, which is also "no OPcache".
+    if (page.php?.op_cache == null || opcacheOff({ php: page.php })) {
         found.push({
             key: 'opcache',
             title: 'OPcache is off — this run would measure a server nobody deploys',
@@ -121,13 +119,9 @@ const blockers = computed(() => {
         });
     }
 
-    // Config and route caches are files on disk, so the command line and the
-    // web process agree about them — unlike OPcache, which each SAPI holds
-    // separately. The official image builds them at boot, so a run without
-    // them is almost always one started from source or from a dev compose.
-    const uncached = ['config', 'routes', 'events'].filter((key) => page.laravel?.cache?.[key] === false);
-
-    if (uncached.length > 0) {
+    // The official image builds these at boot, so a run without them is almost
+    // always one started from source or from a dev compose.
+    if (OPTIMIZABLE_CACHES.some((key) => page.laravel?.cache?.[key] === false)) {
         found.push({
             key: 'unoptimized',
             title: 'This app has not been prepared for production',
@@ -136,7 +130,7 @@ const blockers = computed(() => {
         });
     }
 
-    if (page.laravel?.environment?.debug_mode === true) {
+    if (debugMode({ laravel: page.laravel })) {
         found.push({
             key: 'debug',
             title: 'Debug mode is on — this run would measure a development setup',
@@ -145,33 +139,20 @@ const blockers = computed(() => {
         });
     }
 
-    // The shipped worker count is a fixed 20 on every machine, because it is
-    // baked into the image and nothing computes it at boot. On anything larger
-    // than that the run can only use part of the hardware, and this is the
-    // moment to say so — afterwards the only remedy is running it again.
+    // The shipped pool does not scale with the hardware, so on anything larger
+    // the run can only use part of it — and this is the moment to say so,
+    // because afterwards the only remedy is running it again.
     //
-    // The suggestion is derived from memory rather than from cores. A worker
-    // is a process, so the pool is bounded by RAM, and real deployments size it
-    // that way: a request spends much of its life waiting rather than
-    // computing, so a core-count pool leaves a machine idle under any load with
-    // I/O in it. Measured on this project's own image, a worker resides in
-    // roughly 40 MB.
-    const cores = Number.parseInt(String(page.server?.cpu_cores ?? ''), 10) || null;
-    const workers = page.php?.runtime?.workers;
-    const ramMb = Number.parseFloat(String(page.server?.ram ?? '')) || null;
+    // Sized and worded identically to the results page, which recommends the
+    // same number after the fact.
+    const pool = undersizedPool({ server: page.server, php: page.php }, { workers: page.php?.runtime?.workers });
 
-    // Leave a quarter of memory for the OS, the database, and BenchKit itself,
-    // and never suggest fewer workers than the machine has cores.
-    const suggested = ramMb && cores
-        ? Math.max(cores, Math.floor((ramMb * 0.75) / 40))
-        : cores;
-
-    if (cores && workers && page.php?.runtime?.mode === 'process-per-request' && workers < cores) {
+    if (pool) {
         found.push({
             key: 'undersized-pool',
-            title: `This machine has ${cores} cores but PHP is set up to use ${workers} workers`,
-            detail: `PHP handles one request per worker, so this run can keep at most ${workers} of them busy and the result understates the hardware. A machine this size can carry about ${suggested}. Each worker holds roughly 40 MB, so raising it past what your RAM allows trades a slow server for one the kernel kills.`,
-            fix: `PHP_FPM_PM_MAX_CHILDREN=${suggested}`,
+            title: `This machine has ${pool.cores} cores but PHP is set up to use ${pool.workers} workers`,
+            detail: `PHP handles one request per worker, so this run can keep at most ${pool.workers} of them busy and the result would understate the hardware. A machine this size has room for about ${pool.suggested.toLocaleString()}: each worker holds roughly ${workerFootprintMb()} MB, so raising it past what your RAM allows trades a slow server for one the kernel kills.`,
+            fix: `PHP_FPM_PM_MAX_CHILDREN=${pool.suggested}`,
         });
     }
 

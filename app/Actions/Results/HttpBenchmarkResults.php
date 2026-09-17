@@ -2,6 +2,7 @@
 
 namespace App\Actions\Results;
 
+use App\Support\Http\GeneratorHandshake;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadStep;
@@ -23,6 +24,9 @@ class HttpBenchmarkResults extends BenchmarkResults
         'db_read' => '/bench/db-read',
         'io' => '/bench/io',
     ];
+
+    /** The one route that sleeps rather than computes, so the pool bounds it and the cores do not. */
+    public const IO_ROUTE = 'io';
 
     /**
      * How close to a computed ceiling counts as having reached it. A saturating
@@ -57,8 +61,7 @@ class HttpBenchmarkResults extends BenchmarkResults
     /**
      * A route's open-loop response-time pass, kept separate from the sweep
      * because it measures a different thing: the sweep answers how much the
-     * server can take, this answers what a visitor experiences while it is
-     * busy. Reporting them from one file was the whole problem.
+     * server can take, this answers what a visitor experiences while busy.
      */
     public function latencyPath(string $key): string
     {
@@ -127,12 +130,17 @@ class HttpBenchmarkResults extends BenchmarkResults
     /**
      * How long the server itself took, with the path to it taken out.
      *
-     * At one connection nothing is queued, so the response time is the
-     * server's own work plus the round trip — and the round trip was measured
-     * before any load started. What is left is the only figure that can size
-     * the sweep, because it is the one the worker pool is actually spending.
+     * At one connection nothing is queued, so the response time is the server's
+     * own work plus the transport round trip. Only the transport figure may be
+     * subtracted: the full-request round trip already contains the server's
+     * work, and taking it off leaves nothing however fast the server is.
+     *
+     * Null rather than a floor when what is left is below the noise. A
+     * difference of two nearly equal measurements is not a small number, it is
+     * an unresolved one, and this figure is the denominator of the largest
+     * multiplier in the sweep.
      */
-    public function probeServiceMs(string $route, ?float $rttMs): ?float
+    public function probeServiceMs(string $route, ?float $transportRttMs): ?float
     {
         $data = $this->readJson($this->sweepPath($route, LoadProfile::PROBE_CONCURRENCY));
 
@@ -142,7 +150,15 @@ class HttpBenchmarkResults extends BenchmarkResults
 
         $observed = StepResult::fromOha($data)->p50Ms;
 
-        return $observed === null ? null : max(0.0, $observed - (float) ($rttMs ?? 0));
+        if ($observed === null) {
+            return null;
+        }
+
+        // Rounded before it is judged, because two millisecond figures
+        // subtracted land a floating-point hair either side of the floor.
+        $service = round($observed - (float) ($transportRttMs ?? 0), 3);
+
+        return $service <= LoadProfile::MIN_SERVICE_MS ? null : $service;
     }
 
     /**
@@ -151,11 +167,10 @@ class HttpBenchmarkResults extends BenchmarkResults
      *
      * @param  array<string, array<int, int>>  $levels
      */
-    public function writeLevels(array $levels, ?int $requiredConcurrency = null): void
+    public function writeLevels(array $levels): void
     {
         $meta = $this->readMeta() ?? [];
         $meta['levels'] = $levels;
-        $meta['required_concurrency'] = $requiredConcurrency;
 
         File::put($this->metaPath(), json_encode($meta));
     }
@@ -179,9 +194,9 @@ class HttpBenchmarkResults extends BenchmarkResults
      * deliberately survives between runs — so a stale file would satisfy the
      * wait and publish last week's numbers as this run's.
      *
-     * Matched by shape rather than by a list of levels: the sweep is sized
-     * from what the probe measures, so the levels a previous run used are not
-     * knowable before this one starts.
+     * Matched by shape rather than by a list of levels: the sweep is sized from
+     * what the probe measures, so a previous run's levels are not knowable
+     * before this one starts.
      */
     public function clearRouteResults(): void
     {
@@ -195,30 +210,16 @@ class HttpBenchmarkResults extends BenchmarkResults
     }
 
     /**
-     * Persist the load settings the run actually used so execute() can
-     * report them alongside the per-route results.
+     * Persist the load settings the run actually used, so execute() can report
+     * them alongside the per-route results.
      *
-     * $workers is how many requests the server will process at once, when the
-     * environment exposes a number — an FPM pool size, a FrankenPHP thread
-     * count, an Octane worker count. It belongs with the load settings because
-     * it caps them: a request occupies a worker for its whole duration, so
-     * /bench/io — which sleeps io_ms to model an outbound call — can never
-     * exceed workers / io_ms requests per second no matter how fast the box is.
-     * Recording it is what lets a reader tell a framework measurement from a
-     * concurrency-ceiling measurement.
-     *
-     * $generator records where the load came from: mode "self" when this
-     * machine drove its own load (the default, and the only possibility for
-     * runs written before the block existed), mode "external" when a second
-     * machine drove it. The rest of the block describes that machine — it is
-     * measurement conditions, and it travels with the numbers it conditions.
-     *
-     * The concurrency levels are recorded because they are host-dependent —
-     * derived from this machine's cores and workers — so nothing reading a run
-     * may assume which levels were measured.
+     * Everything here is a condition the numbers depend on rather than a
+     * setting for its own sake: the worker pool caps what any concurrency can
+     * reach, the levels are derived from this host so nothing may assume them,
+     * and the generator block says which machine drove the load.
      *
      * @param  array{url: string, mode: string}  $target
-     * @param  array{mode: string, rtt_ms: float|null, source_ip: string|null, oha_version: string|null, host: string|null, fd_limit?: int|null}|null  $generator
+     * @param  array<string, mixed>|null  $generator
      */
     public function writeMeta(array $target, LoadProfile $profile, ?int $workers = null, ?array $generator = null): void
     {
@@ -240,6 +241,7 @@ class HttpBenchmarkResults extends BenchmarkResults
             // costs. Per route, because service time differs by two orders of
             // magnitude between a static response and a 100ms sleep.
             'levels' => array_fill_keys(array_keys(self::ROUTES), $profile->levels),
+            'warmup_seconds' => $profile->warmupSeconds,
             'level_seconds' => $profile->levelSeconds,
             'latency_seconds' => $profile->latencySeconds,
             'latency_load' => $profile->latencyLoad,
@@ -268,17 +270,11 @@ class HttpBenchmarkResults extends BenchmarkResults
     }
 
     /**
-     * @return array{mode: string, rtt_ms: null, source_ip: null, oha_version: null, host: null}
+     * @return array<string, mixed>
      */
     public static function selfGenerator(): array
     {
-        return [
-            'mode' => 'self',
-            'rtt_ms' => null,
-            'source_ip' => null,
-            'oha_version' => null,
-            'host' => null,
-        ];
+        return GeneratorHandshake::self()->toMeta();
     }
 
     /**
@@ -288,10 +284,7 @@ class HttpBenchmarkResults extends BenchmarkResults
     {
         $meta = $this->readMeta() ?? [];
         $levels = $meta['levels'] ?? [];
-        // Runs written before the rename carry the FPM-specific key. Reading
-        // both keeps an existing results directory parseable.
-        $workers = $meta['workers'] ?? $meta['fpm_max_children'] ?? null;
-        $workers = is_numeric($workers) ? (int) $workers : null;
+        $workers = is_numeric($meta['workers'] ?? null) ? (int) $meta['workers'] : null;
         $ioMs = isset($meta['io_ms']) ? (int) $meta['io_ms'] : null;
 
         $routes = [];
@@ -320,15 +313,89 @@ class HttpBenchmarkResults extends BenchmarkResults
             'workers' => $workers,
             'cores' => isset($meta['cores']) ? (int) $meta['cores'] : null,
             'levels' => $levels,
-            'required_concurrency' => $meta['required_concurrency'] ?? null,
             'level_seconds' => $meta['level_seconds'] ?? null,
             'latency_seconds' => $meta['latency_seconds'] ?? null,
             'latency_load' => $meta['latency_load'] ?? null,
             'generator' => $this->generator($meta, $curves),
+            'reach' => $this->reach($curves, $meta),
             'pool_ceiling' => $this->poolCeiling($curves, $workers, $ioMs),
             'generator_bound' => $this->isGeneratorBound($curves),
             'routes' => $routes,
         ];
+    }
+
+    /**
+     * How hard this run could push from where the load came from, and how hard
+     * it actually did.
+     *
+     * Read from the route the network swamps first — the one answering quickest
+     * with nothing queued — because that is the route deciding whether this
+     * generator can find the server's ceiling at all.
+     *
+     * Nothing here is predicted. A closed loop cannot be extrapolated past what
+     * it measured, so there is no figure for the concurrency it would have
+     * taken; what it can say is how much of a request was the path, what one
+     * connection can carry, and how many connections carried anything.
+     *
+     * @param  array<string, LoadCurve>  $curves
+     * @param  array<string, mixed>  $meta
+     * @return array<string, mixed>|null
+     */
+    protected function reach(array $curves, array $meta): ?array
+    {
+        $generator = $meta['generator'] ?? [];
+        $transport = isset($generator['transport_rtt_ms']) ? (float) $generator['transport_rtt_ms'] : null;
+        $fdLimit = isset($generator['fd_limit']) ? (int) $generator['fd_limit'] : null;
+
+        $fastest = null;
+        $idleMs = null;
+
+        foreach ($curves as $key => $curve) {
+            $idle = $curve->idleLatencyMs();
+
+            if ($idle !== null && $idle > 0 && ($idleMs === null || $idle < $idleMs)) {
+                $fastest = $key;
+                $idleMs = $idle;
+            }
+        }
+
+        if ($fastest === null) {
+            return null;
+        }
+
+        $curve = $curves[$fastest];
+        $connections = $curve->topConcurrency();
+        $perConnection = round(1000 / $idleMs, 1);
+
+        return [
+            'route' => $fastest,
+            'connections' => $connections,
+            'busy_connections' => $curve->busyConnections(),
+            'peak_rps' => $curve->peakRps(),
+            'idle_ms' => round($idleMs, 2),
+            'transport_rtt_ms' => $transport,
+            // How much of a request never reached the server. Above a half the
+            // connection count, not the machine, is what bounds the run.
+            'network_share' => $transport === null ? null : round(min(1.0, $transport / $idleMs), 3),
+            'rps_per_connection' => $perConnection,
+            'offered_rps_ceiling' => $connections === null ? null : round($connections * $perConnection, 1),
+            'capped_by' => $this->cappedBy($connections, $fdLimit),
+        ];
+    }
+
+    /**
+     * What stopped the sweep climbing: the generator's descriptor limit, the
+     * most BenchKit will offer, or neither.
+     */
+    protected function cappedBy(?int $connections, ?int $fdLimit): ?string
+    {
+        $ceiling = LoadProfile::ceilingFor($fdLimit);
+
+        return match (true) {
+            $connections === null, $connections < $ceiling => null,
+            $fdLimit !== null && $ceiling < LoadProfile::MAX_CONCURRENCY => 'generator',
+            default => 'benchkit',
+        };
     }
 
     /**
@@ -360,17 +427,16 @@ class HttpBenchmarkResults extends BenchmarkResults
     /**
      * One route as the results document publishes it.
      *
-     * Throughput and response time come from different measurements on
-     * purpose. The sweep answers how much the server can take, and its
-     * percentiles describe a queue. The open-loop pass answers what a visitor
-     * experiences at a rate the server can hold. Reporting both from one
-     * saturated window is what this replaced.
+     * Throughput and response time come from different measurements on purpose:
+     * the sweep answers how much the server can take and its percentiles
+     * describe a queue, while the open-loop pass answers what a visitor
+     * experiences at a rate the server can hold.
      *
      * @return array<string, mixed>
      */
     protected function routePayload(string $key, string $path, LoadCurve $curve): array
     {
-        $peak = $curve->bestResult();
+        $peak = $curve->peakResult();
 
         return [
             'path' => $path,
@@ -430,20 +496,19 @@ class HttpBenchmarkResults extends BenchmarkResults
     /**
      * What the /bench/io route says about the worker pool.
      *
-     * This is arithmetic offered next to a measurement, not a verdict. A
-     * request on that route holds a worker for its whole simulated wait, so
-     * `workers x 1000/io_ms` is the most the pool can serve however fast the
-     * machine is. Publishing the prediction alongside where the curve actually
-     * bent lets the results page draw a line and have the measurement land on
-     * it — which is how a reader recognises their own worker count without
-     * being told what a worker pool is.
+     * Arithmetic offered next to a measurement, not a verdict. A request on
+     * that route holds a worker for its whole simulated wait, so the pool can
+     * serve at most `workers x 1000/io_ms` however fast the machine is.
+     * Publishing the prediction beside where the curve actually bent lets the
+     * page draw a line and have the measurement land on it, which is how a
+     * reader recognises their own worker count without being told what one is.
      *
      * @param  array<string, LoadCurve>  $curves
      * @return array<string, mixed>|null
      */
     protected function poolCeiling(array $curves, ?int $workers, ?int $ioMs): ?array
     {
-        $curve = $curves['io'] ?? null;
+        $curve = $curves[self::IO_ROUTE] ?? null;
 
         if ($curve === null || $workers === null || $ioMs === null || $ioMs <= 0) {
             return null;
@@ -455,9 +520,9 @@ class HttpBenchmarkResults extends BenchmarkResults
             'workers' => $workers,
             'io_ms' => $ioMs,
             'predicted_rps' => $predicted,
-            'observed_rps' => $curve->bestRps(),
+            'observed_rps' => $curve->peakRps(),
             'knee_concurrency' => $curve->knee(),
-            'at_ceiling' => $curve->bestRps() >= $predicted * self::AT_CEILING,
+            'at_ceiling' => $curve->peakRps() >= $predicted * self::AT_CEILING,
         ];
     }
 
@@ -465,9 +530,8 @@ class HttpBenchmarkResults extends BenchmarkResults
      * Whether the machine driving the load was the limit rather than the one
      * serving it.
      *
-     * The sweep makes this far more answerable than a single fixed window did.
      * In a closed loop each connection holds one request at a time, so
-     * concurrency = rate x response time is an identity; a level where that
+     * concurrency = rate x response time is an identity. A level where that
      * does not hold had connections sitting idle, which is the generator
      * running out of capacity rather than the server.
      *
@@ -494,8 +558,7 @@ class HttpBenchmarkResults extends BenchmarkResults
      *
      * A self-test has nothing to measure the round trip up front, so it is
      * taken afterwards from the single-connection level, where nothing is
-     * queued. The old figure came from the fastest request inside a saturated
-     * window, where even the quickest observation had waited behind something.
+     * queued.
      *
      * @param  array<string, mixed>  $meta
      * @param  array<string, LoadCurve>  $curves
@@ -506,7 +569,7 @@ class HttpBenchmarkResults extends BenchmarkResults
         $generator = ($meta['generator'] ?? null) ?: self::selfGenerator();
 
         if (($generator['mode'] ?? 'self') === 'self' && ($generator['rtt_ms'] ?? null) === null) {
-            $floors = array_filter(array_map(fn (LoadCurve $curve): ?float => $curve->rttFloorMs(), $curves));
+            $floors = array_filter(array_map(fn (LoadCurve $curve): ?float => $curve->idleLatencyMs(), $curves));
             $generator['rtt_ms'] = $floors === [] ? null : min($floors);
         }
 
@@ -550,11 +613,6 @@ class HttpBenchmarkResults extends BenchmarkResults
     protected function toMilliseconds(?float $seconds): ?float
     {
         return $seconds === null ? null : round($seconds * 1000, 2);
-    }
-
-    protected function rounded(mixed $value, int $precision): ?float
-    {
-        return is_numeric($value) ? round((float) $value, $precision) : null;
     }
 
     /**

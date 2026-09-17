@@ -3,6 +3,7 @@
 namespace Tests\Feature\Benchmarks;
 
 use App\Support\GeneratorSession;
+use App\Support\Http\GeneratorHandshake;
 use App\Support\RunState;
 use Illuminate\Support\Facades\File;
 use Tests\Concerns\UsesFakeRunPath;
@@ -138,7 +139,7 @@ class GeneratorSessionTest extends TestCase
 
         $session = new GeneratorSession;
         $session->create('https://bench.example.com', 'https://bench.example.com');
-        $session->recordHandshake(['oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']);
+        $session->recordHandshake(GeneratorHandshake::fromArray(['mode' => 'external', 'oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']));
         $session->arm($run['id'], '# work');
 
         $state->finish(RunState::STATUS_CANCELLED);
@@ -185,7 +186,7 @@ class GeneratorSessionTest extends TestCase
 
         $session = new GeneratorSession;
         $session->create('https://bench.example.com', 'https://bench.example.com');
-        $session->recordHandshake(['oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']);
+        $session->recordHandshake(GeneratorHandshake::fromArray(['mode' => 'external', 'oha_version' => '1.14.0', 'cores' => 10, 'host' => 'workstation-2.local', 'rtt_ms' => 13.02, 'source_ip' => '172.18.0.4']));
 
         $state->finish(RunState::STATUS_CANCELLED);
 

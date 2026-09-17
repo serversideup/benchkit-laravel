@@ -282,6 +282,121 @@ class HttpBenchmarkTest extends TestCase
      * @param  array<int, float>  $rpsByConcurrency
      */
     /**
+     * What the run could reach from where the load came from, and what it did.
+     *
+     * Every figure is measured or arithmetic on measured values — there is no
+     * projected concurrency here, because rate x response time is the closed
+     * loop's own identity and returns a number already offered.
+     */
+    public function test_http_results_publish_what_the_run_could_reach(): void
+    {
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 512, peakRps: 170000.0);
+
+        $reach = $this->getJson('/http/results')->assertOk()->json('http_results.reach');
+
+        $this->assertSame('static', $reach['route']);
+        $this->assertSame(512, $reach['connections']);
+        $this->assertEquals(3.0, $reach['idle_ms']);
+        $this->assertEquals(1.5, $reach['transport_rtt_ms']);
+        $this->assertEquals(0.5, $reach['network_share'], 'Half of every request never reached the server.');
+        $this->assertEquals(333.3, $reach['rps_per_connection']);
+        $this->assertEquals(170649.6, $reach['offered_rps_ceiling']);
+        $this->assertSame('benchkit', $reach['capped_by']);
+    }
+
+    public function test_http_results_say_when_the_generator_ran_out_of_connections(): void
+    {
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 192, peakRps: 64000.0, fdLimit: 256);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.reach.capped_by', 'generator');
+    }
+
+    public function test_http_results_say_nothing_capped_a_sweep_that_stopped_short(): void
+    {
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 40, peakRps: 13000.0);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.reach.capped_by', null);
+    }
+
+    /**
+     * Busy against offered is the whole discriminator: a path-bound run keeps
+     * every connection carrying a request, a run bound by the machine driving
+     * the load does not.
+     */
+    public function test_http_results_show_connections_that_sat_idle(): void
+    {
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 512, peakRps: 170000.0, idleConnections: true);
+
+        $reach = $this->getJson('/http/results')->assertOk()->json('http_results.reach');
+
+        $this->assertLessThan($reach['connections'] * 0.6, $reach['busy_connections']);
+    }
+
+    public function test_a_self_test_reports_no_distance(): void
+    {
+        $this->seedReach(transportRttMs: 0.0, idleMs: 3.0, topConnections: 40, peakRps: 13000.0);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.reach.network_share', fn ($share): bool => (float) $share === 0.0);
+    }
+
+    public function test_http_results_no_longer_publish_a_predicted_saturating_concurrency(): void
+    {
+        $this->seedMetaAndOneRoute(['workers' => 20]);
+
+        $http = $this->getJson('/http/results')->assertOk()->json('http_results');
+
+        $this->assertArrayNotHasKey('required_concurrency', $http);
+    }
+
+    public function test_the_http_stage_records_the_warmup_it_will_run(): void
+    {
+        config(['benchmark.http.sweep.warmup_seconds' => 5]);
+
+        $this->resolveHttpStage(['http' => true]);
+
+        $this->assertSame(5, $this->meta()['warmup_seconds']);
+    }
+
+    /**
+     * A sweep with a known idle latency at one connection and a known top
+     * level, so reach() has both ends of the thing it describes.
+     */
+    protected function seedReach(
+        float $transportRttMs,
+        float $idleMs,
+        int $topConnections,
+        float $peakRps,
+        ?int $fdLimit = null,
+        bool $idleConnections = false,
+    ): void {
+        File::put($this->resultsPath.'/http-meta.json', json_encode([
+            'target' => 'https://bench.example.com',
+            'mode' => 'app-url',
+            'io_ms' => 100,
+            'workers' => 20,
+            'cores' => 4,
+            'levels' => ['static' => [1, $topConnections]],
+            'generator' => [
+                'mode' => $transportRttMs > 0 ? 'external' : 'self',
+                'transport_rtt_ms' => $transportRttMs,
+                'fd_limit' => $fdLimit,
+            ],
+        ]));
+
+        $this->writeOha($this->resultsPath.'/http-static-c1.json', 1000.0, 1, null, $idleMs / 1000);
+        $this->writeOha(
+            $this->resultsPath.'/http-static-c'.$topConnections.'.json',
+            $peakRps,
+            $topConnections,
+            null,
+            $idleConnections ? ($topConnections * 0.5) / $peakRps : null,
+        );
+    }
+
+    /**
      * Levels are recorded per route, because the probe sizes them from each
      * route's own service time. Most fixtures want the same ladder everywhere.
      *
@@ -393,37 +508,6 @@ class HttpBenchmarkTest extends TestCase
 
         $this->getJson('/http/results')->assertOk()
             ->assertJsonPath('http_results.pool_ceiling.at_ceiling', false);
-    }
-
-    /**
-     * A managed platform may expose no worker count at all, and a run without
-     * the I/O route has nothing to compute a ceiling from. Either way that
-     * reads as unknown, not as "fits comfortably".
-     */
-    public function test_http_results_report_no_pool_ceiling_without_a_worker_count(): void
-    {
-        $this->seedSweep(['workers' => null], [1 => 10.0, 20 => 190.0, 40 => 191.0]);
-
-        $response = $this->getJson('/http/results')->assertOk();
-
-        $response->assertJsonPath('http_results.workers', null);
-        $response->assertJsonPath('http_results.pool_ceiling', null);
-    }
-
-    public function test_http_results_report_no_pool_ceiling_without_the_io_route(): void
-    {
-        $this->seedMetaAndOneRoute(['workers' => 20]);
-
-        $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.pool_ceiling', null);
-    }
-
-    public function test_http_results_read_the_worker_ceiling_from_the_previous_meta_key(): void
-    {
-        $this->seedMetaAndOneRoute(['workers' => null, 'fpm_max_children' => 20]);
-
-        $this->getJson('/http/results')->assertOk()
-            ->assertJsonPath('http_results.workers', 20);
     }
 
     /**

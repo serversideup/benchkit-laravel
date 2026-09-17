@@ -2,6 +2,8 @@
 
 namespace Tests\Unit;
 
+use App\Support\GeneratorScript;
+use App\Support\GeneratorSession;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadStep;
@@ -237,5 +239,33 @@ class HttpBenchCommandTest extends TestCase
 
         $this->assertStringStartsWith('oha ', $command->render($step, false, 'oha'));
         $this->assertStringContainsString('vendor/bin/oha', $command->render($step, false));
+    }
+
+    /**
+     * The two drivers have to offer the same load, and a settle in only one of
+     * them makes them different tests even though every oha flag matches. The
+     * external generator paused between windows; the self-test, which is the
+     * default mode, did not.
+     */
+    public function test_both_drivers_settle_between_windows(): void
+    {
+        $profile = new LoadProfile('https://bench.example.com', 'app-url', 100, 4, 20, [1, 4, 20]);
+        $steps = (new HttpBenchCommand)->sweep($profile, ['static' => [1, 4, 20]]);
+
+        $session = (new GeneratorSession)->create('https://bench.example.com', 'https://bench.example.com');
+        $work = (new GeneratorScript)->work($steps, false, $session, null);
+
+        $this->assertSame(
+            count($steps),
+            substr_count($work, 'sleep '.HttpBenchCommand::SETTLE_SECONDS),
+            'The generator script must settle once per window.'
+        );
+
+        $driver = file_get_contents(base_path('app/Console/Commands/RunHttpLoad.php'));
+        $this->assertStringContainsString(
+            'sleep(HttpBenchCommand::SETTLE_SECONDS)',
+            $driver,
+            'The self-test driver must settle on the same terms as the generator.'
+        );
     }
 }

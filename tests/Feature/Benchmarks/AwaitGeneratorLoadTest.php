@@ -4,6 +4,7 @@ namespace Tests\Feature\Benchmarks;
 
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\GeneratorSession;
+use App\Support\Http\GeneratorHandshake;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadSizing;
 use App\Support\Http\LoadStep;
@@ -70,10 +71,10 @@ class AwaitGeneratorLoadTest extends TestCase
     protected function receiveSweep(float $requestsPerSecond = 1234.56): void
     {
         $results = new HttpBenchmarkResults;
-        $sizing = (new LoadSizing($results))->fromProbe(LoadProfile::fromMeta($results->readMeta()), null);
+        $levels = (new LoadSizing($results))->fromProbe(LoadProfile::fromMeta($results->readMeta()), null);
 
-        foreach ($sizing['levels'] as $key => $levels) {
-            foreach ($levels as $connections) {
+        foreach ($levels as $key => $routeLevels) {
+            foreach ($routeLevels as $connections) {
                 if ($connections === LoadProfile::PROBE_CONCURRENCY) {
                     continue;
                 }
@@ -171,13 +172,15 @@ class AwaitGeneratorLoadTest extends TestCase
     public function test_a_late_handshake_is_merged_into_the_meta(): void
     {
         $this->armed();
-        (new GeneratorSession)->recordHandshake([
+        (new GeneratorSession)->recordHandshake(GeneratorHandshake::fromArray([
+            'mode' => 'external',
             'oha_version' => '1.4.5',
             'cores' => 8,
             'host' => 'generator-box',
             'rtt_ms' => 1.83,
+            'transport_rtt_ms' => 0.42,
             'source_ip' => '203.0.113.7',
-        ]);
+        ]));
         $this->receiveSlot(HttpBenchmarkResults::slotFor('static', LoadStep::PHASE_SWEEP, 1), 1234.56, 1);
 
         $this->artisan('benchmark:await-generator', ['--timeout' => 1])
@@ -188,6 +191,8 @@ class AwaitGeneratorLoadTest extends TestCase
         $this->assertSame(1.83, $meta['generator']['rtt_ms']);
         $this->assertSame('generator-box', $meta['generator']['host']);
         $this->assertSame('external', $meta['generator']['mode']);
+        // The field a hand-copied list would have dropped on the way through.
+        $this->assertSame(0.42, $meta['generator']['transport_rtt_ms']);
     }
 
     public function test_rejected_uploads_are_explained_in_the_console(): void

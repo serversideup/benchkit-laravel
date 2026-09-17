@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http;
 
+use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\StepResult;
@@ -104,9 +105,9 @@ class LoadSweepTest extends TestCase
 
     /**
      * The case that made this necessary, with the numbers from a real run: a
-     * server answering in 0.24ms behind a 12.52ms round trip. Every connection
-     * spends 98% of its life in transit, so it takes fifty-three times as many
-     * of them to keep the same worker pool busy.
+     * server answering well inside the transport round trip to it, so nearly
+     * all of every connection's life is spent in transit and it takes many
+     * times as many of them to keep the same pool busy.
      */
     public function test_a_slow_link_inflates_the_concurrency_needed_to_saturate(): void
     {
@@ -164,7 +165,7 @@ class LoadSweepTest extends TestCase
 
         // Driven from the same machine, a worker is occupied for as long as the
         // request takes, so the pool bends at the worker count itself.
-        $this->assertContains(20, $profile->levelsFor(100.0, 0.0));
+        $this->assertContains(20, $profile->levelsFor(100.0, 0.0, HttpBenchmarkResults::IO_ROUTE));
     }
 
     public function test_the_bend_moves_out_with_the_distance_to_the_generator(): void
@@ -173,7 +174,7 @@ class LoadSweepTest extends TestCase
 
         // A connection only occupies a worker while the server holds the
         // request, so reaching the same pool from 12ms away takes more of them.
-        $this->assertContains(22, $profile->levelsFor(104.4, 12.03));
+        $this->assertContains(22, $profile->levelsFor(104.4, 12.03, HttpBenchmarkResults::IO_ROUTE));
     }
 
     public function test_seeding_the_bend_does_not_grow_the_ladder(): void
@@ -206,15 +207,45 @@ class LoadSweepTest extends TestCase
     }
 
     /**
-     * When the ceiling is not enough, the run can at least say how far short
-     * it fell — which is the difference between a dead end and something a
-     * person can act on.
+     * The regression that produced "saturating it would take about 539,288
+     * connections" on a 64-core host: serversideup/php sizes the FPM pool from
+     * memory, so a large box reports thousands of workers, and anchoring the
+     * sweep on that number rather than on the cores treats a memory ceiling as
+     * a capacity ceiling.
      */
-    public function test_the_concurrency_needed_to_saturate_is_reported(): void
+    public function test_a_pool_sized_from_memory_cannot_anchor_a_route_that_needs_a_core(): void
     {
-        $profile = new LoadProfile('http://localhost:8080', 'loopback', 100, 4, 20, LoadProfile::levels(4, 20));
+        $profile = new LoadProfile('https://x', 'external', 100, 64, 14497, []);
 
-        $this->assertSame(1063, $profile->requiredConcurrency(0.24, 12.52));
+        $this->assertSame(64, $profile->parallelism('static'), 'A computing route cannot use more workers than there are cores.');
+        $this->assertSame(14497, $profile->parallelism(HttpBenchmarkResults::IO_ROUTE), 'A sleeping route is bounded by the pool, not the cores.');
+    }
+
+    public function test_the_ladder_for_a_memory_sized_pool_stays_inside_the_ceiling(): void
+    {
+        $profile = new LoadProfile('https://x', 'external', 100, 64, 14497, []);
+        $levels = $profile->levelsFor(0.31, 1.5, 'static');
+
+        $this->assertLessThanOrEqual(LoadProfile::MAX_CONCURRENCY, max($levels));
+        $this->assertLessThanOrEqual(LoadProfile::MAX_LEVELS, count($levels));
+        $this->assertSame(1, $levels[0]);
+    }
+
+    /**
+     * The inflation cap and the level ceiling shared the constant 512 until a
+     * run behind a slow link reported an inflation of exactly 512 — a level
+     * count standing in for a ratio, with neither figure visibly wrong.
+     */
+    public function test_inflation_is_capped_by_its_own_limit_not_by_the_level_ceiling(): void
+    {
+        $this->assertSame(LoadProfile::MAX_INFLATION, LoadProfile::inflation(0.05, 1000.0));
+        $this->assertNotSame((float) LoadProfile::MAX_CONCURRENCY, LoadProfile::MAX_INFLATION);
+    }
+
+    public function test_the_ceiling_is_readable_without_a_profile(): void
+    {
+        $this->assertSame(192, LoadProfile::ceilingFor(256));
+        $this->assertSame(LoadProfile::MAX_CONCURRENCY, LoadProfile::ceilingFor(null));
     }
 
     public function test_the_peak_is_the_headline_even_when_it_is_not_the_last_level(): void
@@ -223,7 +254,7 @@ class LoadSweepTest extends TestCase
         $curve = $this->curve([1 => 100.0, 10 => 900.0, 20 => 1800.0, 40 => 1790.0, 80 => 1740.0]);
 
         $this->assertSame(20, $curve->knee());
-        $this->assertSame(1800.0, $curve->bestRps());
+        $this->assertSame(1800.0, $curve->peakRps());
         $this->assertSame(20, $curve->knee(), 'The peak is the bend, not whichever level past it measured highest.');
     }
 
@@ -311,7 +342,7 @@ class LoadSweepTest extends TestCase
         ]);
 
         $this->assertSame(213, $curve->knee());
-        $this->assertSame(398.0, $curve->bestRps());
+        $this->assertSame(398.0, $curve->peakRps());
     }
 
     public function test_a_route_that_never_answered_correctly_is_dead(): void
@@ -362,7 +393,7 @@ class LoadSweepTest extends TestCase
     {
         $curve = $this->curve([1 => 100.0, 20 => 1800.0]);
 
-        $this->assertEqualsWithDelta(10.0, $curve->rttFloorMs(), 0.01);
+        $this->assertEqualsWithDelta(10.0, $curve->idleLatencyMs(), 0.01);
     }
 
     public function test_the_io_route_flattens_at_the_worker_count(): void

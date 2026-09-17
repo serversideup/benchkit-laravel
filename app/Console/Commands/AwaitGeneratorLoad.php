@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\GeneratorScript;
 use App\Support\GeneratorSession;
+use App\Support\Http\GeneratorHandshake;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadSizing;
 use App\Support\HttpBenchCommand;
@@ -81,17 +82,9 @@ class AwaitGeneratorLoad extends Command
 
                 // The stage's meta was written before the generator
                 // necessarily existed; fill in its description now.
-                (new HttpBenchmarkResults)->mergeGeneratorMeta([
-                    'rtt_ms' => $current['handshake']['rtt_ms'] ?? null,
-                    'source_ip' => $current['handshake']['source_ip'] ?? null,
-                    'oha_version' => $current['handshake']['oha_version'] ?? null,
-                    'host' => $current['handshake']['host'] ?? null,
-                    // Read back when the sweep is sized: it bounds how many
-                    // connections this machine can actually hold open.
-                    'fd_limit' => $current['handshake']['fd_limit'] ?? null,
-                    'target_ip' => $current['handshake']['target_ip'] ?? null,
-                    'rtt_worst_ms' => $current['handshake']['rtt_worst_ms'] ?? null,
-                ]);
+                (new HttpBenchmarkResults)->mergeGeneratorMeta(
+                    GeneratorHandshake::fromArray($current['handshake'])->toMeta()
+                );
             }
 
             if (! $announcedHandshake && time() - $lastPairingPrompt >= 30) {
@@ -208,18 +201,19 @@ class AwaitGeneratorLoad extends Command
         $profile = LoadProfile::fromMeta($results->readMeta() ?? []);
         $command = new HttpBenchCommand;
         $rtt = $current['handshake']['rtt_ms'] ?? null;
+        $transportRtt = $current['handshake']['transport_rtt_ms'] ?? null;
 
-        $sizing = (new LoadSizing($results))->fromProbe($profile, $rtt);
-        $steps = $command->sweep($profile, $sizing['levels']);
+        $levels = (new LoadSizing($results))->fromProbe($profile, $transportRtt);
+        $steps = $command->sweep($profile, $levels);
 
         if ($steps === []) {
             return [];
         }
 
         $this->line(sprintf(
-            'Probe complete. The server answers in %s behind a %sms round trip — sweeping to find its ceiling.',
-            $this->serviceSummary($results, $rtt),
-            $rtt ?? '?',
+            'Probe complete. The server answers in %s behind a %sms network hop — sweeping to find its ceiling.',
+            $this->serviceSummary($results, $transportRtt),
+            $transportRtt ?? '?',
         ));
 
         $session->rearm((new GeneratorScript)->work($steps, $command->isInsecure($profile), $current, $profile->connectTo()));
@@ -234,10 +228,10 @@ class AwaitGeneratorLoad extends Command
      * The fastest route's service time, which is the one the network swamps
      * first and therefore the one worth quoting.
      */
-    protected function serviceSummary(HttpBenchmarkResults $results, ?float $rtt): string
+    protected function serviceSummary(HttpBenchmarkResults $results, ?float $transportRttMs): string
     {
         $times = array_filter(array_map(
-            fn (string $route): ?float => $results->probeServiceMs($route, $rtt),
+            fn (string $route): ?float => $results->probeServiceMs($route, $transportRttMs),
             array_keys(HttpBenchmarkResults::ROUTES)
         ));
 
@@ -318,13 +312,9 @@ class AwaitGeneratorLoad extends Command
     }
 
     /**
-     * @param  array<string, mixed>  $received
-     */
-    /**
-     * A sweep window gets one line, because there are around thirty of them
-     * and the shape of the curve is what matters. A response-time window gets
-     * the full block: there are four, and they are the figures the results
-     * page publishes.
+     * A sweep window gets one line, because the shape of the curve is what
+     * matters across many of them. A response-time window gets the full block:
+     * there is one per route, and they are what the results page publishes.
      *
      * @param  array<string, mixed>  $received
      */

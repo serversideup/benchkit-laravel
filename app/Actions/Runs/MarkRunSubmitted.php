@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Storage;
 class MarkRunSubmitted
 {
     /**
-     * @return array<string, mixed>|null  the updated snapshot, or null if unknown
+     * @return array<string, mixed>|null the updated snapshot, or null if unknown
      */
     public function execute(string $id): ?array
     {

@@ -7,10 +7,9 @@ namespace App\Support\Http;
  * ever flattened, and whether anything about the measurement makes those
  * numbers untrustworthy.
  *
- * Nothing here drives the load. The levels are chosen before the run starts
- * (LoadProfile::levelsFor) and run as a plain list, so this only has to describe
- * what came back — which is why the same class can read a self-test and an
- * external run without either of them knowing it exists.
+ * Nothing here drives the load: the levels are chosen before the run starts
+ * and this only describes what came back, so it reads a self-test and an
+ * external run identically.
  */
 class LoadCurve
 {
@@ -33,12 +32,11 @@ class LoadCurve
      *
      * A connection can only hold one request at a time, so concurrency = rate
      * x response time is arithmetic rather than a model, and a real level
-     * lands within a few percent of 1.0. Between this floor and MIN_EFFICIENCY
-     * the level is real but generator-limited — some connections sat idle.
-     * Below it the numbers describe replies that never happened: connections
-     * that could not open are counted as completed requests, which is how a
-     * static route came back with 17,201 req/s at a level where the one below
-     * it managed 398. That reads as an efficiency of 0.04, not of 40.
+     * lands near 1.0. Between this floor and MIN_EFFICIENCY the level is real
+     * but generator-limited — some connections sat idle. Below it the numbers
+     * describe replies that never happened, because connections that could not
+     * open are counted as completed requests. The upper bound catches the same
+     * failure from the other side.
      */
     protected const MIN_PLAUSIBLE_EFFICIENCY = 0.50;
 
@@ -67,33 +65,28 @@ class LoadCurve
      */
     public function knee(): ?int
     {
-        return $this->best()['concurrency'] ?? null;
+        return $this->kneeMeasurement()['concurrency'] ?? null;
     }
 
     /**
      * The most this route actually served, and the concurrency it happened at.
      *
-     * Deliberately separate from the knee. The knee is the cheapest way to get
-     * within a few percent of this, which makes it the right level to hold
-     * open while timing responses — but it is not the maximum, and reporting
-     * its throughput under a heading that says "max" was simply wrong: a route
-     * peaking at 437 req/s was published as 417.
+     * Not the knee, which is the cheapest level within IMPROVEMENT of this one
+     * and therefore the right level to hold open while timing responses.
      *
      * @return array{concurrency?: int, result?: StepResult}
      */
     public function peak(): array
     {
-        $best = [];
-        $bestRps = 0.0;
+        $peak = [];
 
         foreach ($this->clean() as $measurement) {
-            if ($measurement['result']->requestsPerSecond > $bestRps) {
-                $bestRps = $measurement['result']->requestsPerSecond;
-                $best = $measurement;
+            if ($measurement['result']->requestsPerSecond > ($peak['result']->requestsPerSecond ?? 0.0)) {
+                $peak = $measurement;
             }
         }
 
-        return $best;
+        return $peak;
     }
 
     public function peakConcurrency(): ?int
@@ -101,14 +94,39 @@ class LoadCurve
         return $this->peak()['concurrency'] ?? null;
     }
 
-    public function bestRps(): float
+    public function peakRps(): float
     {
         return $this->peak()['result']?->requestsPerSecond ?? 0.0;
     }
 
-    public function bestResult(): ?StepResult
+    public function peakResult(): ?StepResult
     {
         return $this->peak()['result'] ?? null;
+    }
+
+    /** The highest concurrency offered, including levels thrown out as implausible. */
+    public function topConcurrency(): ?int
+    {
+        $levels = array_column($this->measurements, 'concurrency');
+
+        return $levels === [] ? null : max($levels);
+    }
+
+    /**
+     * How many connections were carrying a request when the route peaked.
+     *
+     * Rate x mean response time. In a closed loop this lands on the concurrency
+     * offered when every connection was busy and below it when they were not,
+     * which separates a run bounded by the path from one bounded by the machine
+     * driving the load. The mean, because that is what the identity is stated in.
+     */
+    public function busyConnections(): ?float
+    {
+        $result = $this->peakResult();
+
+        return $result === null || $result->averageSeconds === null
+            ? null
+            : round($result->averageSeconds * $result->requestsPerSecond, 1);
     }
 
     /**
@@ -164,7 +182,7 @@ class LoadCurve
      * floor than the fastest request inside a saturated run, where even the
      * quickest observation has queued behind something.
      */
-    public function rttFloorMs(): ?float
+    public function idleLatencyMs(): ?float
     {
         foreach ($this->measurements as $measurement) {
             if ($measurement['concurrency'] === 1) {
@@ -228,7 +246,9 @@ class LoadCurve
 
     /**
      * Whether a level obeys the closed-loop identity well enough to be a
-     * measurement at all. @see self::MAX_EFFICIENCY
+     * measurement at all.
+     *
+     * @see self::MIN_PLAUSIBLE_EFFICIENCY
      *
      * @param  array{concurrency: int, result: StepResult}  $measurement
      */
@@ -241,18 +261,15 @@ class LoadCurve
     }
 
     /**
+     * The cheapest level within IMPROVEMENT of the peak — the bend.
+     *
      * @return array{concurrency?: int, result?: StepResult}
      */
-    protected function best(): array
+    protected function kneeMeasurement(): array
     {
-        $clean = $this->clean();
-        $peak = 0.0;
+        $peak = $this->peakRps();
 
-        foreach ($clean as $measurement) {
-            $peak = max($peak, $measurement['result']->requestsPerSecond);
-        }
-
-        foreach ($clean as $measurement) {
+        foreach ($this->clean() as $measurement) {
             if ($measurement['result']->requestsPerSecond >= $peak * (1 - self::IMPROVEMENT)) {
                 return $measurement;
             }

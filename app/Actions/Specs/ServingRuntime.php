@@ -6,25 +6,17 @@ namespace App\Actions\Specs;
  * How this application is being served: which server, whether it keeps workers
  * alive between requests, and how many requests it can have in flight at once.
  *
- * This replaces a block that could only describe PHP-FPM — two keys named
- * fpm_pm and fpm_max_children, with a UI that hardcoded both. A FrankenPHP
- * thread count, an Octane worker count, and an FPM pool size are the same fact
- * about a host (how much concurrency PHP will accept) under three names, and a
- * gallery that can only read one of them cannot compare the images it exists to
- * compare.
- *
- * So the shape is three normalized fields plus a free-form map:
+ * A FrankenPHP thread count, an Octane worker count and an FPM pool size are
+ * one fact about a host under three names, so the shape is three normalized
+ * fields plus a free-form map:
  *
  *   server / mode / workers   comparable across every runtime
- *   workers_source            what that number is called here, so 20 FPM
- *                             children are never silently equated with 8
- *                             FrankenPHP threads
- *   settings                  whatever this particular server exposes, as
- *                             label => value, rendered generically
+ *   workers_source            what that number is called here, so pool sizes
+ *                             are never silently equated with thread counts
+ *   settings                  whatever this server exposes, label => value
  *
- * Every field is null when it cannot be established. A host BenchKit has never
- * seen reports the SAPI it found and nothing else, which is the honest answer
- * and displays as a shorter list rather than as a wrong one.
+ * Every field is null when it cannot be established, so a host BenchKit has
+ * never seen displays as a shorter list rather than a wrong one.
  *
  * Detection needs the serving process to be asked, not the CLI one — see the
  * /bench/env endpoint. From the command line php_sapi_name() is "cli" and
@@ -32,6 +24,20 @@ namespace App\Actions\Specs;
  */
 class ServingRuntime
 {
+    /**
+     * Every server this project can recognise from the serving process.
+     *
+     * @var array<int, string>
+     */
+    public const SERVERS = ['php-fpm', 'frankenphp', 'swoole', 'roadrunner', 'mod_php', 'cli-server', 'litespeed'];
+
+    /**
+     * Whether the application stays in memory between requests.
+     *
+     * @var array<int, string>
+     */
+    public const MODES = ['worker', 'process-per-request'];
+
     /**
      * PHP-FPM pool directives worth recording, mapped to the serversideup image
      * environment variables that set them. Env wins over the pool file: an

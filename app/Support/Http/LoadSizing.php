@@ -20,29 +20,19 @@ class LoadSizing
     /**
      * The levels each route should be swept at, recorded onto the run.
      *
-     * @return array{levels: array<string, array<int, int>>, required: ?int}
+     * @return array<string, array<int, int>>
      */
-    public function fromProbe(LoadProfile $profile, ?float $rttMs): array
+    public function fromProbe(LoadProfile $profile, ?float $transportRttMs): array
     {
         $levels = [];
-        $required = null;
 
         foreach (array_keys(HttpBenchmarkResults::ROUTES) as $route) {
-            $service = $this->results->probeServiceMs($route, $rttMs);
-            $levels[$route] = $profile->levelsFor($service, $rttMs);
-
-            // Reported from the fastest route, because that is the one the
-            // network swamps first and therefore the one that decides whether
-            // this generator can find the server's ceiling at all.
-            $needed = $profile->requiredConcurrency($service, $rttMs);
-
-            if ($needed !== null) {
-                $required = max($required ?? 0, $needed);
-            }
+            $service = $this->results->probeServiceMs($route, $transportRttMs);
+            $levels[$route] = $profile->levelsFor($service, $transportRttMs, $route);
         }
 
-        $this->results->writeLevels($levels, $required);
+        $this->results->writeLevels($levels);
 
-        return ['levels' => $levels, 'required' => $required];
+        return $levels;
     }
 }

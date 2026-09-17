@@ -6,6 +6,7 @@ use App\Actions\Results\HttpBenchmarkResults;
 use App\Http\Controllers\Controller;
 use App\Support\GeneratorScript;
 use App\Support\GeneratorSession;
+use App\Support\Http\GeneratorHandshake;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -21,7 +22,7 @@ use Illuminate\Http\Response;
  */
 class GeneratorController extends Controller
 {
-    /** An oha JSON file for a 60s standard run is ~2 KB; this is headroom, not a quota. */
+    /** A window's oha JSON is a couple of kilobytes; this is headroom, not a quota. */
     protected const MAX_UPLOAD_BYTES = 1_048_576;
 
     public function __construct(protected GeneratorSession $session) {}
@@ -49,7 +50,7 @@ class GeneratorController extends Controller
             return response("Another generator is already driving this run.\n", 409, ['Content-Type' => 'text/plain']);
         }
 
-        $this->session->recordHandshake($this->describeGenerator($request));
+        $this->session->recordHandshake(GeneratorHandshake::fromRequest($request));
 
         return response()->json(['status' => 'connected', 'poll_seconds' => 2]);
     }
@@ -205,44 +206,6 @@ class GeneratorController extends Controller
         $this->session->recordRejection($route, $reason, $ip);
 
         return response($reason."\n", $status, ['Content-Type' => 'text/plain']);
-    }
-
-    /**
-     * Handshake fields are informational, so they are sanitized rather than
-     * rejected — a generator with an odd hostname should still pair.
-     *
-     * @return array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, rtt_worst_ms: float|null, fd_limit: int|null, target_ip: string|null, source_ip: string|null}
-     */
-    protected function describeGenerator(Request $request): array
-    {
-        $version = $request->input('oha_version');
-        $host = $request->input('host');
-        $cores = filter_var($request->input('cores'), FILTER_VALIDATE_INT);
-        $rtt = filter_var($request->input('rtt_ms'), FILTER_VALIDATE_FLOAT);
-        $descriptors = filter_var($request->input('fd_limit'), FILTER_VALIDATE_INT);
-        $targetIp = filter_var($request->input('target_ip'), FILTER_VALIDATE_IP);
-        $worstRtt = filter_var($request->input('rtt_worst_ms'), FILTER_VALIDATE_FLOAT);
-
-        return [
-            'oha_version' => is_string($version) && preg_match('/^[0-9A-Za-z._+-]{1,20}$/', $version) ? $version : null,
-            'cores' => $cores !== false && $cores > 0 && $cores <= 4096 ? $cores : null,
-            'host' => is_string($host) ? mb_substr(preg_replace('/[\x00-\x1F\x7F]/', '', $host), 0, 60) : null,
-            'rtt_ms' => $rtt !== false && $rtt >= 0 && $rtt <= 60_000 ? round($rtt, 2) : null,
-            // One connection is one open file. A generator that cannot hold
-            // the concurrency the sweep asks for does not fail slowly — the
-            // connections that cannot open are counted as replies, which
-            // produced a static route reporting 17,201 req/s where the level
-            // below it managed 398.
-            'fd_limit' => $descriptors !== false && $descriptors > 0 && $descriptors <= 1_048_576 ? $descriptors : null,
-            // Where the target's name resolved to from the generator's side.
-            // Every window is driven against this rather than the name, so a
-            // run cannot fail on a resolver that has had enough.
-            'target_ip' => $targetIp !== false ? $targetIp : null,
-            // The slowest of the same five samples rtt_ms is the fastest of.
-            // Every percentile the run publishes inherits the difference.
-            'rtt_worst_ms' => $worstRtt !== false && $worstRtt >= 0 && $worstRtt <= 60_000 ? round($worstRtt, 2) : null,
-            'source_ip' => $request->ip(),
-        ];
     }
 
     /**

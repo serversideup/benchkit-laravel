@@ -157,8 +157,8 @@
 
                 <p class="mt-2 text-xs text-neutral-500">
                     Concurrency was raised until throughput stopped improving. Response times were
-                    measured separately, at about 70% of that rate, so they include no queue a real
-                    visitor would not also hit.
+                    measured separately, at about {{ latencyShare }} of that rate, so they include no
+                    queue a real visitor would not also hit.
                     <NuxtLink
                         to="/docs/benchmarks"
                         class="text-neutral-400 underline underline-offset-4 decoration-white/20 transition-colors hover:text-neutral-300 hover:decoration-white/40"
@@ -185,10 +185,16 @@
                                 <!-- A run whose sweep never flattened measured the most BenchKit
                                      could ask for, not the most the machine can serve. A gallery
                                      that prints that flat ranks a floor against maximums. -->
-                                <span v-if="benchRoute.isFloor" class="text-amber-400">≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
+                                <span
+                                    v-if="benchRoute.isFloor"
+                                    class="text-amber-400"
+                                >≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
-                                req/s <span v-if="benchRoute.concurrency" class="text-neutral-500">at {{ benchRoute.concurrency }} concurrent</span>
+                                req/s <span
+                                    v-if="benchRoute.concurrency"
+                                    class="text-neutral-500"
+                                >at {{ benchRoute.concurrency }} concurrent</span>
                             </p>
                         </div>
                         <div class="mt-4 flex flex-col gap-2.5">
@@ -228,10 +234,16 @@
                         </p>
                         <div class="mt-auto pt-4">
                             <p class="text-4xl text-white font-mono font-medium leading-none tabular-nums">
-                                <span v-if="benchRoute.isFloor" class="text-amber-400">≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
+                                <span
+                                    v-if="benchRoute.isFloor"
+                                    class="text-amber-400"
+                                >≥</span>{{ round(benchRoute.data.throughput?.requests_per_second) }}
                             </p>
                             <p class="mt-1.5 text-sm text-neutral-400 font-mono">
-                                req/s <span v-if="benchRoute.concurrency" class="text-neutral-500">at {{ benchRoute.concurrency }} concurrent</span>
+                                req/s <span
+                                    v-if="benchRoute.concurrency"
+                                    class="text-neutral-500"
+                                >at {{ benchRoute.concurrency }} concurrent</span>
                             </p>
                         </div>
                     </div>
@@ -534,6 +546,7 @@
 <script setup lang="ts">
 import type { HttpRoute, RunEntry } from '~/types/run'
 import { coresLabel, costLabel, formatThroughput, LOAD_MODE_LABELS } from '~/types/run'
+import { debugMode, memoryDatabase, opcacheOff, selfTested, unsafeWrites } from '~~/shared/run/conditions.mjs'
 
 const route = useRoute()
 const id = route.params.id as string
@@ -847,26 +860,26 @@ const issueUrl = computed(() => entry.value?.issue ? `https://github.com/${SUBMI
 /** Cost in the currency the submitter is billed — no conversion, no invented dollar sign. */
 const cost = computed(() => costLabel(run.value.meta.cost))
 
-/** Filesystems that are memory pretending to be storage. */
-const MEMORY_FILESYSTEMS = ['tmpfs', 'ramfs', 'memory']
+const latencyShare = computed(() => `${Math.round((run.value.benchmarks.http?.latency_load ?? 0.7) * 100)}%`)
 
 /**
- * Written for someone who has never heard of fsync, because that is who reads
- * this page. Each one says what is wrong with the numbers and why, in the terms
- * a Laravel developer already has — not in the terms the setting is named in.
+ * Each one says what is wrong with the numbers and why, in the terms a Laravel
+ * developer already has rather than the terms the setting is named in.
+ *
+ * The conditions are the ones the app applies; only the wording is for a
+ * gallery reader who did not run this benchmark.
  */
 const caveats = computed(() => {
     const e = run.value.environment
     const found: { key: string, title: string, detail: string }[] = []
-    const durability = e.database?.durability ?? {}
 
-    if (MEMORY_FILESYSTEMS.includes(String(e.database?.filesystem ?? '').toLowerCase())) {
+    if (memoryDatabase(e)) {
         found.push({
             key: 'memory-database',
             title: 'These write speeds came from a database in memory',
             detail: 'The database was stored in RAM rather than on a disk. Writing to memory is far faster than writing to any real drive, so the Create, Update, and Delete figures here are not what this host would do in production.'
         })
-    } else if (Object.values(durability).some(v => ['off', '0'].includes(String(v).toLowerCase()))) {
+    } else if (unsafeWrites(e)) {
         found.push({
             key: 'unsafe-writes',
             title: 'The database was not waiting for writes to reach the disk',
@@ -874,7 +887,7 @@ const caveats = computed(() => {
         })
     }
 
-    if (e.laravel.environment.debug_mode === true) {
+    if (debugMode(e)) {
         found.push({
             key: 'debug',
             title: 'This server is faster than these numbers say',
@@ -882,7 +895,7 @@ const caveats = computed(() => {
         })
     }
 
-    if (e.php.op_cache != null && !opcacheOn(e.php.op_cache)) {
+    if (opcacheOff(e)) {
         found.push({
             key: 'opcache',
             title: 'This server is much faster than these numbers say',
@@ -890,10 +903,9 @@ const caveats = computed(() => {
         })
     }
 
-    // Absent generator block means the run predates external mode, which
-    // provably makes it a self-test — same back-fill the index applies.
     const httpBench = run.value.benchmarks.http
-    if (httpBench && (httpBench.generator?.mode ?? 'self') === 'self') {
+
+    if (httpBench && selfTested(httpBench)) {
         found.push({
             key: 'self-test',
             title: 'This server generated its own load',

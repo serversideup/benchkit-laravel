@@ -18,7 +18,7 @@ import { CURRENCIES, findPrivacyLeaks, indexFields, measurementDigest, runsPathF
 // so consumers back-fill generator.mode = "self" and no published number
 // changes meaning. An addition like that partitions the gallery; it does not
 // supersede anything.
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /**
  * Why each superseded version is rejected rather than warned about. A bump
@@ -30,7 +30,8 @@ const SUPERSEDED_SCHEMAS = {
     1: 'CRUD subjects rebuilt their own state inside the timed body, so delete reported about 2.4x its real cost',
     2: 'create and update timed PHP datetime work that read and delete did not, and read measured one query returning 100 rows against the other three running 100 statements',
     3: 'warmup revolutions ran each subject body without rebuilding its fixture, so delete measured 100 statements that matched no rows and reported roughly half its real cost',
-    4: 'the load test held a fixed 50 connections and reported one point on a curve as a maximum, and measured its response times while the server was saturated, so they described a queue rather than a visitor'
+    4: 'the load test held a fixed 50 connections and reported one point on a curve as a maximum, and measured its response times while the server was saturated, so they described a queue rather than a visitor',
+    5: 'the sweep sized its concurrency levels from a round trip that already contained the server\'s own work, so a host answering faster than its network measured its peak at the wrong concurrencies'
 }
 
 const ID_RE = /^[0-9]{8}-[0-9]{6}-[a-z0-9]+$/
@@ -257,7 +258,6 @@ export async function validateSubmission(doc, filepath = null) {
         // identical to a plaintext one.
         if (http.tls != null && typeof http.tls !== 'boolean') err('http.tls must be a boolean')
         if (http.workers != null) isNum(http.workers, 'http.workers', { min: 1, max: 100_000 })
-        if (http.required_concurrency != null) isNum(http.required_concurrency, 'http.required_concurrency', { min: 1, max: 1_000_000 })
         if (http.pool_ceiling != null && typeof http.pool_ceiling !== 'object') err('http.pool_ceiling must be an object')
         // Not fatal — the run is real, it just isn't a framework comparison.
         // Surfacing it in review is what keeps the gallery interpretable.

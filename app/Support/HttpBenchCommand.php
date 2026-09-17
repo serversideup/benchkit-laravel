@@ -21,8 +21,13 @@ use App\Support\Http\LoadStep;
  */
 class HttpBenchCommand
 {
-    /** Throwaway load before a route's first measured window; never parsed. */
-    public const WARMUP_SECONDS = 3;
+    /**
+     * A pause between windows, so one does not measure the last one's sockets
+     * still draining. Honoured by both drivers: the self-test is the default
+     * mode, and a settle in only one of them makes the two stop being the same
+     * test even though every oha flag matches.
+     */
+    public const SETTLE_SECONDS = 1;
 
     /**
      * Every request is given a deadline so a wedged one becomes a counted
@@ -131,7 +136,7 @@ class HttpBenchCommand
                 connections: $curve->knee(),
                 durationSeconds: $profile->latencySeconds,
                 url: $profile->urlFor($route),
-                qps: $profile->latencyRate($curve->bestRps()),
+                qps: $profile->latencyRate($curve->peakRps()),
             );
         }
 

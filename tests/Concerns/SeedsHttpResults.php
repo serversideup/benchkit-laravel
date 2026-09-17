@@ -65,11 +65,16 @@ trait SeedsHttpResults
      * one per connection. Leaving them out of a fixture would hide the case
      * that once made every level look like a failure.
      *
+     * $averageSeconds overrides the closed-loop identity the fixture otherwise
+     * satisfies exactly. Without it no fixture can express a generator that
+     * left connections idle, because rate x mean always lands on the
+     * concurrency offered.
+     *
      * @param  array<string|int, int>|null  $statusCodes
      */
-    protected function writeOha(string $path, float $rps, int $connections, ?array $statusCodes = null): void
+    protected function writeOha(string $path, float $rps, int $connections, ?array $statusCodes = null, ?float $averageSeconds = null): void
     {
-        $average = $rps > 0 ? $connections / $rps : 0.0;
+        $average = $averageSeconds ?? ($rps > 0 ? $connections / $rps : 0.0);
         $total = max(1, (int) round($rps * 6));
 
         File::ensureDirectoryExists(dirname($path));

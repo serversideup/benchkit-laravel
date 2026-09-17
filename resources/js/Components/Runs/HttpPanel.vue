@@ -13,21 +13,13 @@
         <p class="mt-3 max-w-[74ch] text-xs text-[#61656C] leading-relaxed">
             Concurrency was raised until throughput stopped improving. Response times were measured separately, at
             about {{ latencyShare }} of that rate, so they include no queue a real visitor would not also hit.
-            <!-- The one thing readers reliably get stuck on is why I/O sits so
-                 far below the framework routes on the same box. The answer is
-                 arithmetic, not a defect, and it needs more room than a panel
-                 has: a blocking call holds a worker for its whole duration, so
-                 that route can never exceed workers / delay however fast the
-                 CPU is. -->
             <a :href="LOAD_TEST_DOCS" target="_blank" rel="noopener"
                 class="text-[#94979C] underline underline-offset-4 decoration-[#373A41] hover:text-[#CECFD2] hover:decoration-[#61656C] transition-colors duration-200">Learn
                 more</a>
         </p>
 
-        <!-- One row per route, read top to bottom as a ladder. The x-axes line
-             up down the column, which is what preserves the cross-route
-             reading a shared chart would have bought at the cost of flattening
-             the I/O curve into the axis. -->
+        <!-- One row per route. The x-axes line up down the column, which keeps
+             the cross-route reading a shared chart would flatten. -->
         <div class="mt-6 flex flex-col divide-y divide-[#22262F]">
             <div v-for="route in routes" :key="route.key"
                 class="grid grid-cols-1 gap-x-7 gap-y-5 py-6 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_300px] md:items-center">
@@ -84,6 +76,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { tailUnderLoad } from '@shared/run/conditions.mjs';
 import Chip from '@/Components/Chip.vue';
 import PanelSection from '@/Components/PanelSection.vue';
 import LoadCurveChart from '@/Components/Runs/LoadCurveChart.vue';
@@ -100,14 +93,9 @@ const LOAD_TEST_DOCS = 'https://serversideup.net/open-source/benchkit/docs/bench
 
 const targetLabel = computed(() => httpTargetLabel(props.http.mode));
 
-const latencyShare = computed(() => `${Math.round((props.http.latency_load ?? 0.7) * 100)}%`);
+const strained = computed(() => tailUnderLoad(props.http));
 
-/**
- * How much worse a tail has to get under load before it is worth saying so.
- * A tail always grows somewhat as a server fills; several times over is a
- * different thing.
- */
-const TAIL_GROWTH = 5;
+const latencyShare = computed(() => `${Math.round((props.http.latency_load ?? 0.7) * 100)}%`);
 
 // Where the load came from. Snapshots from before external mode carry no
 // generator block, which provably makes them self-tests.
@@ -131,13 +119,7 @@ const ROUTES = {
     io: { label: 'I/O-bound', description: 'Simulated outbound call' },
 };
 
-/**
- * What one request costs with nothing queued.
- *
- * The median rather than the tail: the tail of a six-second window is one or
- * two requests and swings by five times between runs, while this sat at
- * 12-13ms across every run and both pool settings.
- */
+/** What one request costs with nothing queued. The median, not the tail: one short window's tail is a couple of requests. */
 const idleTail = (curve) => curve.find((point) => point.concurrency === 1)?.p50_ms ?? null;
 
 const formatRps = (value) => value == null ? '—' : Math.round(value).toLocaleString();
@@ -188,20 +170,10 @@ const routes = computed(() => Object.keys(ROUTES)
             // Too few samples and p95/p99 are just the 2nd/1st-slowest hit —
             // flag the tail as rough rather than presenting it as firm.
             lowConfidence: (data.latency?.total_requests ?? Infinity) < 1000,
-            // The single-connection point is the same request over the same
-            // network with nothing queued, so its tail is everything the path
-            // and the framework cost before load is a factor. A loaded tail
-            // several times larger than that appeared *because* of the load,
-            // which makes it the server's and not the network's.
-            //
-            // This replaced a check against how much the network wobbled at
-            // the handshake. That was five samples against an idle server, and
-            // it was wrong: between two runs the wobble fell fourfold while
-            // the tail did not move at all.
+            // A loaded tail several times the uncontended one appeared because
+            // of the load, which makes it the server's and not the path's.
             idleP95: idleTail(curve),
-            tailGrowsUnderLoad: idleTail(curve) != null
-                && data.latency?.p95_ms != null
-                && data.latency.p95_ms > idleTail(curve) * TAIL_GROWTH,
+            tailGrowsUnderLoad: strained.value.some((route) => route.key === key),
         };
     }));
 

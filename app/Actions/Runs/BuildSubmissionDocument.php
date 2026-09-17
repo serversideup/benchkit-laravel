@@ -2,8 +2,11 @@
 
 namespace App\Actions\Runs;
 
+use App\Actions\Results\HttpBenchmarkResults;
 use App\Actions\Specs\PhpSpecs;
+use App\Actions\Specs\ServingRuntime;
 use App\Support\HostCost;
+use App\Support\Http\LoadProfile;
 
 /**
  * The public shape of a run: everything the community gallery publishes, and
@@ -46,31 +49,27 @@ class BuildSubmissionDocument
      *
      * @var array<int, string>
      */
-    protected const KNOWN_SERVERS = ['php-fpm', 'frankenphp', 'swoole', 'roadrunner', 'mod_php', 'cli-server', 'litespeed'];
+    protected const KNOWN_SERVERS = ServingRuntime::SERVERS;
 
-    /** Whether the application stays in memory between requests. */
-    protected const SERVING_MODES = ['worker', 'process-per-request'];
+    protected const SERVING_MODES = ServingRuntime::MODES;
 
     /** Server-specific tuning is a handful of directives, not a config dump. */
     protected const MAX_RUNTIME_SETTINGS = 25;
 
-    /** The HTTP routes the gallery compares, in display order. */
-    protected const ROUTES = ['static', 'json', 'db_read', 'io'];
+    /** The HTTP routes the gallery compares, in the order the load test defines them. */
+    protected const ROUTES = HttpBenchmarkResults::ROUTES;
 
-    /** phpbench emits one row per subject; a Full run is ~80, and this bounds a runaway parse. */
+    /** phpbench emits one row per subject; this bounds a runaway parse. */
     protected const MAX_SUBJECTS = 100;
 
     protected const MAX_STATUS_CODES = 20;
 
     /**
-     * Curve points published per route.
-     *
-     * The sweep runs at most six levels, so this is headroom rather than a
-     * limit — it exists so a hand-edited document cannot carry ten thousand
-     * points into the gallery. Every point also costs bytes in the submission
-     * token, which travels in a GitHub issue URL.
+     * Curve points published per route: headroom over what a sweep can produce,
+     * so a hand-edited document cannot carry ten thousand points into the
+     * gallery. Every point costs bytes in a token that travels in an issue URL.
      */
-    protected const MAX_CURVE_POINTS = 12;
+    protected const MAX_CURVE_POINTS = LoadProfile::MAX_LEVELS * 2;
 
     /**
      * @param  array<string, mixed>  $run  A stored run snapshot (storage/app/runs).
@@ -247,7 +246,7 @@ class BuildSubmissionDocument
 
         $routes = [];
 
-        foreach (self::ROUTES as $key) {
+        foreach (array_keys(self::ROUTES) as $key) {
             if (is_array($http['routes'][$key] ?? null)) {
                 $routes[$key] = $this->route($http['routes'][$key]);
             }
@@ -278,15 +277,6 @@ class BuildSubmissionDocument
                 'generator_bound' => $this->boolean($http['generator_bound'] ?? null),
             ]),
             'cores' => $http['cores'] ?? null,
-            // The concurrency it would have taken to saturate this server from
-            // wherever the load came from. Published because a run that could
-            // not reach a maximum needs to say how far short it fell.
-            'required_concurrency' => $http['required_concurrency'] ?? null,
-            // Arithmetic offered beside a measurement: a request on the I/O
-            // route holds a worker for its whole simulated wait, so the pool
-            // can serve at most workers x 1000/io_ms however fast the machine
-            // is. Publishing the prediction with the observation is what lets
-            // a reader recognise their own worker count.
             'pool_ceiling' => $this->poolCeiling($http['pool_ceiling'] ?? null),
             'routes' => $this->object($routes),
         ];

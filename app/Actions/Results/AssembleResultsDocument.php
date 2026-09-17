@@ -30,8 +30,16 @@ class AssembleResultsDocument
      *        stated variance was narrower than the measured one. The PHP
      *        environment now describes the process that served the load test
      *        rather than the CLI process that assembled the document.
+     * 4 → 5: the load test swept a range of concurrencies instead of holding a
+     *        fixed 50 connections, and timed responses in a separate pass below
+     *        saturation rather than inside it.
+     * 5 → 6: the sweep sized itself from a round trip that already contained
+     *        the server's own work, so on any host answering faster than its
+     *        network the service time collapsed to a floor and the levels were
+     *        derived from it. External runs measured their peak at the wrong
+     *        concurrencies, so those peaks cannot be read beside current ones.
      */
-    public const SCHEMA_VERSION = 5;
+    public const SCHEMA_VERSION = 6;
 
     /**
      * Merge environment specs and all benchmark outputs into a single

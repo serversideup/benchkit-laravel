@@ -11,9 +11,9 @@ const {
 
 const queue = STAGES.map(({ key }) => key);
 
-// Which settings key enables which stage. The server holds the same map in
-// app/Support/BenchmarkStages.php and is the one that acts on it — this
-// copy exists only to preview what a run would include before it starts.
+// Which settings key enables which stage. The server acts on its own copy of
+// this; here it only previews what a run would include before it starts.
+// CrossLanguageDriftTest asserts the two agree.
 const enabledBy = {
     yabs: () => form.hardware,
     cfspeedtest: () => form.network,

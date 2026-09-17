@@ -5,6 +5,6 @@
 - The Vite dev server is normally already running during development — do **not** run `yarn build` / `npm run build` to verify frontend changes; HMR picks them up. Only build when explicitly asked (e.g. to check a production bundle).
 - The UI uses a fixed dark palette with hardcoded hex colors (e.g. `bg-[#13161B]`, brand red `#E62E05`). There is no light mode and no `dark:` variants — do not add them.
 - The Tailwind v4 theme lives in `resources/css/app.css` (`@theme` directive, JetBrains Mono font). There is no `tailwind.config.js`.
-- The dev URL is `https://benchkit.dev.test` (Traefik with local certificates); Vite HMR is served at `https://vite.dev.test`.
+- The dev URL and the Vite HMR host are whatever `APP_DOMAIN` and `VITE_DOMAIN` are set to in `.env` (Traefik, with local certificates) — read them from there rather than assuming, because they differ per machine.
 - Files in `results/`, root-level `*.log` files, `geekbench_claim.url`, and timestamped fio directories are stale benchmark run artifacts, not source code — ignore them when exploring the codebase.
 - `tests/` (PHPUnit, self-contained with SQLite `:memory:`) and `app/Benchmarks/` (phpbench) are unrelated — do not mix their conventions. Shared test helpers live in `tests/Concerns/` (`UsesFakeResultsPath`, `SeedsRunSnapshots`).

@@ -116,14 +116,10 @@ const activePreset = computed(() => {
     return match ?? 'custom';
 });
 
-// Rough per-test durations in minutes, for the run estimate on the home
-// screen. The http stage is computed from its settings: four routes, each
-// warmed (~3s) then load tested for the configured duration.
-//
-// php_full and php_quick are measured, not guessed: the full phpbench suite is
-// 82 subjects and took ~26 minutes on a developer machine, the quick filter
-// took seconds. Both round up, because these run on whatever box the user is
-// benchmarking and that is usually slower than the one they were timed on.
+// Rough per-test durations in minutes, for the run estimate on the home screen.
+// The phpbench figures are measured rather than guessed, and rounded up:
+// they run on whatever box is being benchmarked, which is usually slower than
+// the machine they were timed on.
 const durations = {
     hardware_base: 1,
     disk: 3,
@@ -134,20 +130,28 @@ const durations = {
     php_full: 28,
 };
 
-// Four routes, each warmed once, measured at up to six concurrency levels,
-// then timed at a steady rate. The exact level count depends on the host, so
-// this is the upper end rather than a promise.
-//
-// Kept in step with config/benchmark.php by hand. If these drift, the start
-// screen lies about how long a run takes, which is the one estimate a person
-// actually plans around.
+// Each route is warmed once, swept at up to HTTP_MAX_LEVELS concurrencies, then
+// timed at a steady rate. The level count depends on the host, so this is the
+// upper end rather than a promise. CrossLanguageDriftTest asserts these match
+// the server's own settings.
 const HTTP_WARMUP_SECONDS = 3;
 const HTTP_LEVEL_SECONDS = 6;
 const HTTP_MAX_LEVELS = 6;
 const HTTP_LATENCY_SECONDS = 10;
+const HTTP_ROUTES = 4;
+const HTTP_SETTLE_SECONDS = 1;
+
+// Warmup, every sweep level, and the response-time pass, each followed by a
+// settle so one window does not measure the last one's sockets draining.
+const HTTP_WINDOWS_PER_ROUTE = HTTP_MAX_LEVELS + 2;
 
 const httpMinutes = () =>
-    (4 * (HTTP_WARMUP_SECONDS + HTTP_MAX_LEVELS * HTTP_LEVEL_SECONDS + HTTP_LATENCY_SECONDS)) / 60;
+    (HTTP_ROUTES * (
+        HTTP_WARMUP_SECONDS
+        + HTTP_MAX_LEVELS * HTTP_LEVEL_SECONDS
+        + HTTP_LATENCY_SECONDS
+        + HTTP_WINDOWS_PER_ROUTE * HTTP_SETTLE_SECONDS
+    )) / 60;
 
 // Takes a plain settings object so the preset buttons can be labelled from the
 // same arithmetic as the live estimate, instead of a hardcoded string that

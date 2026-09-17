@@ -10,6 +10,7 @@
 # writes one temporary file, removes it, and never needs root. Everything it
 # runs comes from the BenchKit server named in the command you pasted.
 set -eu
+export LC_ALL=C
 
 BASE={!! $base !!}
 TARGET={!! $target !!}
@@ -75,19 +76,15 @@ BODY=$($CURL --max-time 5 "$TARGET/bench/static" 2>/dev/null || true)
 
 step "$TARGET is reachable"
 
-# The floor of five requests on one kept-alive connection approximates the
-# round trip, and the server shows it as a ceiling before the run starts: a
-# closed-loop generator cannot exceed connections / RTT no matter how fast
-# the server is. One curl invocation reuses the connection, so only the
-# first request pays for the TCP and TLS handshakes — the same footing oha's
-# kept-alive connections run on.
-# Both ends of the five samples, not just the floor.
+# A full request on a kept-alive connection: what one connection can cycle,
+# which is the ceiling a closed-loop generator cannot exceed however fast the
+# server is. One curl invocation reuses the connection, so only the first
+# request pays for the TCP and TLS handshakes — the footing oha runs on.
 #
-# The minimum is the best the path can do and is what the concurrency
-# arithmetic needs. The spread is what every percentile inherits: a laptop on
-# wifi answers most requests in twelve milliseconds and occasionally stalls for
-# a hundred, and that stall lands in p95 looking exactly like a slow server.
-# Measuring it here is the only chance to tell the two apart.
+# Both ends are kept. The floor is the best the path can do. The spread is
+# what every percentile inherits: a laptop on wifi answers most requests
+# quickly and occasionally stalls, and that stall lands in p95 looking exactly
+# like a slow server. Measuring it here is the only chance to tell them apart.
 RTT_SAMPLES=$($CURL -w '%{time_total}\n' \
     -o /dev/null "$TARGET/bench/static" -o /dev/null "$TARGET/bench/static" \
     -o /dev/null "$TARGET/bench/static" -o /dev/null "$TARGET/bench/static" \
@@ -96,6 +93,37 @@ RTT_SAMPLES=$($CURL -w '%{time_total}\n' \
 RTT=$(printf '%s\n' "$RTT_SAMPLES" | head -n 1)
 RTT_WORST=$(printf '%s\n' "$RTT_SAMPLES" | tail -n 1)
 RTT_WORST_MS=$(awk -v t="$RTT_WORST" 'BEGIN { printf "%.2f", t * 1000 }')
+
+# The TCP handshake and nothing above it: the only figure that can be taken off
+# a response time and leave the server's own work behind. The full request above
+# already contains that work, so subtracting it leaves nothing however fast the
+# server is.
+#
+# Measured from time_namelookup, because a cold resolver is not a distance. TLS
+# sits above time_connect and is excluded, which is the footing oha's kept-alive
+# connections run on. One curl per sample: within one invocation the connection
+# is reused and every sample after the first reports zero.
+#
+# Gated on the status code because curl prints its timing fields whatever
+# happens, and a connection that never opened prints them as zero — which would
+# arrive as "no distance at all" rather than as a failed measurement.
+CONNECT_MS=null
+CONNECT_TAKEN=0
+
+while [ "$CONNECT_TAKEN" -lt 5 ]; do
+    CONNECT_TAKEN=$((CONNECT_TAKEN + 1))
+    ONE=$($CURL -o /dev/null -w '%{http_code} %{time_namelookup} %{time_connect}' "$TARGET/bench/static" 2>/dev/null \
+        | awk '$1 == 200 && $3 > $2 { printf "%.3f", ($3 - $2) * 1000 }' 2>/dev/null || echo)
+
+    case "$ONE" in
+        ''|*[!0-9.]*) continue ;;
+    esac
+
+    case "$CONNECT_MS" in
+        null) CONNECT_MS=$ONE ;;
+        *) CONNECT_MS=$(printf '%s\n%s\n' "$CONNECT_MS" "$ONE" | sort -n | head -n 1) ;;
+    esac
+done
 
 # The address the name resolved to, reported so the run can be driven without
 # asking the resolver again.
@@ -128,13 +156,18 @@ FD_LIMIT=$(ulimit -n 2>/dev/null | tr -dc '0-9')
 [ -n "$FD_LIMIT" ] || FD_LIMIT=256
 
 $CURL -o /dev/null -X POST -H 'Content-Type: application/json' \
-    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS,\"fd_limit\":${FD_LIMIT},\"target_ip\":\"$TARGET_IP\",\"rtt_worst_ms\":$RTT_WORST_MS}" \
+    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS,\"transport_rtt_ms\":$CONNECT_MS,\"fd_limit\":${FD_LIMIT},\"target_ip\":\"$TARGET_IP\",\"rtt_worst_ms\":$RTT_WORST_MS}" \
     "$BASE/bench/generator/$TOKEN/handshake" \
     || fail 'The server did not accept the handshake.' \
 '    The pairing may have expired or been replaced. Start over in BenchKit
     to get a new command.'
 
-step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip ${C_DIM}·${C_RESET}${C_TEXT} ${FD_LIMIT} connections available"
+case "$CONNECT_MS" in
+    null) NETWORK_NOTE="network hop not measurable" ;;
+    *) NETWORK_NOTE="${CONNECT_MS}ms network hop" ;;
+esac
+
+step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip ${C_DIM}·${C_RESET}${C_TEXT} ${NETWORK_NOTE} ${C_DIM}·${C_RESET}${C_TEXT} ${FD_LIMIT} connections available"
 
 blank
 note 'Waiting for the run to reach its web server stage.'

@@ -10,10 +10,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { buildDocument } from './run-document.mjs'
-import { validateSubmission } from './validate.mjs'
+import { SCHEMA_VERSION, validateSubmission } from './validate.mjs'
 
 const baseRun = () => ({
-    schema_version: 5,
+    schema_version: SCHEMA_VERSION,
     id: '20260821-101500-ab12',
     created_at: '2026-08-21T10:15:00+00:00',
     meta: { label: 'Test run', provider: 'Hetzner' },

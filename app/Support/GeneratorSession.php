@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Support\Http\GeneratorHandshake;
 use Illuminate\Support\Facades\File;
 
 /**
@@ -108,14 +109,16 @@ class GeneratorSession
     }
 
     /**
-     * @param  array{oha_version: string|null, cores: int|null, host: string|null, rtt_ms: float|null, fd_limit: int|null, source_ip: string|null}  $handshake
+     * Takes the value object rather than an array, so a stored handshake always
+     * knows which kind of run it describes.
+     *
      * @return array<string, mixed>
      */
-    public function recordHandshake(array $handshake): array
+    public function recordHandshake(GeneratorHandshake $handshake): array
     {
         return $this->merge([
             'status' => $this->status() === self::STATUS_WAITING ? self::STATUS_CONNECTED : $this->status(),
-            'handshake' => [...$handshake, 'connected_at' => now()->utc()->toIso8601String()],
+            'handshake' => [...$handshake->toArray(), 'connected_at' => now()->utc()->toIso8601String()],
             'last_seen_at' => now()->utc()->toIso8601String(),
         ]);
     }
@@ -139,18 +142,6 @@ class GeneratorSession
     }
 
     /**
-     * Hand the same run its next batch of work.
-     *
-     * A run is armed twice: once with the sweep, and again with the
-     * response-time pass, whose offered rate is a fraction of what the sweep
-     * proved the server can hold and so cannot be written down until the sweep
-     * has landed.
-     *
-     * Unlike arm(), this keeps what has already been received. Clearing it
-     * would erase the record of the windows the wait is counting, and the
-     * stage would sit there until it timed out on results it already had.
-     */
-    /**
      * A window the generator ran but could not produce a result for.
      *
      * Kept next to `received` because the wait treats them the same way: both
@@ -168,6 +159,18 @@ class GeneratorSession
         return $this->merge(['failed' => $failed, 'last_seen_at' => now()->utc()->toIso8601String()]);
     }
 
+    /**
+     * Hand the same run its next batch of work.
+     *
+     * A run is armed twice: once with the sweep, and again with the
+     * response-time pass, whose offered rate is a fraction of what the sweep
+     * proved the server can hold and so cannot be written down until the sweep
+     * has landed.
+     *
+     * Unlike arm(), this keeps what has already been received. Clearing it
+     * would erase the record of the windows the wait is counting, and the
+     * stage would sit there until it timed out on results it already had.
+     */
     public function rearm(string $work): array
     {
         return $this->merge([
@@ -270,10 +273,7 @@ class GeneratorSession
             'status' => $session['status'],
             'target_url' => $session['target_url'],
             'handshake' => $handshake === null ? null : [
-                'oha_version' => $handshake['oha_version'] ?? null,
-                'cores' => $handshake['cores'] ?? null,
-                'host' => $handshake['host'] ?? null,
-                'rtt_ms' => $handshake['rtt_ms'] ?? null,
+                ...GeneratorHandshake::fromArray($handshake)->toPayload(),
                 'connected_at' => $handshake['connected_at'] ?? null,
             ],
             'received' => array_keys($session['received'] ?? []),
