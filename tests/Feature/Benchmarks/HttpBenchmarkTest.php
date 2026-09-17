@@ -353,6 +353,7 @@ class HttpBenchmarkTest extends TestCase
 
     public function test_the_http_stage_records_the_warmup_it_will_run(): void
     {
+        Http::fake(['*' => Http::response('BenchKit OK', 200)]);
         config(['benchmark.http.sweep.warmup_seconds' => 5]);
 
         $this->resolveHttpStage(['http' => true]);

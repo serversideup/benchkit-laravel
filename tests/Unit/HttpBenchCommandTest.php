@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\Support\GeneratorScript;
-use App\Support\GeneratorSession;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadStep;
@@ -252,8 +251,11 @@ class HttpBenchCommandTest extends TestCase
         $profile = new LoadProfile('https://bench.example.com', 'app-url', 100, 4, 20, [1, 4, 20]);
         $steps = (new HttpBenchCommand)->sweep($profile, ['static' => [1, 4, 20]]);
 
-        $session = (new GeneratorSession)->create('https://bench.example.com', 'https://bench.example.com');
-        $work = (new GeneratorScript)->work($steps, false, $session, null);
+        $work = (new GeneratorScript)->work($steps, false, [
+            'base_url' => 'https://bench.example.com',
+            'target_url' => 'https://bench.example.com',
+            'token' => 'test-token',
+        ], null);
 
         $this->assertSame(
             count($steps),
