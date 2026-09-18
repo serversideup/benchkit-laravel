@@ -1,20 +1,14 @@
 import { hostDetailsLine, serverLabelFor } from '@/Composables/useRunSummary';
+import { HERO_ROUTES } from '@/stages';
 
 const REPO_URL = 'https://github.com/serversideup/benchkit-laravel';
 
-// Same route priority as the share card's hero and the gallery's ranking, so
-// the number in the post is the number in the image is the number the result
-// is ranked by.
-//
-// This used to lead with DB read while the card led with JSON, which meant a
-// post and its own image could quote different routes. JSON is the right one
-// of the two: the database is a confound the hardware has nothing to do with,
-// and SQLite on tmpfs against Postgres over a socket differ by more than two
-// machines do.
+// The number in the post is the number in the image is the number the run
+// page and the gallery lead with — see HERO_ROUTES.
 const heroRoute = (run) => {
     const routes = run.benchmarks?.http?.routes ?? {};
 
-    for (const key of ['json', 'static', 'db_read']) {
+    for (const key of HERO_ROUTES) {
         if( routes[key]?.throughput?.requests_per_second != null ) {
             return routes[key];
         }

@@ -55,6 +55,7 @@ A stored run is **summary fields plus the run itself**.
   "static_rps": null, "static_p50_ms": null,
   "db_read_rps": null, "db_read_p50_ms": null,
   "saturated": true,                // false means the figure is a floor; shown with a ≥
+  "load_mode": "external",          // "self" runs are listed apart, because they measure a floor
   "database_driver": "sqlite",      // a filter, because engines are not on one axis
   "clean_run": true,                // whether the measurement can be trusted, not whether the host is fast
   "clean_missing": null,            // the leading reason it is not, when it is not
@@ -77,10 +78,10 @@ A stored run is **summary fields plus the run itself**.
     // Logs, ini dumps, phpbench subjects, and settings are stripped before submission.
     // The validator rejects superseded versions rather than warning about them: a
     // bump always means a measurement changed, so those runs cannot be read on the
-    // same axis as current ones. Each one's reason is in SUPERSEDED_SCHEMAS in
-    // shared/submission/validate.mjs — v3 and earlier let phpbench warmup consume
-    // the fixture, so delete reported roughly half its real cost.
-    "schema_version": 4,
+    // same axis as current ones. The current version is SCHEMA_VERSION and each
+    // superseded one's reason is in SUPERSEDED_SCHEMAS, both in
+    // shared/submission/validate.mjs.
+    "schema_version": 6,
     "id": "20260805-152622-l9ft",
     "created_at": "2026-08-05T15:26:22+00:00",
     "meta": {
@@ -93,8 +94,11 @@ A stored run is **summary fields plus the run itself**.
       // request is the whole reason cost is recorded.
       "cost": { "amount": 20, "currency": "EUR", "period": "monthly" }
     },
+    "settings_preset": "quick",
     "environment": { "server": { ... }, "php": { ... }, "laravel": { ... } },
-    "benchmarks": { "http": { ... }, "php": { ... }, "cfspeedtest": { ... } },
+    // disk[].speed_* are fio bandwidth in KB/s, as YABS reports them; the row
+    // carries speed_units so the file says so itself.
+    "benchmarks": { "http": { ... }, "php": { ... }, "cfspeedtest": { ... }, "disk": [ ... ] },
 
     // SHA-256 over a canonical, key-sorted serialization of everything in `run`
     // except `meta` and this block, stamped by the bot when it accepts the
@@ -104,7 +108,7 @@ A stored run is **summary fields plus the run itself**.
 }
 ```
 
-The shape is enforced by the `validate-run-submission` GitHub Action, which is the gate
+The shape is enforced by the "Validate result submission" GitHub Action (`.github/workflows/action_validate-result-submission.yml`), which is the gate
 that matters: a run that fails it never merges. It checks far more than a type schema
 could — value ranges, control characters and HTML in free text, the filename matching the
 run id, the summary fields matching the run, and the integrity seal matching the
@@ -169,7 +173,7 @@ project or company name. Whether preloading is on is published as
 published when it's a plain tag, so a self-built image tagged
 `ghcr.io/your-company/benchkit` doesn't carry the company name into a public file.
 
-A second, independent check backs this up: the `validate-run-submission` action scans every
+A second, independent check backs this up: the same action scans every
 string in the document for IP addresses, filesystem paths, email addresses, private
 hostnames, and links to anywhere other than Geekbench — and fails the PR if it finds one.
 That guard covers fields nobody has thought about yet, so adding data later can't quietly

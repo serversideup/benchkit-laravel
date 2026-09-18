@@ -13,7 +13,7 @@ const VARIATIONS = [
         why: 'The classic stack, and what most Laravel apps run today.',
         command: `docker run -p 80:8080 \\
   -v benchkit-runs:/var/www/html/storage/app/runs \\
-  serversideup/benchkit-laravel`
+  serversideup/benchkit-laravel:latest`
     },
     {
         tag: 'frankenphp',

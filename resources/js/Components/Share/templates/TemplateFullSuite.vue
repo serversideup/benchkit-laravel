@@ -85,6 +85,7 @@ import { computed } from 'vue';
 import TemplateFrame from '@/Components/Share/templates/TemplateFrame.vue';
 import { runDisplay, formatMsParts, hostDetailsLine, httpTargetLabel } from '@/Composables/useRunSummary';
 import { MONO, SANS } from '@/share/templateStyles';
+import { HERO_ROUTES } from '@/stages';
 
 const props = defineProps({
     run: {
@@ -107,24 +108,16 @@ const operations = computed(() => [
 // JSON leads, matching primaryMetric() on the gallery so the number someone
 // posts is the number their result is ranked by.
 //
-// DB read is the more realistic page, and was here for that reason, but it is
-// the least comparable of the three: the database is a confound. SQLite on
-// tmpfs, SQLite on a disk, and MySQL over a socket differ by more than the
-// hardware does. JSON exercises the whole framework request path — router,
-// middleware, controller, serialization — with nothing external to vary, so
-// two JSON figures from two hosts are about the hosts.
-const HERO_ROUTES = [
-    { key: 'json', label: 'JSON API' },
-    { key: 'static', label: 'static' },
-    { key: 'db_read', label: 'DB read' },
-];
+// One route stands for the web server stage on the card; HERO_ROUTES says
+// which and why.
+const HERO_LABELS = { json: 'JSON API', static: 'static', db_read: 'DB read' };
 
 const heroRoute = computed(() => {
-    for (const { key, label } of HERO_ROUTES) {
+    for (const key of HERO_ROUTES) {
         const data = display.value.http?.routes?.[key];
 
         if( data?.throughput?.requests_per_second != null ) {
-            return { key, label, data };
+            return { key, label: HERO_LABELS[key], data };
         }
     }
 

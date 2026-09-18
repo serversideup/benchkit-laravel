@@ -38,7 +38,9 @@
 
         <!-- The one thing the field cannot show: hourly billing is common and
              nobody knows the multiplier offhand. -->
-        <p class="col-span-full text-xs text-[#61656C]">Billed hourly? Multiply by 730.</p>
+        <p class="col-span-full text-xs" :class="otherPeriod ? 'text-[#F79009]' : 'text-[#61656C]'">
+            {{ otherPeriod ? 'Enter the monthly price. Billed hourly? Multiply by 730.' : 'Billed hourly? Multiply by 730.' }}
+        </p>
     </div>
 </template>
 
@@ -47,7 +49,7 @@ import { computed } from 'vue';
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/vue';
 import SuggestInput from '@/Components/SuggestInput.vue';
 import IconChevronDown from '@/Components/Icons/IconChevronDown.vue';
-import { CURRENCIES, currencySymbol } from '@/cost';
+import { CURRENCIES, currencySymbol, namesAnotherPeriod } from '@/cost';
 import { HOST_TEXT_FIELDS } from '@/Composables/useHostDetails';
 
 const props = defineProps({
@@ -86,6 +88,10 @@ const optionsFor = (field) => {
             .map((provider) => ({ value: provider.name, keywords: provider.aliases })),
     ];
 };
+
+// A number next to "/hr" or "/yr" is not a monthly price and is not stored;
+// say so rather than dropping it silently.
+const otherPeriod = computed(() => namesAnotherPeriod(props.host.cost_amount));
 
 // Codes like CHF are their own symbol — showing it twice reads as a typo.
 const symbol = computed(() => {

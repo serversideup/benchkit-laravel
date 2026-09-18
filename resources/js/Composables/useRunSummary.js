@@ -1,6 +1,7 @@
 // Pure mapping from a run snapshot document (the JSON stored on the runs
 // disk) to display-ready values. No fetches — the snapshot is self-contained.
 
+import { HERO_ROUTES } from '@/stages';
 import { formatCost } from '@/cost';
 
 export const formatUTCTimestamp = (isoString) => {
@@ -57,11 +58,14 @@ export const formatCapacity = (value, units = 'KB') => {
     return gigabytes >= 10 ? `${Math.round(gigabytes)} GB` : `${gigabytes.toFixed(1)} GB`;
 };
 
-// fio speeds arrive in MB/s and can reach absurd cached-I/O magnitudes
-export const formatThroughput = (megabytesPerSecond) => {
-    if( megabytesPerSecond == null ) {
+// fio speeds arrive in KB/s (YABS writes `fio --minimal` bandwidth raw, with
+// `speed_units: "KBps"`) and can reach cached-I/O magnitudes.
+export const formatThroughput = (kilobytesPerSecond) => {
+    if( kilobytesPerSecond == null ) {
         return '—';
     }
+
+    const megabytesPerSecond = kilobytesPerSecond / 1024;
 
     if( megabytesPerSecond >= 1024 ** 2 ) {
         return `${(megabytesPerSecond / 1024 ** 2).toFixed(1)} TB/s`;
@@ -185,14 +189,19 @@ const headlineOperation = (php, key) => {
 export const httpFormat = (http) =>
     Object.values(http?.routes ?? {}).some((route) => Array.isArray(route?.curve)) ? 'sweep' : 'fixed';
 
-/**
- * The throughput figure a run leads with, from whichever route measured one.
- * Static first: it is the framework floor, the one number every host has.
- */
-const heroThroughput = (http) =>
-    http?.routes?.static?.throughput?.requests_per_second
-    ?? http?.routes?.static?.requests_per_second
-    ?? null;
+/** The throughput figure a run leads with, from the first HERO_ROUTES entry that measured one. */
+const heroThroughput = (http) => {
+    for (const key of HERO_ROUTES) {
+        const route = http?.routes?.[key];
+        const rps = route?.throughput?.requests_per_second ?? route?.requests_per_second;
+
+        if( rps != null ) {
+            return rps;
+        }
+    }
+
+    return null;
+};
 
 export const runDisplay = (run) => {
     const stages = Object.fromEntries(

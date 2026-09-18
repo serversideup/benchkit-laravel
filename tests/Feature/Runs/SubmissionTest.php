@@ -141,7 +141,7 @@ class SubmissionTest extends TestCase
                 'yabs' => [
                     'ip_info' => ['ip' => '203.0.113.42', 'isp' => 'Acme Broadband', 'city' => 'Portland'],
                     'geekbench' => [['single' => 2891, 'multi' => 11204, 'url' => 'https://browser.geekbench.com/v6/cpu/1234567']],
-                    'fio' => [['bs' => '4k', 'speed_r' => 12345, 'speed_w' => 12300, 'speed_rw' => 24645]],
+                    'fio' => [['bs' => '4k', 'speed_r' => 12345, 'speed_w' => 12300, 'speed_rw' => 24645, 'speed_units' => 'KBps']],
                 ],
             ],
             'extras' => ['geekbench_url' => 'https://browser.geekbench.com/v6/cpu/1234567'],
@@ -433,6 +433,7 @@ class SubmissionTest extends TestCase
             ->assertJsonPath('document.benchmarks.geekbench.version', '6')
             ->assertJsonPath('document.benchmarks.geekbench.url', 'https://browser.geekbench.com/v6/cpu/1234567')
             ->assertJsonPath('document.benchmarks.disk.0.bs', '4k')
+            ->assertJsonPath('document.benchmarks.disk.0.speed_units', 'KBps')
             ->assertJsonMissingPath('document.benchmarks.yabs');
     }
 

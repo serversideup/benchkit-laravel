@@ -11,7 +11,7 @@ const QUESTIONS = [
     },
     {
         question: 'Do I need Docker?',
-        answer: 'No. Clone the repo and run it anywhere Laravel runs, including Laravel Cloud. The benchmark tools arrive with composer install.'
+        answer: 'No. Clone the repo and run it anywhere Laravel runs, including Laravel Cloud. The benchmark tools arrive with composer install, though the hardware stage needs a host that can run fio and Geekbench.'
     },
     {
         question: 'Can I compare two runs?',

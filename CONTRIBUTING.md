@@ -92,7 +92,7 @@ spin run -e AUTORUN_ENABLED=false php artisan key:generate
 ```
 
 ## Run migrations
-Run the following command to run the migrations.
+These are Laravel's stock session and cache tables for local development. Benchmark results never touch the database, and the tables the benchmarks use are created on demand.
 
 ```bash
 spin run php artisan migrate

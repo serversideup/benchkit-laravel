@@ -7,6 +7,7 @@
 #   SPIN_ENV=ci ./vendor/bin/spin run -T php composer install
 #   SPIN_ENV=ci ./vendor/bin/spin run -T node sh -c "yarn install --frozen-lockfile && yarn build"
 #   SPIN_ENV=ci ./vendor/bin/spin run -T php composer test
+#   SPIN_ENV=ci ./vendor/bin/spin run -T node yarn test
 ##
 services:
   # Nothing in CI is served over HTTP, so keep the reverse proxy out of it.

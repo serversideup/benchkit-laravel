@@ -72,7 +72,7 @@ Run each one on the same machine, then open the runs side by side in **Compare**
 
 The [community results gallery](https://serversideup.net/open-source/benchkit/results) collects real runs across different hosts, hardware, and PHP configurations. Adding yours is how the next person finds a machine like the one they're considering.
 
-Press **Submit result** when a run finishes. BenchKit shows you the exact document first, then opens a pre-filled GitHub issue. A bot validates it and opens a pull request. Submitting is optional, and BenchKit never sends anything anywhere on its own.
+Press **Submit result** when a run finishes. BenchKit shows you the exact document first, then opens a pre-filled GitHub issue. A bot validates it and opens a pull request. Submitting is optional, and BenchKit never sends your results anywhere on its own.
 
 You can also share a run as an image on X with [#BenchKit](https://x.com/search?q=%23BenchKit&f=live).
 

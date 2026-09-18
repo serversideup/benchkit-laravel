@@ -303,6 +303,7 @@ export interface RunEntry extends RunIndex {
                 speed_r?: number | null
                 speed_w?: number | null
                 speed_rw?: number | null
+                speed_units?: string | null
             }> | null
         }
     }
@@ -413,9 +414,11 @@ export function opcacheOn(v: string | boolean | undefined): boolean {
     return v === true || v === '1' || v === 'on'
 }
 
-// fio speeds arrive in MB/s; show GB/s once they cross ~1000.
-export function formatThroughput(mbps: number | null | undefined): string {
-    if (mbps == null) return '—'
+// fio speeds arrive in KB/s (YABS writes `fio --minimal` bandwidth raw, with
+// `speed_units: "KBps"`); show GB/s once they cross ~1000 MB/s.
+export function formatThroughput(kbps: number | null | undefined): string {
+    if (kbps == null) return '—'
+    const mbps = kbps / 1024
     return mbps >= 1000 ? `${(mbps / 1024).toFixed(2)} GB/s` : `${Math.round(mbps)} MB/s`
 }
 

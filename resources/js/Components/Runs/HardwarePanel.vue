@@ -101,9 +101,12 @@ const fioRows = computed(() => {
 });
 
 // No real disk moves >10 GB/s in this test — beyond that the numbers are
-// the OS page cache, and an education-first tool should say so
+// the OS page cache, and an education-first tool should say so. fio speeds
+// are KB/s, so the line sits at 10 × 1024 × 1024.
+const CACHED_KBPS = 10 * 1024 * 1024;
+
 const looksCached = computed(() => fioRows.value.some((row) => COLUMNS
-    .some(({ key }) => (row[key] ?? 0) > 10240)));
+    .some(({ key }) => (row[key] ?? 0) > CACHED_KBPS)));
 
 const subtitle = computed(() => {
     if( props.geekbench && fioRows.value.length ) {

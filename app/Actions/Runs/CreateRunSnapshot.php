@@ -3,6 +3,7 @@
 namespace App\Actions\Runs;
 
 use App\Actions\Results\AssembleResultsDocument;
+use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\HostCost;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -144,7 +145,7 @@ class CreateRunSnapshot
         // Throughput and response time now come from different measurements,
         // so the summary reads each from where it was actually measured: the
         // peak of the sweep, and the open-loop pass that ran below it.
-        $heroRoute = collect(['db_read', 'json', 'static'])
+        $heroRoute = collect(HttpBenchmarkResults::HERO_ROUTES)
             ->map(fn (string $key) => $benchmarks['http']['routes'][$key] ?? null)
             ->first(fn (?array $route) => isset($route['throughput']['requests_per_second']));
 

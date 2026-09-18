@@ -21,8 +21,8 @@ const GROUPS = [
     {
         label: 'Customize anything',
         rows: [
-            { name: 'Database', does: 'Run against SQLite, MySQL, MariaDB, Postgres, SQL Server' },
-            { name: 'Load', does: 'Change Duration, connections, simulated I/O' },
+            { name: 'Database', does: 'Run against SQLite, MySQL, MariaDB, or Postgres' },
+            { name: 'Load', does: 'Drive it from a second machine, and set the simulated I/O delay' },
             { name: 'Benchmark Templates', does: 'Choose between Quick, Full, or Custom' }
         ]
     }

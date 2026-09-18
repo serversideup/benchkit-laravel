@@ -31,9 +31,7 @@ yarn generate   # outputs static files to .output/public
 
 ## Editing content
 
-All pages live in [`content/`](./content):
-
-- `content/index.md` — the marketing landing page (authored with Nuxt UI MDC components).
+- `app/pages/index.vue` and `app/components/home/*` — the marketing landing page.
 - `content/docs/**` — the documentation, organized into numeric-prefixed folders with a `.navigation.yml` per section.
 
 ### Screenshots still to add
@@ -44,12 +42,10 @@ raw markdown of every docs page and a `SCREENSHOT_NEEDED` placeholder would be s
 | Page | Shot |
 | --- | --- |
 | `docs/getting-started/quick-start` | Home screen: Start Benchmark, Quick/Full presets |
-| `docs/configuration/default-configurations` | Settings drawer: presets and the load-test inputs |
+| `docs/configuration/common-tuning-strategies` | Settings drawer: presets and the simulated I/O input |
 | `docs/configuration/customizing-the-image` | Compare view diffing two runs |
 | `docs/benchmarks` | Load-test panel: four routes with req/s and percentile bars |
 | `docs/benchmarks/testing-from-another-machine` | The pairing dialog, and the generator terminal mid-run |
-
-The landing page hero uses `public/images/benchkit-header.png`.
 
 ## Deployment
 

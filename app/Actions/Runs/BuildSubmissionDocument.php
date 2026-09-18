@@ -616,11 +616,14 @@ class BuildSubmissionDocument
             return null;
         }
 
+        // YABS writes fio bandwidth raw in KB/s and says so in speed_units;
+        // carrying it makes the published dataset self-describing.
         return array_values(array_map(fn (array $row) => $this->present([
             'bs' => $row['bs'] ?? null,
             'speed_r' => $row['speed_r'] ?? null,
             'speed_w' => $row['speed_w'] ?? null,
             'speed_rw' => $row['speed_rw'] ?? null,
+            'speed_units' => $row['speed_units'] ?? null,
         ]), array_filter($fio, 'is_array')));
     }
 

@@ -356,6 +356,7 @@ export async function validateSubmission(doc, filepath = null) {
         if (!Array.isArray(benchmarks.disk)) err('benchmarks.disk must be an array')
         else for (const row of benchmarks.disk) {
             isText(row?.bs, 'disk[].bs', { max: 12 })
+            if (row?.speed_units != null) isText(row.speed_units, 'disk[].speed_units', { max: 8, required: false })
             for (const k of ['speed_r', 'speed_w', 'speed_rw']) {
                 if (row?.[k] != null) isNum(row[k], `disk[].${k}`, { min: 0, max: 10_000_000, required: false })
             }

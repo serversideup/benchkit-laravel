@@ -22,6 +22,13 @@ class HostCost
 {
     public const PERIOD = 'monthly';
 
+    /**
+     * Free text that names a period other than a month. A number next to one
+     * of these is not a monthly price, and storing it as one would publish
+     * "$0.05/mo" for a five-cent hourly plan. Mirrored in cost.js.
+     */
+    protected const OTHER_PERIODS = '/(?:\/|per\s+)(?:hr|hour|day|week|wk|yr|year)\b|\b(?:hourly|daily|weekly|yearly|annual(?:ly)?)\b/i';
+
     public const DEFAULT_CURRENCY = 'USD';
 
     /** @var array<int, string> */
@@ -88,7 +95,7 @@ class HostCost
             return is_finite($amount) && $amount >= 0 ? round($amount, 2) : null;
         }
 
-        if (! is_string($value)) {
+        if (! is_string($value) || self::namesAnotherPeriod($value)) {
             return null;
         }
 
@@ -97,6 +104,11 @@ class HostCost
         }
 
         return round((float) $matches[0], 2);
+    }
+
+    public static function namesAnotherPeriod(string $value): bool
+    {
+        return preg_match(self::OTHER_PERIODS, $value) === 1;
     }
 
     protected static function currency(mixed $value): string

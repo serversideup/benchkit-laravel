@@ -55,12 +55,21 @@ const UNAMBIGUOUS_SYMBOLS = [
     ['$', 'USD'],
 ];
 
+// Free text that names a period other than a month. A number next to one of
+// these is not a monthly price, and storing it as one would publish "$0.05/mo"
+// for a five-cent hourly plan. Mirrors HostCost::OTHER_PERIODS.
+const OTHER_PERIODS = /(?:\/|per\s+)(?:hr|hour|day|week|wk|yr|year)\b|\b(?:hourly|daily|weekly|yearly|annual(?:ly)?)\b/i;
+
+export const namesAnotherPeriod = (value) => typeof value === 'string' && OTHER_PERIODS.test(value);
+
+// Same rules as HostCost::amount(): non-negative, two decimals, nothing that
+// names another period.
 export const parseCostAmount = (value) => {
     if( typeof value === 'number' ) {
-        return Number.isFinite(value) ? value : null;
+        return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) / 100 : null;
     }
 
-    if( typeof value !== 'string' ) {
+    if( typeof value !== 'string' || namesAnotherPeriod(value) ) {
         return null;
     }
 
@@ -72,7 +81,7 @@ export const parseCostAmount = (value) => {
 
     const amount = Number.parseFloat(match[0]);
 
-    return Number.isFinite(amount) ? amount : null;
+    return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null;
 };
 
 // Best-effort read of a currency out of free text. An explicit ISO code wins

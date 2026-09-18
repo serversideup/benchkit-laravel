@@ -102,6 +102,25 @@ class CrossLanguageDriftTest extends TestCase
         }
     }
 
+    public function test_every_surface_leads_with_the_same_route(): void
+    {
+        $this->assertSame(
+            HttpBenchmarkResults::HERO_ROUTES,
+            $this->jsArrayOfStrings($this->source('resources/js/stages.js'), 'HERO_ROUTES'),
+            'The history list and the run page would lead with different routes.'
+        );
+
+        preg_match('/const candidates[^=]*=\s*\[(.*?)\n\s*\]/s', $this->source('docs/app/types/run.ts'), $matches);
+        $this->assertNotEmpty($matches, 'Could not find primaryMetric candidates in run.ts.');
+        preg_match_all('/entry\.(\w+)_rps/', $matches[1], $columns);
+
+        $this->assertSame(
+            HttpBenchmarkResults::HERO_ROUTES,
+            $columns[1],
+            'The gallery ranks by a different route than the app leads with.'
+        );
+    }
+
     public function test_the_community_validator_knows_every_server_this_app_can_report(): void
     {
         $this->assertSame(

@@ -29,6 +29,15 @@ class HttpBenchmarkResults extends BenchmarkResults
     public const IO_ROUTE = 'io';
 
     /**
+     * The route a run leads with when one number stands for the stage, in
+     * order of preference. JSON exercises the whole framework request path
+     * with nothing external to vary; DB read is the least comparable because
+     * the database is a confound. resources/js/stages.js and the gallery's
+     * primaryMetric state the same order, pinned by CrossLanguageDriftTest.
+     */
+    public const HERO_ROUTES = ['json', 'static', 'db_read'];
+
+    /**
      * How close to a computed ceiling counts as having reached it. A saturating
      * route never quite touches its theoretical maximum — there is always some
      * per-request overhead on top of the sleep — so a run landing within this

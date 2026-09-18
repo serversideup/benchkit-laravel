@@ -32,6 +32,39 @@ class HostCostTest extends TestCase
     }
 
     /**
+     * Period is fixed at monthly, so a number next to any other period is not
+     * a price this class can store: "$0.05/hr" must not become $0.05 a month.
+     */
+    #[DataProvider('otherPeriods')]
+    public function test_a_price_for_another_period_is_refused(string $value): void
+    {
+        $this->assertNull(HostCost::normalize($value));
+        $this->assertTrue(HostCost::namesAnotherPeriod($value));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function otherPeriods(): array
+    {
+        return [
+            'hourly with a slash' => ['$0.05/hr'],
+            'hourly spelled out' => ['0.05 per hour'],
+            'hourly as a word' => ['5 cents hourly'],
+            'yearly' => ['$240/yr'],
+            'annual' => ['240 USD annually'],
+            'daily' => ['€1/day'],
+        ];
+    }
+
+    public function test_monthly_wording_is_still_read(): void
+    {
+        $this->assertSame(24.0, HostCost::normalize('$24/mo')['amount']);
+        $this->assertSame(24.0, HostCost::normalize('24 per month')['amount']);
+        $this->assertSame(24.0, HostCost::normalize('24 monthly')['amount']);
+    }
+
+    /**
      * Runs saved before cost was structured hold whatever the user typed into
      * a text box. Reading them has to be best-effort but never wrong in the
      * one way that matters: it must not relabel euros as dollars.

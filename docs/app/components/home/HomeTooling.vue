@@ -7,7 +7,7 @@
 const TOOLS = [
     {
         name: 'YABS',
-        description: 'Runs Geekbench 6, fio, and iperf3 against the box.',
+        description: 'Runs Geekbench 6 and fio against the box.',
         repo: 'masonr/yet-another-bench-script',
         url: 'https://github.com/masonr/yet-another-bench-script'
     },
