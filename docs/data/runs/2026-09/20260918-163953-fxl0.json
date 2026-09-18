@@ -1,0 +1,510 @@
+{
+  "run_id": "20260918-163953-fxl0",
+  "label": "frankenphp + octane (Quick)",
+  "provider": "DigitalOcean",
+  "php_variation": "frankenphp",
+  "php_version": "8.5.10",
+  "cpu_cores": 48,
+  "json_rps": 25541.7,
+  "json_concurrency": 74,
+  "json_p50_ms": 1.54,
+  "static_rps": 28007.5,
+  "static_p50_ms": 1.44,
+  "db_read_rps": 19154.6,
+  "db_read_p50_ms": 2.1,
+  "saturated": true,
+  "database_driver": "pgsql",
+  "clean_run": true,
+  "clean_missing": null,
+  "load_mode": "external",
+  "php_read_ms": 11.323,
+  "cost_amount": 1310,
+  "cost_currency": "USD",
+  "github": "jaydrogers",
+  "submitted_at": "2026-09-18",
+  "verified": false,
+  "issue": 43,
+  "run": {
+    "schema_version": 6,
+    "id": "20260918-163953-fxl0",
+    "created_at": "2026-09-18T16:39:53+00:00",
+    "meta": {
+      "label": "frankenphp + octane (Quick)",
+      "provider": "DigitalOcean",
+      "plan": "c-48-intel",
+      "datacenter": "NYC2",
+      "cost": {
+        "amount": 1310,
+        "currency": "USD",
+        "period": "monthly"
+      }
+    },
+    "settings_preset": "quick",
+    "stages_completed": [
+      "cfspeedtest",
+      "http",
+      "php"
+    ],
+    "environment": {
+      "server": {
+        "cpu_model": "INTEL(R) XEON(R) GOLD 6548N",
+        "cpu_cores": "48",
+        "cpu_frequency": "2800.000",
+        "os": "Debian GNU/Linux 13 (trixie)",
+        "ram": "96543.754 MB"
+      },
+      "php": {
+        "php_version": "8.5.10",
+        "php_variation": "frankenphp",
+        "php_server_api": "frankenphp",
+        "octane": true,
+        "op_cache": "1",
+        "memory_limit": "256M",
+        "ini": {
+          "opcache.enable": "1",
+          "opcache.enable_cli": "1",
+          "opcache.jit": "off",
+          "opcache.jit_buffer_size": "0",
+          "opcache.memory_consumption": "256",
+          "opcache.max_accelerated_files": "20000",
+          "opcache.validate_timestamps": "0",
+          "opcache.revalidate_freq": "2",
+          "memory_limit": "256M",
+          "max_execution_time": "30",
+          "realpath_cache_size": "4096K",
+          "realpath_cache_ttl": "600",
+          "zend.assertions": "-1",
+          "opcache.preload_enabled": false
+        },
+        "runtime": {
+          "server": "frankenphp",
+          "mode": "worker",
+          "front_end": "frankenphp",
+          "settings": {
+            "max_requests": "500",
+            "max_execution_time": "30"
+          }
+        }
+      },
+      "php_environment_source": "web",
+      "laravel": {
+        "environment": {
+          "laravel_version": "13.25.0",
+          "debug_mode": false,
+          "app_env": "production"
+        },
+        "drivers": {
+          "broadcasting": "log",
+          "cache": "file",
+          "database": "pgsql",
+          "logs": [
+            "single"
+          ],
+          "mail": "log",
+          "octane": "frankenphp",
+          "queue": "sync",
+          "session": "file"
+        }
+      },
+      "database": {
+        "driver": "pgsql",
+        "durability": {
+          "synchronous_commit": "on",
+          "fsync": "on"
+        }
+      },
+      "build_version": "git-bc687bc-35366274371"
+    },
+    "benchmarks": {
+      "http": {
+        "mode": "external",
+        "tls": false,
+        "io_ms": 100,
+        "workers": null,
+        "generator": {
+          "mode": "external",
+          "rtt_ms": 0.95,
+          "oha_version": "1.16.0"
+        },
+        "generator_bound": false,
+        "cores": 48,
+        "pool_ceiling": null,
+        "routes": {
+          "static": {
+            "path": "/bench/static",
+            "throughput": {
+              "requests_per_second": 28007.5,
+              "concurrency": 79,
+              "knee_concurrency": 79,
+              "elapsed_seconds": 6,
+              "success_rate": 1,
+              "total_requests": 168098,
+              "saturated": true,
+              "status_codes": {
+                "200": 168098
+              }
+            },
+            "latency": {
+              "achieved_rps": 19598.6,
+              "p50_ms": 1.44,
+              "p90_ms": 2.12,
+              "p95_ms": 2.59,
+              "p99_ms": 4.37,
+              "success_rate": 1,
+              "total_requests": 196028,
+              "elapsed_seconds": 10,
+              "corrected": true
+            },
+            "curve": [
+              {
+                "concurrency": 1,
+                "requests_per_second": 1212.4,
+                "p50_ms": 0.81,
+                "p95_ms": 0.93,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 3,
+                "requests_per_second": 3335.4,
+                "p50_ms": 0.88,
+                "p95_ms": 1.05,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 10,
+                "requests_per_second": 10653.5,
+                "p50_ms": 0.9,
+                "p95_ms": 1.19,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 32,
+                "requests_per_second": 23804,
+                "p50_ms": 1.29,
+                "p95_ms": 1.95,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 79,
+                "requests_per_second": 28007.5,
+                "p50_ms": 2.39,
+                "p95_ms": 5.89,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 317,
+                "requests_per_second": 27666.7,
+                "p50_ms": 6.68,
+                "p95_ms": 42.23,
+                "success_rate": 1
+              }
+            ]
+          },
+          "json": {
+            "path": "/bench/json",
+            "throughput": {
+              "requests_per_second": 25541.7,
+              "concurrency": 74,
+              "knee_concurrency": 74,
+              "elapsed_seconds": 6,
+              "success_rate": 1,
+              "total_requests": 153290,
+              "saturated": true,
+              "status_codes": {
+                "200": 153290
+              }
+            },
+            "latency": {
+              "achieved_rps": 17874.9,
+              "p50_ms": 1.54,
+              "p90_ms": 2.35,
+              "p95_ms": 2.81,
+              "p99_ms": 4.21,
+              "success_rate": 1,
+              "total_requests": 178787,
+              "elapsed_seconds": 10,
+              "corrected": true
+            },
+            "curve": [
+              {
+                "concurrency": 1,
+                "requests_per_second": 1084.7,
+                "p50_ms": 0.91,
+                "p95_ms": 1.03,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 3,
+                "requests_per_second": 3093,
+                "p50_ms": 0.95,
+                "p95_ms": 1.15,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 10,
+                "requests_per_second": 9739.5,
+                "p50_ms": 0.99,
+                "p95_ms": 1.29,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 30,
+                "requests_per_second": 21429.2,
+                "p50_ms": 1.34,
+                "p95_ms": 2.04,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 74,
+                "requests_per_second": 25541.7,
+                "p50_ms": 2.53,
+                "p95_ms": 5.57,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 296,
+                "requests_per_second": 25463.3,
+                "p50_ms": 6.05,
+                "p95_ms": 46.36,
+                "success_rate": 1
+              }
+            ]
+          },
+          "db_read": {
+            "path": "/bench/db-read",
+            "throughput": {
+              "requests_per_second": 19154.6,
+              "concurrency": 260,
+              "knee_concurrency": 260,
+              "elapsed_seconds": 6.01,
+              "success_rate": 1,
+              "total_requests": 114814,
+              "saturated": true,
+              "status_codes": {
+                "200": 114814
+              }
+            },
+            "latency": {
+              "achieved_rps": 13402.4,
+              "p50_ms": 2.1,
+              "p90_ms": 2.93,
+              "p95_ms": 3.61,
+              "p99_ms": 32.78,
+              "success_rate": 1,
+              "total_requests": 134075,
+              "elapsed_seconds": 10,
+              "corrected": true
+            },
+            "curve": [
+              {
+                "concurrency": 1,
+                "requests_per_second": 792.9,
+                "p50_ms": 1.22,
+                "p95_ms": 1.47,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 3,
+                "requests_per_second": 2275.8,
+                "p50_ms": 1.27,
+                "p95_ms": 1.47,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 9,
+                "requests_per_second": 6316.8,
+                "p50_ms": 1.37,
+                "p95_ms": 1.67,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 28,
+                "requests_per_second": 14076.8,
+                "p50_ms": 1.88,
+                "p95_ms": 2.67,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 65,
+                "requests_per_second": 17989.3,
+                "p50_ms": 3.24,
+                "p95_ms": 6.29,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 260,
+                "requests_per_second": 19154.6,
+                "p50_ms": 10.88,
+                "p95_ms": 33.59,
+                "success_rate": 1
+              }
+            ]
+          },
+          "io": {
+            "path": "/bench/io",
+            "throughput": {
+              "requests_per_second": 991.3,
+              "concurrency": 385,
+              "knee_concurrency": 96,
+              "elapsed_seconds": 6.01,
+              "success_rate": 1,
+              "total_requests": 5568,
+              "saturated": true,
+              "status_codes": {
+                "200": 5568
+              }
+            },
+            "latency": {
+              "achieved_rps": 687.1,
+              "p50_ms": 101.3,
+              "p90_ms": 101.44,
+              "p95_ms": 101.53,
+              "p99_ms": 101.83,
+              "success_rate": 1,
+              "total_requests": 6940,
+              "elapsed_seconds": 10.1,
+              "corrected": true
+            },
+            "curve": [
+              {
+                "concurrency": 1,
+                "requests_per_second": 9.8,
+                "p50_ms": 102.21,
+                "p95_ms": 102.96,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 3,
+                "requests_per_second": 29.5,
+                "p50_ms": 101.99,
+                "p95_ms": 102.24,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 11,
+                "requests_per_second": 108.1,
+                "p50_ms": 101.92,
+                "p95_ms": 102.13,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 36,
+                "requests_per_second": 353.9,
+                "p50_ms": 102.08,
+                "p95_ms": 102.5,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 96,
+                "requests_per_second": 943.5,
+                "p50_ms": 102.01,
+                "p95_ms": 103.63,
+                "success_rate": 1
+              },
+              {
+                "concurrency": 385,
+                "requests_per_second": 991.3,
+                "p50_ms": 405.25,
+                "p95_ms": 406.87,
+                "success_rate": 1
+              }
+            ]
+          }
+        }
+      },
+      "php": {
+        "headline": {
+          "create": {
+            "milliseconds": 24.686,
+            "records": 100,
+            "statements": 100,
+            "best_ms": 23.856,
+            "worst_ms": 26.427,
+            "rstdev": 3.7,
+            "iterations": 5
+          },
+          "read": {
+            "milliseconds": 11.323,
+            "records": 100,
+            "statements": 100,
+            "best_ms": 10.964,
+            "worst_ms": 11.82,
+            "rstdev": 3.51,
+            "iterations": 5
+          },
+          "update": {
+            "milliseconds": 36.37,
+            "records": 100,
+            "statements": 100,
+            "best_ms": 30.727,
+            "worst_ms": 40.143,
+            "rstdev": 8.6,
+            "iterations": 5
+          },
+          "delete": {
+            "milliseconds": 32.479,
+            "records": 100,
+            "statements": 100,
+            "best_ms": 24.772,
+            "worst_ms": 40.948,
+            "rstdev": 20.37,
+            "iterations": 5
+          }
+        },
+        "subjects": [
+          {
+            "benchmark": "InsertBenchmark",
+            "subject": "benchDbFacadeInsertIndividual",
+            "mean_us": 24686.2,
+            "best_us": 23856,
+            "worst_us": 26427,
+            "rstdev": 3.7,
+            "iterations": 5,
+            "revolutions": 1
+          },
+          {
+            "benchmark": "UpdateBenchmark",
+            "subject": "benchQueryBuilderIndividual",
+            "mean_us": 36370.2,
+            "best_us": 30727,
+            "worst_us": 40143,
+            "rstdev": 8.6,
+            "iterations": 5,
+            "revolutions": 1
+          },
+          {
+            "benchmark": "DeleteBenchmark",
+            "subject": "benchQueryBuilderIndividual",
+            "mean_us": 32478.8,
+            "best_us": 24772,
+            "worst_us": 40948,
+            "rstdev": 20.37,
+            "iterations": 5,
+            "revolutions": 1
+          },
+          {
+            "benchmark": "QueryBenchmark",
+            "subject": "benchSelectIndividualById",
+            "mean_us": 11322.8,
+            "best_us": 10964,
+            "worst_us": 11820,
+            "rstdev": 3.51,
+            "iterations": 5,
+            "revolutions": 1
+          }
+        ]
+      },
+      "cfspeedtest": {
+        "latency_ms": 34.56,
+        "download_mbps": 2324.73,
+        "upload_mbps": 658.36
+      },
+      "geekbench": null,
+      "disk": null
+    },
+    "integrity": {
+      "algorithm": "sha256",
+      "digest": "5600dabf9c0ac9c880cdccb783f3c82e0e3437b568c1d93622482e93ac492909"
+    }
+  }
+}
