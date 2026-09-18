@@ -49,6 +49,18 @@ export interface HttpRoute {
     curve?: CurvePoint[] | null
     /** The lowest concurrency at which the route stopped answering correctly. */
     breaking_point?: number | null
+    /** What it answered there. Absent on runs recorded before it was kept. */
+    breaking?: HttpBreaking | null
+}
+
+export interface HttpBreaking {
+    concurrency: number
+    status_codes: Record<string, number>
+    errors: Record<string, number>
+    /** The generator's reason when the level could not be measured at all. */
+    failure?: string | null
+    success_rate?: number
+    total_requests?: number
 }
 
 export interface PhpHeadline {

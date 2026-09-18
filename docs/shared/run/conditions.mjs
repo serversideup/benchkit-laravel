@@ -36,17 +36,48 @@ export const failingRoutes = http => Object.entries(routesOf(http))
         .some(code => Number(code) < 200 || Number(code) >= 300))
     .map(([key]) => key)
 
+const outside2xx = code => Number(code) < 200 || Number(code) >= 300
+
+/**
+ * What a route answered at the level it broke, reduced to the one failure that
+ * accounts for most of it: an HTTP status outside 2xx, a transport error that
+ * came back before any status, or the generator's own reason for measuring
+ * nothing. `share` is the fraction of the level's requests it covers.
+ *
+ * Null for runs recorded before the level's answers were kept, and for a level
+ * whose counts are missing, so the wording can fall back to the number alone.
+ */
+export const breakingAnswer = (breaking) => {
+    if (!breaking) return null
+    if (breaking.failure) return { kind: 'unmeasured', failure: breaking.failure, share: 1 }
+
+    const statuses = Object.entries(breaking.status_codes ?? {})
+    const errors = Object.entries(breaking.errors ?? {})
+    const total = [...statuses, ...errors].reduce((sum, [, count]) => sum + count, 0)
+
+    const [worst] = [
+        ...statuses.filter(([code]) => outside2xx(code)).map(([code, count]) => ({ kind: 'status', code: Number(code), count })),
+        ...errors.map(([error, count]) => ({ kind: 'transport', error, count })),
+    ].sort((a, b) => b.count - a.count)
+
+    return worst && total > 0 ? { ...worst, share: worst.count / total } : null
+}
+
 /**
  * Routes that stopped answering correctly partway up the sweep, with the level
- * they gave out at.
+ * they gave out at and what they answered there.
  *
  * Different from a route that flattened: this one had more to give and
- * something else refused. A connection limit is the usual cause, and the
- * concurrency it happened at is the number to go looking with.
+ * something else refused. The answer says what; the concurrency is the number
+ * to go looking with.
  */
 export const brokenRoutes = http => Object.entries(routesOf(http))
-    .filter(([, route]) => route?.breaking_point != null)
-    .map(([key, route]) => ({ key, at: route.breaking_point }))
+    .filter(([, route]) => (route?.breaking?.concurrency ?? route?.breaking_point) != null)
+    .map(([key, route]) => ({
+        key,
+        at: route.breaking?.concurrency ?? route.breaking_point,
+        answer: breakingAnswer(route.breaking),
+    }))
     .sort((a, b) => a.at - b.at)
 
 export const generatorBound = http => http?.generator_bound === true

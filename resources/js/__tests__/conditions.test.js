@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memoryDatabase, undersizedPool, workerFootprintMb } from '@shared/run/conditions.mjs';
+import { breakingAnswer, brokenRoutes, memoryDatabase, undersizedPool, workerFootprintMb } from '@shared/run/conditions.mjs';
 
 const perRequest = (cores, ram) => ({
     server: { cpu_cores: String(cores), ram },
@@ -33,5 +33,46 @@ describe('memoryDatabase', () => {
         expect(memoryDatabase({ database: { filesystem: 'memory' } })).toBe(true);
         expect(memoryDatabase({ database: { filesystem: 'ext4' } })).toBe(false);
         expect(memoryDatabase({ database: { filesystem: null } })).toBe(false);
+    });
+});
+
+describe('brokenRoutes', () => {
+    const http = {
+        routes: {
+            db_read: { breaking_point: 199, breaking: { concurrency: 199, status_codes: { 200: 12000, 503: 8000 }, errors: {} } },
+            io: { breaking_point: null, breaking: null },
+            static: { breaking_point: 5000 },
+        },
+    };
+
+    it('reads the level from the kept answer, and the bare number on runs recorded before it', () => {
+        expect(brokenRoutes(http).map(({ key, at }) => ({ key, at }))).toEqual([
+            { key: 'db_read', at: 199 },
+            { key: 'static', at: 5000 },
+        ]);
+    });
+
+    it('names the failure that accounts for most of the level, with its share', () => {
+        const [dbRead, plain] = brokenRoutes(http);
+
+        expect(dbRead.answer).toEqual({ kind: 'status', code: 503, count: 8000, share: 0.4 });
+        expect(plain.answer).toBeNull();
+    });
+});
+
+describe('breakingAnswer', () => {
+    it('prefers whichever failed more, status or transport', () => {
+        expect(breakingAnswer({ status_codes: { 200: 100, 502: 50 }, errors: { 'connection reset': 850 } }))
+            .toEqual({ kind: 'transport', error: 'connection reset', count: 850, share: 0.85 });
+    });
+
+    it('carries the generator\'s own reason when nothing was measured', () => {
+        expect(breakingAnswer({ failure: 'oha exited with status 1', status_codes: {}, errors: {} }))
+            .toEqual({ kind: 'unmeasured', failure: 'oha exited with status 1', share: 1 });
+    });
+
+    it('is null without counts to read', () => {
+        expect(breakingAnswer(null)).toBeNull();
+        expect(breakingAnswer({ status_codes: { 200: 10 }, errors: {} })).toBeNull();
     });
 });

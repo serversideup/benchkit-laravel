@@ -204,10 +204,36 @@ class LoadCurve
      */
     public function breakingPoint(): ?int
     {
+        return $this->breakingResult()['concurrency'] ?? null;
+    }
+
+    /**
+     * What the route answered at the level it broke, or null when no level did.
+     *
+     * The concurrency alone names a symptom. A 503 storm from the application,
+     * a front end giving up on PHP, connections refused before any reply, and
+     * a generator that could not measure the level are four different repairs,
+     * and the codes and errors are the only place that difference shows.
+     *
+     * @return array{concurrency: int, status_codes: array<string|int, int>, errors: array<string, int>, failure: ?string, success_rate: float, total_requests: int}|null
+     */
+    public function breakingResult(): ?array
+    {
         foreach ($this->measurements as $measurement) {
-            if (! $measurement['result']->isClean()) {
-                return $measurement['concurrency'];
+            $result = $measurement['result'];
+
+            if ($result->isClean()) {
+                continue;
             }
+
+            return [
+                'concurrency' => $measurement['concurrency'],
+                'status_codes' => $result->statusCodes,
+                'errors' => $result->realErrors(),
+                'failure' => $result->failure,
+                'success_rate' => $result->successRate,
+                'total_requests' => $result->totalRequests,
+            ];
         }
 
         return null;

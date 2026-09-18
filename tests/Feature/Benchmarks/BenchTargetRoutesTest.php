@@ -4,6 +4,7 @@ namespace Tests\Feature\Benchmarks;
 
 use App\Actions\Specs\PhpSpecs;
 use App\Support\BenchmarkHttpItems;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -47,12 +48,21 @@ class BenchTargetRoutesTest extends TestCase
     public function test_db_read_target_reports_unavailable_rather_than_seeding_under_load(): void
     {
         Schema::dropIfExists(BenchmarkHttpItems::TABLE);
+        Log::spy();
 
         $response = $this->getJson('/bench/db-read');
 
         $response->assertStatus(503);
         $response->assertJsonPath('status', 'unavailable');
         $this->assertFalse(Schema::hasTable(BenchmarkHttpItems::TABLE), 'The request handler created the table it was supposed to refuse to create.');
+
+        // From outside every database failure is the same 503, so the log is
+        // the only place the operator can learn which one it was — and the
+        // body must not carry it, because a driver message can name the host.
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context): bool => str_contains($context['error'] ?? '', BenchmarkHttpItems::TABLE)
+        );
+        $this->assertStringNotContainsString(BenchmarkHttpItems::TABLE, $response->getContent());
     }
 
     public function test_io_target_defaults_to_100ms(): void

@@ -139,6 +139,72 @@ const unsaturatedCaveat = (http, routes) => {
     }
 };
 
+/** Where the Laravel log lives on the server, for a fix that sends someone to it. */
+const LARAVEL_LOG = '`storage/logs/laravel.log`';
+
+/**
+ * How a route that broke should be explained, from what it answered there.
+ *
+ * The number alone is a symptom. The same "stopped at 199 connections" is a
+ * database refusing connections, a front end giving up on PHP, or a level the
+ * generator never measured, and each is a different repair — so the sentence
+ * is built from the answer, and only falls back to the symptom for runs that
+ * did not keep it.
+ */
+const brokenCaveat = (http, env, { key, at, answer }) => {
+    const label = ROUTE_LABELS[key] ?? key;
+    const title = `${label} broke at ${rounded(at)} connections`;
+    const frontEnd = env.php?.runtime?.front_end ?? 'the front end';
+
+    if (! answer) {
+        return {
+            title,
+            detail: 'It was still gaining throughput when requests began failing, so its figure is what it reached before that rather than what this server can serve. This run did not keep what the route answered there.',
+            fix: 'Find what the route depends on that gives out at that level, raise it, then run again.',
+        };
+    }
+
+    // The level below is the last one that served every request: the breaking
+    // point is by definition the lowest level that did not.
+    const held = (http.routes?.[key]?.curve ?? [])
+        .map((point) => point.concurrency)
+        .filter((concurrency) => concurrency < at)
+        .sort((a, b) => b - a)[0];
+    const served = held ? `It served every request at ${rounded(held)} connections. ` : '';
+    const share = `${Math.round(answer.share * 100)}%`;
+
+    if (answer.kind === 'unmeasured') {
+        return {
+            title,
+            detail: `${served}The generator could not measure ${rounded(at)}: ${answer.failure}.`,
+            fix: 'Run again.',
+        };
+    }
+
+    if (answer.kind === 'transport') {
+        return {
+            title,
+            detail: `${served}At ${rounded(at)}, ${share} of requests failed before any answer came back: "${answer.error}".`,
+            fix: `Something between the generator and PHP ran out at that level, and ${frontEnd}'s error log usually names it. Fix that, then run again.`,
+        };
+    }
+
+    const { code } = answer;
+    const meaning = code === 503 && key === 'db_read' ? ', which is the answer this route gives when its database query fails'
+        : code === 502 || code === 504 ? `, which is ${frontEnd} giving up on PHP`
+            : code === 500 ? ', an error PHP did not catch'
+                : '';
+    const fix = (code === 503 && key === 'db_read') || code === 500 ? `The error is logged in ${LARAVEL_LOG} on this server. Fix what it names, then run again.`
+        : code === 502 || code === 504 ? `${frontEnd}'s error log names what it was waiting on. Fix that, then run again.`
+            : `Fix whatever answers ${code} at that level, then run again.`;
+
+    return {
+        title,
+        detail: `${served}At ${rounded(at)}, ${share} of requests came back ${code}${meaning}.`,
+        fix,
+    };
+};
+
 export const runCaveats = ({ environment, http: httpInput } = {}) => {
     const found = [];
     const env = environment ?? {};
@@ -297,19 +363,11 @@ export const runCaveats = ({ environment, http: httpInput } = {}) => {
     }
 
     // A route that gave out has a better answer than "it was still climbing",
-    // and the level it gave out at is the number to go looking with.
+    // and what it answered at that level is what says where to look.
     const broken = brokenRoutes(http);
 
     if (broken.length > 0) {
-        const worst = broken[0];
-
-        found.push({
-            key: 'breaking-point',
-            severity: 'medium',
-            title: `${ROUTE_LABELS[worst.key] ?? worst.key} stopped answering at ${rounded(worst.at)} connections`,
-            detail: 'It was still gaining throughput when requests began failing, so its figure is what it reached before that rather than what this server can serve. Something the route depends on caps out there, and a connection limit is the usual reason.',
-            fix: 'Raise the limit on whatever the route depends on, then run again.',
-        });
+        found.push({ key: 'breaking-point', severity: 'medium', ...brokenCaveat(http, env, broken[0]) });
     }
 
     // Routes that broke are explained above; calling them "still climbing"

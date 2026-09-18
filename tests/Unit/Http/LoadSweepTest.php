@@ -308,6 +308,49 @@ class LoadSweepTest extends TestCase
         $this->assertSame(20, $curve->breakingPoint());
     }
 
+    public function test_the_breaking_level_keeps_what_the_route_answered_there(): void
+    {
+        // "Stopped at 20 connections" is a symptom. The codes are what say
+        // whether the database, the front end, or the generator gave out, and
+        // the results page cannot say so unless the curve keeps them.
+        $curve = new LoadCurve('db_read', [
+            ['concurrency' => 1, 'result' => $this->measured(100.0, 1)],
+            ['concurrency' => 20, 'result' => $this->measured(9000.0, 20, statusCodes: ['200' => 30000, '503' => 24000])],
+            ['concurrency' => 80, 'result' => $this->measured(9000.0, 80, statusCodes: ['503' => 54000])],
+        ]);
+
+        $this->assertSame([
+            'concurrency' => 20,
+            'status_codes' => ['200' => 30000, '503' => 24000],
+            'errors' => [],
+            'failure' => null,
+            'success_rate' => 1.0,
+            'total_requests' => 54000,
+        ], $curve->breakingResult(), 'The first level that broke is the one to explain, not the worst.');
+    }
+
+    public function test_a_level_the_generator_could_not_measure_breaks_with_its_reason(): void
+    {
+        $curve = new LoadCurve('io', [
+            ['concurrency' => 1, 'result' => $this->measured(10.0, 1)],
+            ['concurrency' => 4000, 'result' => StepResult::failed('oha exited with status 1')],
+        ]);
+
+        $this->assertSame(4000, $curve->breakingResult()['concurrency']);
+        $this->assertSame('oha exited with status 1', $curve->breakingResult()['failure']);
+    }
+
+    public function test_a_clean_sweep_has_no_breaking_level(): void
+    {
+        $curve = new LoadCurve('static', [
+            ['concurrency' => 1, 'result' => $this->measured(100.0, 1)],
+            ['concurrency' => 20, 'result' => $this->measured(1500.0, 20)],
+        ]);
+
+        $this->assertNull($curve->breakingResult());
+        $this->assertNull($curve->breakingPoint());
+    }
+
     public function test_requests_still_in_flight_at_the_deadline_are_not_failures(): void
     {
         // Every oha run ends with one of these per connection — it is how a

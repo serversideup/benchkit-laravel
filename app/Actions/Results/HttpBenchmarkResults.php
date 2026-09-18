@@ -475,6 +475,10 @@ class HttpBenchmarkResults extends BenchmarkResults
             'latency' => $this->latencyPayload($key),
             'curve' => $curve->points(),
             'breaking_point' => $curve->breakingPoint(),
+            // The answers behind that number, so the results page can say what
+            // failed rather than guess at it. breaking_point stays for the
+            // runs recorded before this was kept.
+            'breaking' => $curve->breakingResult(),
         ];
     }
 
