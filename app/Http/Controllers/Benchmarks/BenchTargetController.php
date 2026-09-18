@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Benchmarks;
 use App\Actions\Specs\PhpSpecs;
 use App\Http\Controllers\Controller;
 use App\Support\BenchmarkHttpItems;
+use App\Support\Http\DatabaseFailure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -86,16 +87,21 @@ class BenchTargetController extends Controller
      * spike in an otherwise publishable number.
      *
      * From outside, a missing table and a database refusing connections are
-     * the same 503, so the cause goes to the log rather than the body: the
-     * body is public and a driver message can name the database host.
+     * the same 503, so the cause is classified and left for the results page
+     * (DatabaseFailure) and the driver's own words go to the log — never the
+     * body, which is public and can name the database host.
      */
     public function dbRead(): JsonResponse
     {
         try {
             $items = $this->queryItems();
         } catch (QueryException $exception) {
+            $cause = DatabaseFailure::classify($exception);
+
+            (new DatabaseFailure)->record($cause);
+
             Log::warning('The DB read target could not query the benchmark table.', [
-                'sqlstate' => $exception->getCode(),
+                'cause' => $cause,
                 'error' => $exception->getPrevious()?->getMessage() ?? $exception->getMessage(),
             ]);
 

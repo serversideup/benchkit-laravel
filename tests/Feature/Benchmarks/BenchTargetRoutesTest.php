@@ -4,12 +4,16 @@ namespace Tests\Feature\Benchmarks;
 
 use App\Actions\Specs\PhpSpecs;
 use App\Support\BenchmarkHttpItems;
+use App\Support\Http\DatabaseFailure;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\UsesFakeResultsPath;
 use Tests\TestCase;
 
 class BenchTargetRoutesTest extends TestCase
 {
+    use UsesFakeResultsPath;
+
     public function test_static_target_responds(): void
     {
         $response = $this->get('/bench/static');
@@ -56,11 +60,13 @@ class BenchTargetRoutesTest extends TestCase
         $response->assertJsonPath('status', 'unavailable');
         $this->assertFalse(Schema::hasTable(BenchmarkHttpItems::TABLE), 'The request handler created the table it was supposed to refuse to create.');
 
-        // From outside every database failure is the same 503, so the log is
-        // the only place the operator can learn which one it was — and the
-        // body must not carry it, because a driver message can name the host.
+        // From outside every database failure is the same 503, so the cause
+        // is left for the results page and the driver's words for the log —
+        // never the body, because a driver message can name the host.
+        $this->assertSame([DatabaseFailure::MISSING_TABLE], (new DatabaseFailure)->recorded());
         Log::shouldHaveReceived('warning')->once()->withArgs(
-            fn (string $message, array $context): bool => str_contains($context['error'] ?? '', BenchmarkHttpItems::TABLE)
+            fn (string $message, array $context): bool => $context['cause'] === DatabaseFailure::MISSING_TABLE
+                && str_contains($context['error'] ?? '', BenchmarkHttpItems::TABLE)
         );
         $this->assertStringNotContainsString(BenchmarkHttpItems::TABLE, $response->getContent());
     }

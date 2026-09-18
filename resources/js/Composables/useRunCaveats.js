@@ -151,7 +151,35 @@ const LARAVEL_LOG = '`storage/logs/laravel.log`';
  * is built from the answer, and only falls back to the symptom for runs that
  * did not keep it.
  */
-const brokenCaveat = (http, env, { key, at, answer }) => {
+/**
+ * What the DB read route said went wrong, by the cause the app classified
+ * (App\Support\Http\DatabaseFailure), with the one repair each calls for.
+ *
+ * Port exhaustion is the app container's, not the database's: every request
+ * on the route opens and closes a connection, and a closed one holds its port
+ * for a minute, so a fast host runs out partway up the sweep however large the
+ * database's own limit is.
+ */
+const DATABASE_FAILURES = {
+    ports_exhausted: {
+        because: 'this server ran out of ports to open database connections with. Every request on this route opens and closes one, and a closed connection holds its port for a minute.',
+        fix: () => 'Add `net.ipv4.tcp_tw_reuse: 1` and `net.ipv4.ip_local_port_range: "1024 65535"` under `sysctls` on the app container, recreate it, then run again.',
+    },
+    connections_exhausted: {
+        because: 'the database refused connections past its own limit.',
+        fix: (http) => `Raise the database's connection limit above the worker count${http.workers ? ` (${rounded(http.workers)})` : ''}, then run again.`,
+    },
+    unreachable: {
+        because: 'the database could not be reached at all.',
+        fix: () => 'Check that the database stayed up and reachable from the app for the whole run, then run again.',
+    },
+    missing_table: {
+        because: 'the benchmark table was missing.',
+        fix: () => 'The HTTP stage prepares that table before load starts, so something removed it during the run. Run again.',
+    },
+};
+
+const brokenCaveat = (http, env, { key, at, answer, causes = [] }) => {
     const label = ROUTE_LABELS[key] ?? key;
     const title = `${label} broke at ${rounded(at)} connections`;
     const frontEnd = env.php?.runtime?.front_end ?? 'the front end';
@@ -190,6 +218,16 @@ const brokenCaveat = (http, env, { key, at, answer }) => {
     }
 
     const { code } = answer;
+    const databaseFailure = code === 503 && key === 'db_read' ? DATABASE_FAILURES[causes[0]] : null;
+
+    if (databaseFailure) {
+        return {
+            title,
+            detail: `${served}At ${rounded(at)}, ${share} of requests came back 503 because ${databaseFailure.because}`,
+            fix: databaseFailure.fix(http),
+        };
+    }
+
     const meaning = code === 503 && key === 'db_read' ? ', which is the answer this route gives when its database query fails'
         : code === 502 || code === 504 ? `, which is ${frontEnd} giving up on PHP`
             : code === 500 ? ', an error PHP did not catch'

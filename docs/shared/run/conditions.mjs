@@ -77,6 +77,8 @@ export const brokenRoutes = http => Object.entries(routesOf(http))
         key,
         at: route.breaking?.concurrency ?? route.breaking_point,
         answer: breakingAnswer(route.breaking),
+        // What the DB route itself said went wrong, oldest first.
+        causes: route.breaking?.causes ?? [],
     }))
     .sort((a, b) => a.at - b.at)
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Benchmarks;
 use App\Actions\Results\HttpBenchmarkResults;
 use App\Support\BenchmarkStages;
 use App\Support\GeneratorSession;
+use App\Support\Http\DatabaseFailure;
 use App\Support\Http\LoadProfile;
 use App\Support\RunState;
 use Illuminate\Support\Facades\File;
@@ -40,6 +41,34 @@ class HttpBenchmarkTest extends TestCase
     protected function meta(): array
     {
         return json_decode(file_get_contents($this->resultsPath.'/http-meta.json'), true);
+    }
+
+    /**
+     * The DB route's 503 cannot say why through oha, so the app leaves its
+     * reason in the results directory and the parser hands it back beside the
+     * level that broke — and only there, because a cause with no broken level
+     * is a marker nothing measured.
+     */
+    public function test_the_db_route_publishes_why_it_broke_beside_the_level_it_broke_at(): void
+    {
+        $this->seedHttpResults(levels: [1, 4, 20, 40]);
+        $this->writeOha((new HttpBenchmarkResults)->sweepPath('db_read', 40), 400.0, 40, statusCodes: ['200' => 480, '503' => 1920]);
+        (new DatabaseFailure)->record(DatabaseFailure::PORTS_EXHAUSTED);
+
+        $routes = (new HttpBenchmarkResults)->execute()['routes'];
+
+        $this->assertSame(40, $routes['db_read']['breaking']['concurrency']);
+        $this->assertSame([DatabaseFailure::PORTS_EXHAUSTED], $routes['db_read']['breaking']['causes']);
+        $this->assertNull($routes['static']['breaking']);
+    }
+
+    public function test_a_previous_runs_cause_does_not_survive_into_this_one(): void
+    {
+        (new DatabaseFailure)->record(DatabaseFailure::PORTS_EXHAUSTED);
+
+        (new HttpBenchmarkResults)->clearRouteResults();
+
+        $this->assertSame([], (new DatabaseFailure)->recorded());
     }
 
     public function test_the_http_stage_records_the_resolved_target(): void

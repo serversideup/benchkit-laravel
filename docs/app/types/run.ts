@@ -61,6 +61,8 @@ export interface HttpBreaking {
     failure?: string | null
     success_rate?: number
     total_requests?: number
+    /** On the DB route: why its query failed, as the app classified it, oldest first. */
+    causes?: string[]
 }
 
 export interface PhpHeadline {

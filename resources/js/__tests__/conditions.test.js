@@ -39,7 +39,7 @@ describe('memoryDatabase', () => {
 describe('brokenRoutes', () => {
     const http = {
         routes: {
-            db_read: { breaking_point: 199, breaking: { concurrency: 199, status_codes: { 200: 12000, 503: 8000 }, errors: {} } },
+            db_read: { breaking_point: 199, breaking: { concurrency: 199, status_codes: { 200: 12000, 503: 8000 }, errors: {}, causes: ['ports_exhausted'] } },
             io: { breaking_point: null, breaking: null },
             static: { breaking_point: 5000 },
         },
@@ -56,7 +56,9 @@ describe('brokenRoutes', () => {
         const [dbRead, plain] = brokenRoutes(http);
 
         expect(dbRead.answer).toEqual({ kind: 'status', code: 503, count: 8000, share: 0.4 });
+        expect(dbRead.causes).toEqual(['ports_exhausted']);
         expect(plain.answer).toBeNull();
+        expect(plain.causes).toEqual([]);
     });
 });
 

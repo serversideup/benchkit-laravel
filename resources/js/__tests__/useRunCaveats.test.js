@@ -3,9 +3,10 @@ import { runCaveats } from '@/Composables/useRunCaveats';
 
 const breaking = (caveats) => caveats.find((caveat) => caveat.key === 'breaking-point');
 
-const brokenAt = (key, breaking, environment = {}) => runCaveats({
+const brokenAt = (key, breaking, environment = {}, http = {}) => runCaveats({
     environment,
     http: {
+        ...http,
         routes: {
             [key]: {
                 curve: [{ concurrency: 1 }, { concurrency: 50 }, { concurrency: 199 }],
@@ -25,6 +26,27 @@ describe('the breaking-point caveat', () => {
         expect(caveat.title).toBe('DB read broke at 199 connections');
         expect(caveat.detail).toBe('It served every request at 50 connections. At 199, 40% of requests came back 503, which is the answer this route gives when its database query fails.');
         expect(caveat.fix).toContain('storage/logs/laravel.log');
+    });
+
+    it('blames the app container, not the database, when it ran out of ports', () => {
+        const caveat = breaking(brokenAt('db_read', { concurrency: 199, status_codes: { 200: 3800, 503: 16200 }, errors: {}, causes: ['ports_exhausted'] }));
+
+        expect(caveat.detail).toBe('It served every request at 50 connections. At 199, 81% of requests came back 503 because this server ran out of ports to open database connections with. Every request on this route opens and closes one, and a closed connection holds its port for a minute.');
+        expect(caveat.fix).toContain('net.ipv4.tcp_tw_reuse');
+        expect(caveat.fix).not.toContain('laravel.log');
+    });
+
+    it('sizes the database limit from the worker count when the database refused', () => {
+        const caveat = breaking(brokenAt('db_read', { concurrency: 199, status_codes: { 503: 100 }, errors: {}, causes: ['connections_exhausted'] }, {}, { workers: 1810 }));
+
+        expect(caveat.detail).toContain('because the database refused connections past its own limit');
+        expect(caveat.fix).toBe("Raise the database's connection limit above the worker count (1,810), then run again.");
+    });
+
+    it('explains the first cause seen when a level failed in more than one way', () => {
+        const caveat = breaking(brokenAt('db_read', { concurrency: 199, status_codes: { 503: 100 }, errors: {}, causes: ['unreachable', 'ports_exhausted'] }));
+
+        expect(caveat.detail).toContain('could not be reached at all');
     });
 
     it('names the front end when it gave up on PHP', () => {

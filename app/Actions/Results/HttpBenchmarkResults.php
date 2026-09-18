@@ -2,6 +2,7 @@
 
 namespace App\Actions\Results;
 
+use App\Support\Http\DatabaseFailure;
 use App\Support\Http\GeneratorHandshake;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
@@ -455,6 +456,12 @@ class HttpBenchmarkResults extends BenchmarkResults
     protected function routePayload(string $key, string $path, LoadCurve $curve): array
     {
         $peak = $curve->peakResult();
+        $breaking = $curve->breakingResult();
+
+        // The DB route is the one whose 503 has a reason it could leave behind.
+        if ($breaking !== null && $key === 'db_read') {
+            $breaking['causes'] = (new DatabaseFailure)->recorded();
+        }
 
         return [
             'path' => $path,
@@ -478,7 +485,7 @@ class HttpBenchmarkResults extends BenchmarkResults
             // The answers behind that number, so the results page can say what
             // failed rather than guess at it. breaking_point stays for the
             // runs recorded before this was kept.
-            'breaking' => $curve->breakingResult(),
+            'breaking' => $breaking,
         ];
     }
 
