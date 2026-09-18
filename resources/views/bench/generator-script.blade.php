@@ -155,8 +155,23 @@ esac
 FD_LIMIT=$(ulimit -n 2>/dev/null | tr -dc '0-9')
 [ -n "$FD_LIMIT" ] || FD_LIMIT=256
 
+# The other thing a connection consumes: an ephemeral port. One source address
+# has a fixed range of them for one destination, so it bounds the sweep the
+# same way the descriptor limit does.
+PORT_RANGE=$(awk '{print $2 - $1 + 1}' /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null)
+if [ -z "$PORT_RANGE" ]; then
+    PORT_LO=$(sysctl -n net.inet.ip.portrange.first 2>/dev/null)
+    PORT_HI=$(sysctl -n net.inet.ip.portrange.last 2>/dev/null)
+    [ -n "$PORT_LO" ] && [ -n "$PORT_HI" ] && PORT_RANGE=$((PORT_HI - PORT_LO + 1))
+fi
+[ -n "$PORT_RANGE" ] || PORT_RANGE=null
+CONNECTIONS=$FD_LIMIT
+if [ "$PORT_RANGE" != null ] && [ "$PORT_RANGE" -lt "$FD_LIMIT" ]; then
+    CONNECTIONS=$PORT_RANGE
+fi
+
 $CURL -o /dev/null -X POST -H 'Content-Type: application/json' \
-    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS,\"transport_rtt_ms\":$CONNECT_MS,\"fd_limit\":${FD_LIMIT},\"target_ip\":\"$TARGET_IP\",\"rtt_worst_ms\":$RTT_WORST_MS}" \
+    -d "{\"oha_version\":\"$OHA_VERSION\",\"cores\":${CORES:-0},\"host\":\"$HOST\",\"rtt_ms\":$RTT_MS,\"transport_rtt_ms\":$CONNECT_MS,\"fd_limit\":${FD_LIMIT},\"port_range\":${PORT_RANGE},\"target_ip\":\"$TARGET_IP\",\"rtt_worst_ms\":$RTT_WORST_MS}" \
     "$BASE/bench/generator/$TOKEN/handshake" \
     || fail 'The server did not accept the handshake.' \
 '    The pairing may have expired or been replaced. Start over in BenchKit
@@ -167,7 +182,7 @@ case "$CONNECT_MS" in
     *) NETWORK_NOTE="${CONNECT_MS}ms network hop" ;;
 esac
 
-step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip ${C_DIM}·${C_RESET}${C_TEXT} ${NETWORK_NOTE} ${C_DIM}·${C_RESET}${C_TEXT} ${FD_LIMIT} connections available"
+step "Connected ${C_DIM}·${C_RESET}${C_TEXT} ${RTT_MS}ms round trip ${C_DIM}·${C_RESET}${C_TEXT} ${NETWORK_NOTE} ${C_DIM}·${C_RESET}${C_TEXT} ${CONNECTIONS} connections available"
 
 blank
 note 'Waiting for the run to reach its web server stage.'

@@ -16,11 +16,15 @@ class LoadProfile
     /** Spread wide rather than fine: with nothing to centre on, the job is to bracket the plateau. */
     public const BLIND_LEVELS = [1, 8, 32, 128, 256];
 
-    /** Nothing is measured above this, whatever the host suggests. */
-    public const MAX_CONCURRENCY = 512;
+    /**
+     * The descriptor limit assumed for a generator that reported none: the
+     * soft default on Linux. Only a meta file from before limits were measured
+     * lands here, so it is a floor rather than a ceiling anyone chose.
+     */
+    public const ASSUMED_FD_LIMIT = 1024;
 
-    /** Descriptors left for the shell, curl, the result file, and whatever the OS holds open. */
-    protected const DESCRIPTOR_HEADROOM = 64;
+    /** Connections left for the shell, curl, the result file, and whatever the OS holds open. */
+    protected const CONNECTION_HEADROOM = 64;
 
     /** Levels per route. Each one costs levelSeconds of every run. */
     public const MAX_LEVELS = 6;
@@ -53,8 +57,9 @@ class LoadProfile
      * The most of a request that may be attributed to the path rather than the
      * server. Past this a connection is measuring the network.
      *
-     * Kept apart from MAX_CONCURRENCY: a level count and a ratio sharing one
-     * constant hid a run whose inflation landed exactly on the level ceiling.
+     * Its own constant rather than one shared with any level count: a ratio
+     * and a ceiling sharing a figure hid a run whose inflation landed exactly
+     * on the level ceiling.
      */
     public const MAX_INFLATION = 100.0;
 
@@ -73,11 +78,13 @@ class LoadProfile
         public readonly int $latencySeconds = 10,
         public readonly float $latencyLoad = 0.70,
         /**
-         * How many connections the machine driving the load can hold open.
-         * Null when it did not say, which is every self-test — the ceiling
-         * then comes from MAX_CONCURRENCY alone.
+         * How many files the machine driving the load may hold open, and how
+         * many ephemeral ports it has for one destination. A connection is
+         * one of each, so the lower of the two bounds the sweep. Null when
+         * it did not say, which is a meta file from before they were measured.
          */
         public readonly ?int $fdLimit = null,
+        public readonly ?int $portRange = null,
         /**
          * The address the target's name resolved to from wherever the load is
          * driven. Null for a self-test, and for any run whose generator did
@@ -113,25 +120,27 @@ class LoadProfile
     }
 
     /**
-     * The most concurrency this run may ask for.
+     * The most concurrency this run may ask for: what the machine driving the
+     * load can physically hold open, measured rather than chosen.
      *
-     * A connection is an open file, and a descriptor limit is not enforced
-     * politely: asking for more than the generator can hold produces a fast
-     * wrong result rather than a slow one, because connections that fail to
-     * open are counted as completed requests.
+     * A connection is an open file and an ephemeral port, and neither limit
+     * is enforced politely: asking for more than the generator can hold
+     * produces a fast wrong result rather than a slow one, because
+     * connections that fail to open are counted as completed requests. What
+     * the server can take is not bounded here at all — a route that stops
+     * answering at some level is a measurement, published as its breaking
+     * point.
      */
     public function ceiling(): int
     {
-        return self::ceilingFor($this->fdLimit);
+        return self::ceilingFor($this->fdLimit, $this->portRange);
     }
 
-    public static function ceilingFor(?int $fdLimit): int
+    public static function ceilingFor(?int $fdLimit, ?int $portRange = null): int
     {
-        if ($fdLimit === null) {
-            return self::MAX_CONCURRENCY;
-        }
+        $limits = array_filter([$fdLimit ?? self::ASSUMED_FD_LIMIT, $portRange]);
 
-        return max(2, min(self::MAX_CONCURRENCY, $fdLimit - self::DESCRIPTOR_HEADROOM));
+        return max(2, min($limits) - self::CONNECTION_HEADROOM);
     }
 
     /**
@@ -305,8 +314,10 @@ class LoadProfile
      *
      * @return array<int, int>
      */
-    public static function levels(?int $cores, ?int $workers): array
+    public static function levels(?int $cores, ?int $workers, ?int $ceiling = null): array
     {
+        $ceiling ??= self::ceilingFor(null);
+
         $candidates = [1];
 
         if ($cores !== null && $cores >= 1) {
@@ -324,7 +335,7 @@ class LoadProfile
         // Clamped rather than discarded: dropping everything above the ceiling
         // leaves the top level sitting on the pool size, and a plateau needs a
         // point on the far side of the bend.
-        $levels = array_map(fn (int $level): int => min($level, self::MAX_CONCURRENCY), $candidates);
+        $levels = array_map(fn (int $level): int => min($level, $ceiling), $candidates);
         $levels = array_values(array_unique($levels));
 
         sort($levels);
@@ -360,12 +371,17 @@ class LoadProfile
             levels: self::levels(
                 isset($meta['cores']) ? (int) $meta['cores'] : null,
                 isset($meta['workers']) ? (int) $meta['workers'] : null,
+                self::ceilingFor(
+                    isset($meta['generator']['fd_limit']) ? (int) $meta['generator']['fd_limit'] : null,
+                    isset($meta['generator']['port_range']) ? (int) $meta['generator']['port_range'] : null,
+                ),
             ),
             warmupSeconds: (int) ($meta['warmup_seconds'] ?? 3),
             levelSeconds: (int) ($meta['level_seconds'] ?? 6),
             latencySeconds: (int) ($meta['latency_seconds'] ?? 10),
             latencyLoad: (float) ($meta['latency_load'] ?? 0.70),
             fdLimit: isset($meta['generator']['fd_limit']) ? (int) $meta['generator']['fd_limit'] : null,
+            portRange: isset($meta['generator']['port_range']) ? (int) $meta['generator']['port_range'] : null,
             targetIp: $meta['generator']['target_ip'] ?? null,
         );
     }
@@ -392,6 +408,7 @@ class LoadProfile
             latencySeconds: $this->latencySeconds,
             latencyLoad: $this->latencyLoad,
             fdLimit: $this->fdLimit,
+            portRange: $this->portRange,
             targetIp: $this->targetIp,
         );
     }

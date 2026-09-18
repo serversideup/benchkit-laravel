@@ -83,7 +83,7 @@ class LoadSweepTest extends TestCase
 
     public function test_the_levels_never_climb_past_the_ceiling(): void
     {
-        $this->assertLessThanOrEqual(LoadProfile::MAX_CONCURRENCY, max(LoadProfile::levels(64, 400)));
+        $this->assertLessThanOrEqual(LoadProfile::ceilingFor(null), max(LoadProfile::levels(64, 400)));
     }
 
     public function test_the_levels_stay_within_the_run_time_budget(): void
@@ -97,7 +97,7 @@ class LoadSweepTest extends TestCase
 
         $this->assertSame(1, $levels[0], 'The single-connection point is what the round-trip floor is read from.');
         $this->assertSame(
-            LoadProfile::MAX_CONCURRENCY,
+            LoadProfile::ceilingFor(null),
             end($levels),
             'A pool near the ceiling still needs one level above it, or the curve can never be seen to flatten.'
         );
@@ -192,18 +192,36 @@ class LoadSweepTest extends TestCase
         $this->assertLessThanOrEqual(256 - 64, max($profile->levelsFor(0.24, 12.52)));
     }
 
-    public function test_a_generator_that_reports_no_limit_falls_back_to_the_ceiling(): void
+    public function test_a_generator_that_reports_no_limit_is_assumed_to_have_the_linux_default(): void
     {
         $profile = new LoadProfile('http://localhost:8080', 'loopback', 100, 4, 20, []);
 
-        $this->assertSame(LoadProfile::MAX_CONCURRENCY, $profile->ceiling());
+        $this->assertSame(LoadProfile::ceilingFor(null), $profile->ceiling());
+        $this->assertLessThan(LoadProfile::ASSUMED_FD_LIMIT, $profile->ceiling(), 'Headroom is left for the shell and the result file.');
     }
 
     public function test_the_levels_never_exceed_the_ceiling_however_slow_the_link(): void
     {
         $profile = new LoadProfile('http://localhost:8080', 'loopback', 100, 4, 20, LoadProfile::levels(4, 20));
 
-        $this->assertLessThanOrEqual(LoadProfile::MAX_CONCURRENCY, max($profile->levelsFor(0.1, 200.0)));
+        $this->assertLessThanOrEqual($profile->ceiling(), max($profile->levelsFor(0.1, 200.0)));
+    }
+
+    /**
+     * The ceiling is whatever the generator can physically hold open, not a
+     * number BenchKit chose: a large host behind a distant generator is
+     * swept as far as that machine's descriptors and ephemeral ports allow.
+     */
+    public function test_the_ceiling_is_the_lower_of_what_the_generator_measured(): void
+    {
+        $this->assertSame(28168, LoadProfile::ceilingFor(65536, 28232), 'Ephemeral ports bind before descriptors here.');
+        $this->assertSame(960, LoadProfile::ceilingFor(1024, 28232), 'Descriptors bind before ports here.');
+        $this->assertSame(65472, LoadProfile::ceilingFor(65536, null), 'A missing port range does not cap anything.');
+
+        $profile = new LoadProfile('https://x', 'external', 100, 192, 384, [], fdLimit: 65536, portRange: 28232);
+
+        $this->assertGreaterThan(512, max($profile->levelsFor(0.3, 13.0, 'static')), 'A large distant host is not stopped at a fixed level.');
+        $this->assertLessThanOrEqual($profile->ceiling(), max($profile->levelsFor(0.3, 13.0, 'static')));
     }
 
     /**
@@ -226,7 +244,7 @@ class LoadSweepTest extends TestCase
         $profile = new LoadProfile('https://x', 'external', 100, 64, 14497, []);
         $levels = $profile->levelsFor(0.31, 1.5, 'static');
 
-        $this->assertLessThanOrEqual(LoadProfile::MAX_CONCURRENCY, max($levels));
+        $this->assertLessThanOrEqual($profile->ceiling(), max($levels));
         $this->assertLessThanOrEqual(LoadProfile::MAX_LEVELS, count($levels));
         $this->assertSame(1, $levels[0]);
     }
@@ -239,13 +257,13 @@ class LoadSweepTest extends TestCase
     public function test_inflation_is_capped_by_its_own_limit_not_by_the_level_ceiling(): void
     {
         $this->assertSame(LoadProfile::MAX_INFLATION, LoadProfile::inflation(0.05, 1000.0));
-        $this->assertNotSame((float) LoadProfile::MAX_CONCURRENCY, LoadProfile::MAX_INFLATION);
+        $this->assertNotSame((float) LoadProfile::ceilingFor(null), LoadProfile::MAX_INFLATION);
     }
 
     public function test_the_ceiling_is_readable_without_a_profile(): void
     {
         $this->assertSame(192, LoadProfile::ceilingFor(256));
-        $this->assertSame(LoadProfile::MAX_CONCURRENCY, LoadProfile::ceilingFor(null));
+        $this->assertSame(960, LoadProfile::ceilingFor(null));
     }
 
     public function test_the_peak_is_the_headline_even_when_it_is_not_the_last_level(): void

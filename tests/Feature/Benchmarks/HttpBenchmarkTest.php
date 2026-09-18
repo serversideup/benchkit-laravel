@@ -290,19 +290,19 @@ class HttpBenchmarkTest extends TestCase
      */
     public function test_http_results_publish_what_the_run_could_reach(): void
     {
-        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 512, peakRps: 170000.0);
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 960, peakRps: 320000.0);
 
         $reach = $this->getJson('/http/results')->assertOk()->json('http_results.reach');
 
         $this->assertSame('static', $reach['route']);
-        $this->assertSame(512, $reach['connections']);
+        $this->assertSame(960, $reach['connections']);
         $this->assertEquals(3.0, $reach['idle_ms']);
         $this->assertEquals(1.5, $reach['transport_rtt_ms']);
         // Connections busy and loaded latency barely above idle: this run really
         // was bounded by the path, so half of each request was the wire.
         $this->assertEqualsWithDelta(0.5, $reach['network_share'], 0.01, 'Half of every request never reached the server.');
         $this->assertEquals(333.3, $reach['rps_per_connection']);
-        $this->assertEquals(170649.6, $reach['offered_rps_ceiling']);
+        $this->assertEquals(319968.0, $reach['offered_rps_ceiling']);
         $this->assertSame('benchkit', $reach['capped_by']);
     }
 
@@ -326,6 +326,14 @@ class HttpBenchmarkTest extends TestCase
     public function test_http_results_say_when_the_generator_ran_out_of_connections(): void
     {
         $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 192, peakRps: 64000.0, fdLimit: 256);
+
+        $this->getJson('/http/results')->assertOk()
+            ->assertJsonPath('http_results.reach.capped_by', 'generator');
+    }
+
+    public function test_http_results_say_when_the_generator_ran_out_of_ports(): void
+    {
+        $this->seedReach(transportRttMs: 1.5, idleMs: 3.0, topConnections: 28168, peakRps: 64000.0, fdLimit: 65536, portRange: 28232);
 
         $this->getJson('/http/results')->assertOk()
             ->assertJsonPath('http_results.reach.capped_by', 'generator');
@@ -391,6 +399,7 @@ class HttpBenchmarkTest extends TestCase
         float $peakRps,
         ?int $fdLimit = null,
         bool $idleConnections = false,
+        ?int $portRange = null,
     ): void {
         File::put($this->resultsPath.'/http-meta.json', json_encode([
             'target' => 'https://bench.example.com',
@@ -403,6 +412,7 @@ class HttpBenchmarkTest extends TestCase
                 'mode' => $transportRttMs > 0 ? 'external' : 'self',
                 'transport_rtt_ms' => $transportRttMs,
                 'fd_limit' => $fdLimit,
+                'port_range' => $portRange,
             ],
         ]));
 

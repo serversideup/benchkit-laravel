@@ -102,7 +102,7 @@ class HttpBenchmarkResults extends BenchmarkResults
      */
     public function pathForSlot(string $slot): ?string
     {
-        if (! preg_match('/^([a-z-]+)-(?:c([0-9]{1,4})|latency)$/', $slot, $matches)) {
+        if (! preg_match('/^([a-z-]+)-(?:c([0-9]{1,6})|latency)$/', $slot, $matches)) {
             return null;
         }
 
@@ -355,6 +355,7 @@ class HttpBenchmarkResults extends BenchmarkResults
         $generator = $meta['generator'] ?? [];
         $transport = isset($generator['transport_rtt_ms']) ? (float) $generator['transport_rtt_ms'] : null;
         $fdLimit = isset($generator['fd_limit']) ? (int) $generator['fd_limit'] : null;
+        $portRange = isset($generator['port_range']) ? (int) $generator['port_range'] : null;
 
         $fastest = null;
         $idleMs = null;
@@ -396,21 +397,21 @@ class HttpBenchmarkResults extends BenchmarkResults
                 : round(min(1.0, $transport / $loadedMs), 3),
             'rps_per_connection' => $perConnection,
             'offered_rps_ceiling' => $connections === null ? null : round($connections * $perConnection, 1),
-            'capped_by' => $this->cappedBy($connections, $fdLimit),
+            'capped_by' => $this->cappedBy($connections, $fdLimit, $portRange),
         ];
     }
 
     /**
-     * What stopped the sweep climbing: the generator's descriptor limit, the
-     * most BenchKit will offer, or neither.
+     * What stopped the sweep climbing: a limit the generator measured on
+     * itself, the limit assumed for one that measured nothing, or neither.
      */
-    protected function cappedBy(?int $connections, ?int $fdLimit): ?string
+    protected function cappedBy(?int $connections, ?int $fdLimit, ?int $portRange): ?string
     {
-        $ceiling = LoadProfile::ceilingFor($fdLimit);
+        $ceiling = LoadProfile::ceilingFor($fdLimit, $portRange);
 
         return match (true) {
             $connections === null, $connections < $ceiling => null,
-            $fdLimit !== null && $ceiling < LoadProfile::MAX_CONCURRENCY => 'generator',
+            $fdLimit !== null || $portRange !== null => 'generator',
             default => 'benchkit',
         };
     }

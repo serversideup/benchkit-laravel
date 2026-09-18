@@ -81,17 +81,24 @@ class LoadSizingRangeTest extends TestCase
     }
 
     /**
-     * A distant generator cannot reach saturation on a large host at any
-     * concurrency BenchKit will offer. That is a real limit rather than a
-     * sizing bug, and the run says so instead of publishing a maximum.
+     * A distant generator is offered everything it can hold open, and no
+     * more. Whether that reaches saturation is a fact about that machine
+     * rather than a limit BenchKit chose: a laptop on its default descriptor
+     * limit stops short and the run says so, while a machine that raised its
+     * limit is swept as far as it can go.
      */
-    public function test_a_distant_generator_is_reported_rather_than_sized_around(): void
+    public function test_a_distant_generator_is_offered_what_it_can_hold_open(): void
     {
-        $profile = $this->profile(64, 64);
-        $top = max($profile->levelsFor(0.43, 30.0, 'static'));
-        $saturation = $profile->parallelism('static') * LoadProfile::inflation(0.43, 30.0);
+        $saturation = $this->profile(64, 64)->parallelism('static') * LoadProfile::inflation(0.43, 30.0);
 
-        $this->assertLessThan($saturation, $top, 'A cross-region sweep cannot reach saturation on a large host.');
-        $this->assertSame(LoadProfile::MAX_CONCURRENCY, $top, 'It should still offer everything it has.');
+        $small = new LoadProfile('https://x', 'app-url', 100, 64, 64, [], fdLimit: 1024);
+        $top = max($small->levelsFor(0.43, 30.0, 'static'));
+
+        $this->assertLessThan($saturation, $top, 'On a default descriptor limit a cross-region sweep cannot reach saturation.');
+        $this->assertSame($small->ceiling(), $top, 'It should still offer everything that machine can hold open.');
+
+        $large = max($this->profile(64, 64)->levelsFor(0.43, 30.0, 'static'));
+
+        $this->assertGreaterThanOrEqual(self::MIN_MARGIN, $large / $saturation, 'A generator that can hold enough open is not stopped short of the plateau.');
     }
 }

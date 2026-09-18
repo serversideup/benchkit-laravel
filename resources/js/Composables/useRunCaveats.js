@@ -132,8 +132,8 @@ const unsaturatedCaveat = (http, routes) => {
                 // only belong in this sentence when that is a route the
                 // sentence is about.
                 detail: reach.capped_by === 'benchkit' && reach.loaded_ms != null && routes.includes(reach.route)
-                    ? `${named} ${were(routes)} still climbing at ${rounded(reach.connections)} connections, which is BenchKit's own ceiling rather than anything about this server. Each request took ${reach.loaded_ms}ms there against ${reach.idle_ms}ms idle, so the queue is this machine's and the figures are a floor.`
-                    : `Throughput on ${named} was still climbing at the highest concurrency BenchKit measures, so read those figures as "at least this much".`,
+                    ? `${named} ${were(routes)} still climbing at ${rounded(reach.connections)} connections, the most the machine driving the load could hold open, rather than anything about this server. Each request took ${reach.loaded_ms}ms there against ${reach.idle_ms}ms idle, so the queue is this machine's and the figures are a floor.`
+                    : `Throughput on ${named} was still climbing at the most concurrency the load generator could offer, so read those figures as "at least this much".`,
                 fix: null,
             };
     }

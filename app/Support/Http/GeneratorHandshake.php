@@ -30,6 +30,8 @@ class GeneratorHandshake
 
     protected const MAX_FD_LIMIT = 1_048_576;
 
+    protected const MAX_PORT_RANGE = 65_535;
+
     public function __construct(
         public readonly string $mode = self::MODE_SELF,
         public readonly ?string $ohaVersion = null,
@@ -39,6 +41,7 @@ class GeneratorHandshake
         public readonly ?float $transportRttMs = null,
         public readonly ?float $rttWorstMs = null,
         public readonly ?int $fdLimit = null,
+        public readonly ?int $portRange = null,
         public readonly ?string $targetIp = null,
         public readonly ?string $sourceIp = null,
     ) {}
@@ -73,6 +76,9 @@ class GeneratorHandshake
             // throughput jumps by an order of magnitude at exactly the level
             // where the measurement stopped being real.
             fdLimit: self::bounded($request->input('fd_limit'), self::MAX_FD_LIMIT),
+            // The other thing a connection consumes: an ephemeral port, of
+            // which one source address has a fixed range for one destination.
+            portRange: self::bounded($request->input('port_range'), self::MAX_PORT_RANGE),
             // Where the target's name resolved to from the generator's side, so
             // every window is driven against the address rather than the name.
             targetIp: filter_var($request->input('target_ip'), FILTER_VALIDATE_IP) ?: null,
@@ -98,6 +104,7 @@ class GeneratorHandshake
             transportRttMs: isset($state['transport_rtt_ms']) ? (float) $state['transport_rtt_ms'] : null,
             rttWorstMs: isset($state['rtt_worst_ms']) ? (float) $state['rtt_worst_ms'] : null,
             fdLimit: isset($state['fd_limit']) ? (int) $state['fd_limit'] : null,
+            portRange: isset($state['port_range']) ? (int) $state['port_range'] : null,
             targetIp: $state['target_ip'] ?? null,
             sourceIp: $state['source_ip'] ?? null,
         );
@@ -119,6 +126,7 @@ class GeneratorHandshake
             'transport_rtt_ms' => $this->transportRttMs,
             'rtt_worst_ms' => $this->rttWorstMs,
             'fd_limit' => $this->fdLimit,
+            'port_range' => $this->portRange,
             'target_ip' => $this->targetIp,
             'source_ip' => $this->sourceIp,
         ];
@@ -148,7 +156,16 @@ class GeneratorHandshake
             'host' => $this->host,
             'rtt_ms' => $this->rttMs,
             'transport_rtt_ms' => $this->transportRttMs,
+            // The most the sweep will ask this machine for, so the dialog can
+            // say what it could measure from where it is.
+            'connections' => $this->connections(),
         ];
+    }
+
+    /** How many connections the sweep may ask this machine to hold open. */
+    public function connections(): int
+    {
+        return LoadProfile::ceilingFor($this->fdLimit, $this->portRange);
     }
 
     /** How much of a round trip is jitter rather than distance. */

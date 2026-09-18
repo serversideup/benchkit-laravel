@@ -294,9 +294,14 @@ class GeneratorEndpointsTest extends TestCase
             'host' => 'workstation-2.local',
             'rtt_ms' => 12.34,
             'fd_limit' => 256,
+            'port_range' => 28232,
         ])->assertSuccessful();
 
-        $this->assertSame(256, (new GeneratorSession)->current()['handshake']['fd_limit']);
+        $handshake = (new GeneratorSession)->current()['handshake'];
+
+        $this->assertSame(256, $handshake['fd_limit']);
+        $this->assertSame(28232, $handshake['port_range']);
+        $this->assertSame(192, (new GeneratorSession)->payload()['handshake']['connections'], 'The dialog is told the lower limit, less headroom.');
     }
 
     /**

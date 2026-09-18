@@ -135,7 +135,7 @@ class LoadSizingTest extends TestCase
 
         $levels = (new LoadSizing($results))->fromProbe($big, 0.3);
 
-        $this->assertLessThanOrEqual(LoadProfile::MAX_CONCURRENCY, max($levels['static']));
+        $this->assertLessThanOrEqual($big->ceiling(), max($levels['static']));
         $this->assertLessThanOrEqual(LoadProfile::MAX_LEVELS, count($levels['static']));
     }
 }

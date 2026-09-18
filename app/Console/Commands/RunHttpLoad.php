@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\Results\HttpBenchmarkResults;
+use App\Support\Http\GeneratorLimits;
 use App\Support\Http\LoadCurve;
 use App\Support\Http\LoadProfile;
 use App\Support\Http\LoadSizing;
@@ -43,6 +44,12 @@ class RunHttpLoad extends Command
             return self::FAILURE;
         }
 
+        // A self-test drives its own load, so what this machine can hold open
+        // is the sweep's ceiling. Measured here rather than assumed, and
+        // written into the meta the way an external handshake would be.
+        $results->mergeGeneratorMeta(GeneratorLimits::measure());
+        $meta = $results->readMeta() ?? $meta;
+
         $profile = LoadProfile::fromMeta($meta);
         $command = new HttpBenchCommand;
         $insecure = $command->isInsecure($profile);
@@ -51,8 +58,9 @@ class RunHttpLoad extends Command
         // probe measures one connection first, and the sweep is sized from
         // what it finds.
         $this->line(sprintf(
-            '  Measuring one connection per route first%s',
-            $profile->workers === null ? '' : sprintf(' — this server runs %d requests at once', $profile->workers)
+            '  Measuring one connection per route first%s · this machine can hold %s connections open',
+            $profile->workers === null ? '' : sprintf(' — this server runs %d requests at once', $profile->workers),
+            number_format($profile->ceiling())
         ));
         $this->newLine();
 
@@ -148,7 +156,9 @@ class RunHttpLoad extends Command
 
     protected function measure(HttpBenchCommand $command, LoadStep $step, bool $insecure): StepResult
     {
-        $process = Process::fromShellCommandline($command->render($step, $insecure, null, $this->connectTo));
+        // The descriptor limit is per process, so it is raised in the shell
+        // that runs oha rather than once up front.
+        $process = Process::fromShellCommandline(GeneratorLimits::RAISE.' '.$command->render($step, $insecure, null, $this->connectTo));
         // Generous next to the step's own window: oha is given a per-request
         // deadline of its own, so anything past this is the process itself
         // wedged rather than a slow server.

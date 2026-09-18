@@ -45,25 +45,20 @@ const command = computed(() => generator.value
 const connected = computed(() => Boolean(generator.value?.handshake));
 
 /**
- * What a closed-loop generator can measure from where it is: the concurrency
- * it will reach divided by the round trip it reported at handshake. Shown,
- * never enforced — the person with the number decides whether it is enough.
- *
- * The load no longer holds a fixed connection count, so this quotes the
- * highest level the sweep will reach. That is the level where the ceiling
- * binds least, which makes this the most generous honest figure rather than
- * one that would understate the machine.
+ * What a closed-loop generator can measure from where it is: the connections
+ * it can hold open, as measured at handshake, divided by the round trip it
+ * reported. Shown, never enforced — the person with the number decides
+ * whether it is enough.
  */
-const CEILING_CONCURRENCY = 512;
-
 const ceiling = computed(() => {
     const rtt = generator.value?.handshake?.rtt_ms;
+    const connections = generator.value?.handshake?.connections;
 
-    if (!rtt || rtt <= 0) {
+    if (!rtt || rtt <= 0 || !connections) {
         return null;
     }
 
-    return Math.round(CEILING_CONCURRENCY / (rtt / 1000));
+    return Math.round(connections / (rtt / 1000));
 });
 
 export const useGeneratorPairing = () => {
